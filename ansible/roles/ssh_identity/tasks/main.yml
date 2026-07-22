@@ -8,16 +8,19 @@
     executable: /bin/bash
   delegate_to: localhost
   become: false
-  register: _hardened
+  register: ssh_identity_hardened
   failed_when: false
   changed_when: false
 
-- name: Connect as the admin user if the host is already set up, else the initial login
+# host_bootstrapped/ansible_user/ansible_port are deliberately unprefixed: the first is
+# read by the setup playbook outside this role, the latter two are Ansible's own
+# connection vars and must keep their reserved names to take effect.
+- name: Connect as the admin user if the host is already set up, else the initial login  # noqa: var-naming[no-role-prefix]
   ansible.builtin.set_fact:
-    host_bootstrapped: "{{ _hardened.rc == 0 }}"
+    host_bootstrapped: "{{ ssh_identity_hardened.rc == 0 }}"
     ansible_host: "{{ node.ip }}"
-    ansible_user: "{{ admin_user if _hardened.rc == 0 else node.initial_user }}"
-    ansible_port: "{{ ssh_port if _hardened.rc == 0 else node.initial_port }}"
+    ansible_user: "{{ admin_user if ssh_identity_hardened.rc == 0 else node.initial_user }}"
+    ansible_port: "{{ ssh_port if ssh_identity_hardened.rc == 0 else node.initial_port }}"
 
 - name: Report the chosen identity
   ansible.builtin.debug:
