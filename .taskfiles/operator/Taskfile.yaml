@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  ANSIBLE_DIR: "{{.ROOT_DIR}}/ansible"
+
+tasks:
+  setup:
+    desc: Fully set up this machine as a futhark operator (packages + collections)
+    cmds:
+      - task: deps
+      - task: collections
+
+  deps:
+    desc: Install required packages (ansible-core, ansible-lint, yamllint)
+    cmds:
+      - sudo dnf install -y ansible-core yamllint
+      - uv tool install --upgrade ansible-lint
+    preconditions:
+      - which dnf
+      - which uv
+
+  collections:
+    desc: Install the Ansible collections futhark's roles depend on
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-galaxy collection install -r requirements.yml
