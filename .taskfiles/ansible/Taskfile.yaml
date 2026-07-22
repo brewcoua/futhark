@@ -7,9 +7,9 @@ vars:
 
 tasks:
   setup:
-    desc: "Run the setup playbook [LIMIT=<host>]"
+    desc: "Run the setup playbook [-- <host>]"
     dir: "{{.ANSIBLE_DIR}}"
-    cmd: "ansible-playbook playbooks/setup.yml {{if .LIMIT}}-l {{.LIMIT}}{{end}}"
+    cmd: "ansible-playbook playbooks/setup.yml {{if .CLI_ARGS}}-l {{.CLI_ARGS}}{{end}}"
 
   ping:
     desc: Ping all nodes
