@@ -9,4 +9,4 @@ metadata:
   name: infisical
   namespace: infisical-operator
 spec:
-  hostAPI: https://app.infisical.com/api
+  hostAPI: https://eu.infisical.com/api
