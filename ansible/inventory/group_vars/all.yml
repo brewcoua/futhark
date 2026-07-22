@@ -1,6 +1,10 @@
-# Shared, non-sensitive defaults for every node. Per-node overrides live in
+# Shared defaults for every node. Per-node overrides live in
 # ansible/nodes/<host>/host.yml under the `node:` key.
 
-admin_user: futhark
-admin_ssh_pubkey: "ssh-ed25519 AAAA... replace-me"
+# Resolved from the Proton Pass vault `futharkd`, item `ssh-ops`, fields
+# `username`/`public-key` — see ansible/plugins/lookup/protonpass.py.
+admin:
+  user: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/username') }}"
+  ssh_pubkey: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/public key') }}"
+
 ssh_port: 2222

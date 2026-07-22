@@ -19,7 +19,7 @@
   ansible.builtin.set_fact:
     host_bootstrapped: "{{ ssh_identity_hardened.rc == 0 }}"
     ansible_host: "{{ node.ip }}"
-    ansible_user: "{{ admin_user if ssh_identity_hardened.rc == 0 else node.initial_user }}"
+    ansible_user: "{{ admin.user if ssh_identity_hardened.rc == 0 else node.initial_user }}"
     ansible_port: "{{ ssh_port if ssh_identity_hardened.rc == 0 else node.initial_port }}"
 
 - name: Report the chosen identity

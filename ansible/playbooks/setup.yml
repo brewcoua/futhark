@@ -21,5 +21,5 @@
     # admin user on the hardened port, even if ssh_identity picked the initial login.
     - name: The host now answers as the admin user on the hardened port
       ansible.builtin.set_fact:
-        ansible_user: "{{ admin_user }}"
+        ansible_user: "{{ admin.user }}"
         ansible_port: "{{ ssh_port }}"
