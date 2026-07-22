@@ -1,5 +1,7 @@
 ---
 fail_fast: false
+default_language_version:
+  python: python3
 repos:
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
