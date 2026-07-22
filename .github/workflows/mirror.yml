@@ -1,0 +1,32 @@
+---
+name: mirror
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  codeberg:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.GIT_MIRROR_CODEBERG_KEY }}
+
+      - name: Push mirror to Codeberg
+        id: mirror
+        continue-on-error: true
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
+          git push --mirror ${{ vars.GIT_MIRROR_CODEBERG }}
+
+      - name: Report mirror status
+        if: steps.mirror.outcome == 'failure'
+        run: echo "::warning::Codeberg mirror push failed, continuing anyway"
