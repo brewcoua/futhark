@@ -13,10 +13,11 @@ tasks:
       - task: collections
 
   deps:
-    desc: Install required packages (ansible-core, ansible-lint, yamllint)
+    desc: Install required packages (ansible-core, ansible-lint, yamllint, pass-cli)
     cmds:
       - sudo dnf install -y ansible-core yamllint
       - uv tool install --upgrade ansible-lint
+      - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
     preconditions:
       - which dnf
       - which uv
