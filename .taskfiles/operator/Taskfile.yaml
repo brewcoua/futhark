@@ -7,20 +7,27 @@ vars:
 
 tasks:
   setup:
-    desc: Fully set up this machine as a futhark operator (packages + collections)
+    desc: Fully set up this machine as a futhark operator (packages + collections + hooks)
     cmds:
       - task: deps
       - task: collections
+      - task: hooks
 
   deps:
-    desc: Install required packages (ansible-core, ansible-lint, yamllint, pass-cli)
+    desc: Install required packages (ansible-core, ansible-lint, yamllint, pass-cli, pre-commit)
     cmds:
       - sudo dnf install -y ansible-core yamllint
       - uv tool install --upgrade ansible-lint
+      - uv tool install --upgrade pre-commit
       - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
     preconditions:
       - which dnf
       - which uv
+
+  hooks:
+    desc: Install the repo's pre-commit hooks
+    dir: "{{.ROOT_DIR}}"
+    cmd: pre-commit install
 
   collections:
     desc: Install the Ansible collections futhark's roles depend on
