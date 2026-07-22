@@ -1,0 +1,95 @@
+---
+# Public edge ingress: binds 80/443 on kenaz's public IP. Scaffolded now with no backends yet —
+# give a public Ingress the class "edge" to route through here.
+#
+# PLACEHOLDER: REPLACE_WITH_PUBLIC_IP below must become kenaz's real public IP — see
+# infra/traefik-internal/app/helmrelease.yaml for the same gap on the mesh side.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik-edge
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: traefik-edge
+  targetNamespace: kube-system
+  # traefik-internal owns the Traefik CRDs (installed once); this release must not also try to
+  # own them, or Helm errors on CRD ownership.
+  dependsOn:
+    - name: traefik-internal
+  install:
+    crds: Skip
+    remediation:
+      retries: 3
+  upgrade:
+    crds: Skip
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: traefik
+      version: "41.*" # Traefik v3.7.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: flux-system
+  values:
+    deployment:
+      kind: Deployment
+      replicas: 1
+      dnsPolicy: ClusterFirstWithHostNet
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    service:
+      enabled: false
+    ingressClass:
+      enabled: true
+      name: edge
+      isDefaultClass: false
+    providers:
+      kubernetesIngress:
+        enabled: true
+        ingressClass: edge
+      kubernetesCRD:
+        enabled: true
+        ingressClass: edge
+    hostNetwork: true
+    ports:
+      web:
+        port: 80
+        hostIP: REPLACE_WITH_PUBLIC_IP
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+      websecure:
+        port: 443
+        hostIP: REPLACE_WITH_PUBLIC_IP
+        http:
+          tls:
+            enabled: true
+      # Distinct port (8081, vs internal's 8080) AND bound to the mesh IP, so it neither
+      # collides with traefik-internal on the shared host netns nor exposes the API publicly.
+      traefik:
+        port: 8081
+        hostIP: REPLACE_WITH_MESH_IP
+      metrics:
+        port: 9181
+        hostIP: REPLACE_WITH_MESH_IP
+        exposedPort: 9181
+    metrics:
+      prometheus:
+        entryPoint: metrics
+        addEntryPointsLabels: true
+        addRoutersLabels: true
+        addServicesLabels: true
+        service:
+          enabled: true
+    accessLog:
+      enabled: true
+      format: json
+    global:
+      checkNewVersion: false
+      sendAnonymousUsage: false

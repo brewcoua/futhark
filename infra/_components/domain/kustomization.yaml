@@ -1,0 +1,14 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# Reusable Kustomize Component: generates a `domain` ConfigMap (DOMAIN, INT_DOMAIN) from
+# domain.env, the single source of truth for this repo's base domains. Any app/ that needs a
+# hostname adds `components: [../../_components/domain]` plus its own `replacements` block to
+# splice a key into the right field — see flux/README.md and infra/monitoring/app/kustomization.yaml.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+configMapGenerator:
+  - name: domain
+    envs:
+      - domain.env
+generatorOptions:
+  disableNameSuffixHash: true

@@ -1,0 +1,34 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - helmrepository.yaml
+  - helmrelease.yaml
+  - certificate.yaml
+
+# Splices INT_DOMAIN into the wildcard cert below — see infra/monitoring/app/kustomization.yaml
+# and flux/README.md for why this happens here.
+components:
+  - ../../_components/domain
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: domain
+      fieldPath: data.INT_DOMAIN
+    targets:
+      - select:
+          kind: Certificate
+          name: wildcard-int-tls
+        fieldPaths:
+          - spec.commonName
+          - spec.dnsNames.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: Certificate
+          name: wildcard-int-tls
+        fieldPaths:
+          - spec.dnsNames.1

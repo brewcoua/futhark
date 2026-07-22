@@ -1,0 +1,68 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: node-exporter
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: node-exporter
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: prometheus-node-exporter
+      version: "4.45.*" # chart 4.45.x -> node_exporter v1.9.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    # Fixes the rendered Service name to `node-exporter` for vmagent.yaml's scrape config.
+    fullnameOverride: node-exporter
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 64Mi
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-state-metrics
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: kube-state-metrics
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: kube-state-metrics
+      version: "5.27.*" # chart 5.27.x -> kube-state-metrics v2.14.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    # Fixes the rendered Service name to `kube-state-metrics` for vmagent.yaml's scrape config.
+    fullnameOverride: kube-state-metrics
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi

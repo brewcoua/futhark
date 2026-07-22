@@ -1,0 +1,128 @@
+---
+# Singleton scraper (not a per-node DaemonSet) — fine while kenaz is the only node.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vmagent
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: vmagent
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: victoria-metrics-agent
+      version: "0.13.*" # chart 0.13.x -> VictoriaMetrics v1.106.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  values:
+    resources:
+      requests:
+        cpu: 30m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    remoteWrite:
+      # Couples to the vmsingle release name in vmsingle.yaml (releaseName: vmsingle).
+      - url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/write
+    config:
+      global:
+        # Prometheus default is 15s; 60s roughly quarters ingestion/storage load on this homelab.
+        scrape_interval: 60s
+      scrape_configs:
+        - job_name: kubernetes-pods
+          kubernetes_sd_configs:
+            - role: pod
+          relabel_configs:
+            - source_labels:
+                [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+              action: keep
+              regex: "true"
+            - source_labels:
+                [__meta_kubernetes_pod_annotation_prometheus_io_path]
+              action: replace
+              target_label: __metrics_path__
+              regex: (.+)
+            - source_labels:
+                [
+                  __address__,
+                  __meta_kubernetes_pod_annotation_prometheus_io_port,
+                ]
+              action: replace
+              regex: ([^:]+)(?::\d+)?;(\d+)
+              replacement: $1:$2
+              target_label: __address__
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+        # exporters.yaml renders the Service as `node-exporter` (fullnameOverride) in this namespace.
+        - job_name: node-exporter
+          kubernetes_sd_configs:
+            - role: endpoints
+              namespaces:
+                names: [monitoring]
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_name]
+              action: keep
+              regex: node-exporter
+            - source_labels: [__meta_kubernetes_endpoint_port_name]
+              action: keep
+              regex: metrics
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              target_label: instance
+        # exporters.yaml renders the Service as `kube-state-metrics` (fullnameOverride).
+        - job_name: kube-state-metrics
+          kubernetes_sd_configs:
+            - role: endpoints
+              namespaces:
+                names: [monitoring]
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_service_name]
+              action: keep
+              regex: kube-state-metrics
+            - source_labels: [__meta_kubernetes_endpoint_port_name]
+              action: keep
+              regex: http
+        - job_name: cadvisor
+          scheme: https
+          kubernetes_sd_configs:
+            - role: node
+          tls_config:
+            ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+            insecure_skip_verify: true
+          bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+          relabel_configs:
+            - target_label: __address__
+              replacement: kubernetes.default.svc:443
+            # $${1} (not ${1}): vmagent's own regex-capture syntax, not a Flux cluster var.
+            - source_labels: [__meta_kubernetes_node_name]
+              regex: (.+)
+              target_label: __metrics_path__
+              replacement: /api/v1/nodes/$${1}/proxy/metrics/cadvisor
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              action: drop
+              regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
+        # PLACEHOLDER targets: kenaz's Tailscale mesh isn't bootstrapped in this repo yet, so
+        # there's no mesh IP to scrape traefik-{internal,edge} over. Fill in once Tailscale
+        # lands (see infra/traefik-internal/app/helmrelease.yaml).
+        - job_name: traefik-internal
+          static_configs:
+            - targets: ["REPLACE_WITH_MESH_IP:9180"]
+              labels:
+                instance: traefik-internal
+        - job_name: traefik-edge
+          static_configs:
+            - targets: ["REPLACE_WITH_MESH_IP:9181"]
+              labels:
+                instance: traefik-edge

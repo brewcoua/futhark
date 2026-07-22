@@ -1,0 +1,108 @@
+---
+# Internal ingress: reachable ONLY over the Tailscale mesh. Serves the *.in.futk.eu wildcard
+# cert, so internal Ingresses never carry their own tls: block.
+#
+# PLACEHOLDER: kenaz's Tailscale mesh isn't bootstrapped in this repo yet (no `tailscale`
+# ansible role ported) — REPLACE_WITH_MESH_IP below must become kenaz's real mesh IP once it is,
+# the same way infisical-operator/infisical-machine-identity is bridged in
+# ansible/roles/flux_bootstrap.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: traefik-internal
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: traefik-internal
+  targetNamespace: kube-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: traefik
+      version: "41.*" # Traefik v3.7.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: traefik
+        namespace: flux-system
+  values:
+    deployment:
+      kind: Deployment
+      replicas: 1
+      # hostNetwork detaches the pod from cluster DNS (inherits the node's public resolver);
+      # ClusterFirstWithHostNet routes lookups back through CoreDNS so in-cluster Service names
+      # (e.g. a future forwardAuth backend) resolve.
+      dnsPolicy: ClusterFirstWithHostNet
+    # NOT the chart's default RollingUpdate: a single replica holding hostPort 80/443 can never
+    # roll — the surge pod deadlocks on a port the old pod still owns.
+    updateStrategy:
+      type: Recreate
+      rollingUpdate: null
+    service:
+      enabled: false
+    ingressClass:
+      enabled: true
+      name: internal
+      isDefaultClass: false
+    providers:
+      kubernetesIngress:
+        enabled: true
+        ingressClass: internal
+      kubernetesCRD:
+        enabled: true
+        ingressClass: internal
+        # Lets ingresses in any namespace reference a forwardAuth Middleware once infra/auth
+        # lands in the `auth` namespace. Without this the cross-namespace ref is SILENTLY
+        # rejected and the router fails.
+        allowCrossNamespace: true
+    # Binds host ports directly to the mesh IP. Non-root binds 80/443 via the node sysctl
+    # net.ipv4.ip_unprivileged_port_start=80 (needs a firewall/hardening Ansible role — not
+    # ported yet); NET_BIND_SERVICE can't survive execve.
+    hostNetwork: true
+    ports:
+      web:
+        port: 80
+        hostIP: REPLACE_WITH_MESH_IP
+        http:
+          redirections:
+            entryPoint:
+              to: websecure
+              scheme: https
+      websecure:
+        port: 443
+        hostIP: REPLACE_WITH_MESH_IP
+        http:
+          tls:
+            enabled: true
+      traefik:
+        hostIP: REPLACE_WITH_MESH_IP
+      # hostNetwork reserves hostPort=containerPort, so every entrypoint needs a port distinct
+      # from the other Traefik pod's (9180 here vs 9181 on traefik-edge).
+      metrics:
+        port: 9180
+        hostIP: REPLACE_WITH_MESH_IP
+        exposedPort: 9180
+    metrics:
+      prometheus:
+        entryPoint: metrics
+        addEntryPointsLabels: true
+        addRoutersLabels: true
+        addServicesLabels: true
+        service:
+          enabled: true
+    # JSON access logs to stdout, collected into VictoriaLogs by the vlagent DaemonSet.
+    accessLog:
+      enabled: true
+      format: json
+    # Default cert served on websecure for any *.in.futk.eu host.
+    tlsStore:
+      default:
+        defaultCertificate:
+          secretName: wildcard-int-tls
+    global:
+      checkNewVersion: false
+      sendAnonymousUsage: false

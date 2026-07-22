@@ -1,0 +1,41 @@
+---
+# Provides the storagebox-crypt StorageClass. The node DaemonSet is left UNPINNED so a
+# box-backed PVC can mount wherever its pod lands.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: csi-driver-rclone
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: csi-driver-rclone
+  targetNamespace: csi-rclone
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: csi-driver-rclone
+      version: "0.4.11" # image tag defaults to v{{ .Chart.AppVersion }} = v0.4.11
+      sourceRef:
+        kind: HelmRepository
+        name: csi-driver-rclone
+        namespace: flux-system
+  values:
+    controller:
+      resources:
+        rclone:
+          limits: { cpu: 200m }
+        csiProvisioner:
+          limits: { cpu: 100m }
+        livenessProbe:
+          limits: { cpu: 100m }
+    node:
+      resources:
+        rclone:
+          limits: { cpu: 200m }
+        nodeDriverRegistrar:
+          limits: { cpu: 100m }
+        livenessProbe:
+          limits: { cpu: 100m }

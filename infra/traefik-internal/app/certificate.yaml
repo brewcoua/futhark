@@ -1,0 +1,17 @@
+---
+# One wildcard cert for all internal services. Issued into kube-system so traefik-internal can
+# use it as its default TLS certificate.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-int-tls
+  namespace: kube-system
+spec:
+  secretName: wildcard-int-tls
+  issuerRef:
+    name: letsencrypt-bunny
+    kind: ClusterIssuer
+  commonName: "*.INT_DOMAIN"
+  dnsNames:
+    - "*.INT_DOMAIN"
+    - "INT_DOMAIN"

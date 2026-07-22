@@ -1,0 +1,305 @@
+---
+# Primary dashboard + alerting UI. Datasource, contact points, and alert rules are provisioned
+# as code (editable: false) — Grafana 11.3 has no UI import for alert rules, so this file is the
+# only way in. Dashboards stay UI-managed (backups deferred — see infra/monitoring/README notes).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: grafana
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: grafana
+      version: "8.5.1" # -> Grafana 11.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    # Grafana's image is Alpine/musl: under ndots:5 it can't resolve Service DNS reliably.
+    # Chart exposes dnsConfig, so fix via values instead of a postRenderer.
+    dnsConfig:
+      options:
+        - name: ndots
+          value: "1"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    persistence:
+      enabled: true
+      storageClassName: local-path
+      size: 2Gi
+    # local-path is single-node hostPath; a rolling update can schedule the new pod before the
+    # old one releases the volume. Recreate avoids two grafana.db writers.
+    strategy:
+      type: Recreate
+    admin:
+      existingSecret: grafana
+      userKey: admin-user
+      passwordKey: admin-password
+    # Slack/healthchecks webhook URLs referenced by the alerting provisioning below.
+    envFromSecret: grafana
+    # Community datasource plugin — VictoriaLogs isn't a built-in Prometheus-compatible source.
+    plugins:
+      - victoriametrics-logs-datasource
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: VictoriaMetrics
+            uid: victoriametrics
+            type: prometheus
+            access: proxy
+            url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428
+            isDefault: true
+            editable: false
+          - name: VictoriaLogs
+            uid: victorialogs
+            type: victoriametrics-logs-datasource
+            access: proxy
+            url: http://vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local:9428
+            isDefault: false
+            editable: false
+    alerting:
+      contactpoints.yaml:
+        apiVersion: 1
+        contactPoints:
+          - orgId: 1
+            name: slack
+            receivers:
+              - uid: slack1
+                type: slack
+                settings:
+                  # $${VAR} (not ${VAR}): Grafana's own provisioning env-expansion, not a Flux
+                  # cluster var.
+                  url: $${SLACK_WEBHOOK_URL}
+                  title: '{{ "{{" }} .Status | toUpper {{ "}}" }} {{ "{{" }} .CommonLabels.alertname {{ "}}" }}'
+                  text: |-
+                    {{ "{{" }} range .Alerts {{ "}}" }}• {{ "{{" }} .Status {{ "}}" }}: {{ "{{" }} .Annotations.summary {{ "}}" }}
+                    {{ "{{" }} end {{ "}}" }}
+          - orgId: 1
+            name: healthchecks
+            receivers:
+              - uid: healthchecks1
+                type: webhook
+                settings:
+                  url: $${HEALTHCHECKS_PING_URL}
+      policies.yaml:
+        apiVersion: 1
+        policies:
+          - orgId: 1
+            receiver: slack
+            group_by: ["grafana_folder", "alertname"]
+      rules.yaml:
+        # The chart runs this whole block through Helm's `tpl`, which also re-parses literal
+        # Grafana annotation templates like `{{ $labels.x }}` as a Helm action and fails.
+        # Escape as `{{ "{{" }} $labels.x {{ "}}" }}` to survive Helm's pass and reach Grafana
+        # literally.
+        apiVersion: 1
+        groups:
+          - orgId: 1
+            name: watchdog
+            folder: System
+            interval: 1m
+            rules:
+              # Dead-man's-switch: pings healthchecks.io every minute.
+              - uid: watchdog-deadmansswitch
+                title: Watchdog
+                condition: A
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange:
+                      from: 600
+                      to: 0
+                    model:
+                      refId: A
+                      expr: vector(1)
+                      instant: true
+                for: 0m
+                noDataState: Alerting
+                execErrState: Alerting
+                notification_settings:
+                  receiver: healthchecks
+          - orgId: 1
+            name: node-health
+            folder: System
+            interval: 1m
+            rules:
+              - uid: node-down
+                title: Node down
+                condition: A
+                for: 5m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 600, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: up{job=~"node-exporter"} == 0
+                # Grafana can't tell "empty result" from "no data" for a bare `== 0` query.
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.instance {{ "}}" }} node-exporter unreachable'
+              - uid: node-cpu-high
+                title: Node CPU > 90%
+                condition: A
+                for: 15m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 900, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.instance {{ "}}" }} CPU sustained > 90% for 15m'
+              - uid: node-mem-high
+                title: Node memory > 90%
+                condition: A
+                for: 15m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 900, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.9
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.instance {{ "}}" }} memory sustained > 90% for 15m'
+              - uid: node-disk-low
+                title: Root disk < 15% free
+                condition: A
+                for: 15m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 900, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"} < 0.15
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.instance {{ "}}" }} root filesystem < 15% free — local-path PVCs live here too'
+          - orgId: 1
+            name: kubernetes
+            folder: System
+            interval: 1m
+            rules:
+              - uid: pod-crashlooping
+                title: Pod crash-looping
+                condition: A
+                for: 0m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 900, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} container {{ "{{" }} $labels.container {{ "}}" }} restarted >3x in 15m'
+              - uid: pod-oomkilled
+                title: Pod OOMKilled
+                condition: A
+                for: 0m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 300, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} container {{ "{{" }} $labels.container {{ "}}" }} was OOMKilled'
+              - uid: deployment-replicas-mismatch
+                title: Deployment replicas mismatch
+                condition: A
+                for: 15m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 900, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: kube_deployment_status_replicas_available != kube_deployment_spec_replicas
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.deployment {{ "}}" }} available replicas != desired for 15m'
+              - uid: pod-not-ready
+                title: Pod stuck not-ready
+                condition: A
+                for: 15m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 900, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      # kube_pod_status_ready{condition="false"} matches finished CronJob pods
+                      # forever — gate on phase=Running so only pods that should be serving count.
+                      expr: kube_pod_status_ready{condition="false"} == 1 and on (namespace, pod) kube_pod_status_phase{phase="Running"} == 1
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.pod {{ "}}" }} not Ready for 15m'
+              - uid: kube-job-failed
+                title: Kubernetes Job failed
+                condition: A
+                for: 0m
+                data:
+                  - refId: A
+                    datasourceUid: victoriametrics
+                    relativeTimeRange: { from: 300, to: 0 }
+                    model:
+                      refId: A
+                      instant: true
+                      expr: kube_job_status_failed > 0
+                noDataState: OK
+                execErrState: Alerting
+                annotations:
+                  summary: '{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.job_name {{ "}}" }} failed'
+    # No dashboardProviders/dashboards block: dashboards stay UI-managed, not git.
+    # No Authelia middleware yet — infra/auth (SSO) hasn't landed.
+    ingress:
+      enabled: true
+      ingressClassName: internal
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+      hosts:
+        - dash.INT_DOMAIN
+      path: /

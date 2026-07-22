@@ -1,0 +1,41 @@
+---
+# Node-local log shipper (vlagent) — unpinned DaemonSet, reads each node's own /var/log/pods.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vlagent
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: vlagent
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: victoria-logs-collector
+      version: "0.3.*" # verify against the published chart index before pinning a patch
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  values:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        cpu: 150m
+        memory: 128Mi
+    remoteWrite:
+      # Couples to the vlsingle release name in vlsingle.yaml. No path -> the chart's own
+      # default (/insert/native).
+      - url: http://vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local:9428
+        # vlagent only accepts KB/MB/GB/TB/KiB/MiB/GiB/TiB suffixes, not bare "G".
+        maxDiskUsagePerURL: 1GiB
+    collector:
+      excludeFilter: kubernetes.namespace_name:=kube-system

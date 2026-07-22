@@ -1,0 +1,28 @@
+---
+# Hetzner Storage Box via rclone crypt->sftp (zero-knowledge). rclone config lives in the
+# Infisical-synced Secret csi-rclone/storagebox-secret.
+#
+# `remote` MUST match the crypt section header in that configData INI ([storagebox-crypt]).
+#
+# ${pvc.metadata.*} are rclone-CSI template vars, NOT Flux vars — written $${...} so envsubst
+# emits them literally (a dotted ${...} hard-errors).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: storagebox-crypt
+provisioner: rclone.csi.veloxpack.io
+parameters:
+  remote: "storagebox-crypt"
+  remotePath: "$${pvc.metadata.namespace}/$${pvc.metadata.name}"
+  csi.storage.k8s.io/node-publish-secret-name: storagebox-secret
+  csi.storage.k8s.io/node-publish-secret-namespace: csi-rclone
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+# rclone mount flags (flag=value, no leading --). Tuned for the Storage Box's
+# 10-concurrent-connection cap (shared cluster-wide) and cross-provider latency.
+mountOptions:
+  - vfs-cache-mode=writes
+  - dir-cache-time=1h
+  - checkers=2
+  - transfers=4

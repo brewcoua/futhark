@@ -1,0 +1,59 @@
+---
+# The metrics DB (vmsingle). Fallback UI only — Grafana is the primary dashboard.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vmsingle
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: vmsingle
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: victoria-metrics-single
+      version: "0.13.*" # chart 0.13.x -> VictoriaMetrics v1.106.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  values:
+    server:
+      retentionPeriod: "14d"
+      extraArgs:
+        search.maxMemoryPerQuery: 100MB
+        dedup.minScrapeInterval: 60s
+        memory.allowedPercent: "40"
+      # local-path PVCs are hostPath-backed and can't move nodes.
+      strategy:
+        type: Recreate
+      persistentVolume:
+        enabled: true
+        storageClassName: local-path
+        size: 5Gi
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 768Mi
+      ingress:
+        enabled: true
+        ingressClassName: internal
+        annotations:
+          # No Authelia middleware yet — infra/auth (SSO) hasn't landed. Add
+          # traefik.ingress.kubernetes.io/router.middlewares: auth-authelia@kubernetescrd once it does.
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - name: metrics.INT_DOMAIN
+            path:
+              - /
+            port: http

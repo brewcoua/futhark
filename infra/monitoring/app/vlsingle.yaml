@@ -1,0 +1,52 @@
+---
+# The logs DB (vlsingle). Fallback UI only — Grafana is the primary consumer.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vlsingle
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: vlsingle
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: victoria-logs-single
+      version: "0.13.*" # chart 0.13.x -> VictoriaLogs v1.x; pin a patch for reproducibility
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  values:
+    server:
+      # Raw text at a far higher daily byte rate than 60s-scraped metrics; short retention is the
+      # main lever to keep disk bounded. Chart default is StatefulSet mode.
+      retentionPeriod: "7d"
+      persistentVolume:
+        enabled: true
+        storageClassName: local-path
+        size: 10Gi
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+      ingress:
+        enabled: true
+        ingressClassName: internal
+        annotations:
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - name: logs.INT_DOMAIN
+            path:
+              - /
+            port: http

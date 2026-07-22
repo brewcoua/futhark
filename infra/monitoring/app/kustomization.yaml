@@ -1,0 +1,60 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - helmrepositories.yaml
+  - vmsingle.yaml
+  - vmagent.yaml
+  - vlsingle.yaml
+  - vlagent.yaml
+  - exporters.yaml
+  - headlamp.yaml
+  - grafana.yaml
+  - secret.yaml
+
+# Splices INT_DOMAIN into each ingress hostname below — Flux's postBuild.substituteFrom can't
+# reach HelmRelease.spec.values, so this has to happen here at kustomize-build time instead.
+# See flux/README.md.
+components:
+  - ../../_components/domain
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: domain
+      fieldPath: data.INT_DOMAIN
+    targets:
+      - select:
+          kind: HelmRelease
+          name: grafana
+        fieldPaths:
+          - spec.values.ingress.hosts.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HelmRelease
+          name: vmsingle
+        fieldPaths:
+          - spec.values.server.ingress.hosts.0.name
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HelmRelease
+          name: vlsingle
+        fieldPaths:
+          - spec.values.server.ingress.hosts.0.name
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: HelmRelease
+          name: headlamp
+        fieldPaths:
+          - spec.values.ingress.hosts.0.host
+        options:
+          delimiter: "."
+          index: 1
