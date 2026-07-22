@@ -45,6 +45,7 @@ repos:
         entry: bash -c 'cd ansible && ansible-lint'
         files: ^ansible/
         pass_filenames: false
+        language_version: python3
   - repo: local
     hooks:
       - id: kustomize-build
