@@ -6,8 +6,11 @@ One `<hostname>/host.yml` per node — the source of truth for that host. Symlin
 ```yaml
 node:
   hostname: kenaz
-  os: fedora          # fedora only for now; more OSes later
-  workflow: k3s        # k3s | podman | none — branches later setup steps, unused today
+  os: fedora # fedora only for now; more OSes later
+  workflow: k0s # k0s | podman | none — branches later setup steps
+  k0s_role:
+    controller+worker # controller+worker | controller | worker — only when workflow: k0s;
+    # drives ansible/roles/k0s_cluster's generated k0sctl.yaml
   ip: 203.0.113.10
   initial_user: fedora # first-contact login (provider default, before `admin_user` exists)
   initial_port: 22

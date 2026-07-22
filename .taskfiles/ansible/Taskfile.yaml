@@ -11,6 +11,11 @@ tasks:
     dir: "{{.ANSIBLE_DIR}}"
     cmd: "ansible-playbook playbooks/setup.yml {{if .CLI_ARGS}}-l {{.CLI_ARGS}}{{end}}"
 
+  k0s:
+    desc: "Run the k0s cluster + Flux bootstrap playbook"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: "ansible-playbook playbooks/k0s.yml"
+
   ping:
     desc: Ping all nodes
     dir: "{{.ANSIBLE_DIR}}"

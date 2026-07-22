@@ -1,0 +1,24 @@
+---
+# Renders k0sctl.yaml from every workflow: k0s host in inventory and converges the
+# whole fleet in one k0sctl apply — runs once per play (hosts: localhost), not per-host.
+- name: Ensure the generated-artifacts directory exists
+  ansible.builtin.file:
+    path: "{{ generated_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Render k0sctl.yaml from inventory
+  ansible.builtin.template:
+    src: k0sctl.yaml.j2
+    dest: "{{ generated_dir }}/k0sctl.yaml"
+    mode: "0600"
+
+- name: Converge the k0s cluster
+  ansible.builtin.command:
+    cmd: "k0sctl apply --config {{ generated_dir }}/k0sctl.yaml"
+  changed_when: true
+
+- name: Fetch the cluster kubeconfig
+  ansible.builtin.shell:
+    cmd: "k0sctl kubeconfig --config {{ generated_dir }}/k0sctl.yaml > {{ generated_dir }}/kubeconfig"
+  changed_when: true

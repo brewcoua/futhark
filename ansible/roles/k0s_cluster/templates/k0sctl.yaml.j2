@@ -1,0 +1,16 @@
+---
+apiVersion: k0sctl.k0sproject.io/v1beta1
+kind: Cluster
+metadata:
+  name: futhark
+spec:
+  hosts:
+{% for host in groups['all'] %}
+{% if hostvars[host].node.workflow == 'k0s' %}
+    - role: {{ hostvars[host].node.k0s_role }}
+      ssh:
+        address: {{ hostvars[host].node.ip }}
+        user: {{ hostvars[host].admin.user }}
+        port: {{ hostvars[host].ssh_port }}
+{% endif %}
+{% endfor %}

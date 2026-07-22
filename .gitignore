@@ -1,0 +1,2 @@
+# Ansible-rendered artifacts (k0sctl.yaml, kubeconfig) — resolved values, never committed.
+ansible/.generated/

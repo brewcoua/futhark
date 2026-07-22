@@ -36,3 +36,18 @@ repos:
     rev: 0.2.0
     hooks:
       - id: fix-smartquotes
+  - repo: https://github.com/ansible/ansible-lint
+    rev: v26.6.0
+    hooks:
+      - id: ansible-lint
+        entry: bash -c 'cd ansible && ansible-lint'
+        files: ^ansible/
+        pass_filenames: false
+  - repo: local
+    hooks:
+      - id: kustomize-build
+        name: kustomize build
+        entry: bash -c 'for d in $(find flux infra nodes -name kustomization.yaml -exec dirname {} \;); do kustomize build --enable-helm "$d" > /dev/null || exit 1; done'
+        language: system
+        files: ^(flux|infra|nodes)/.*\.ya?ml$
+        pass_filenames: false

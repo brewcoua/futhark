@@ -1,5 +1,5 @@
 # Base host prep (Fedora): full update + the tooling later steps rely on.
-- name: Full system upgrade  # noqa: package-latest (intentional: full dnf upgrade at setup time)
+- name: Full system upgrade # noqa: package-latest (intentional: full dnf upgrade at setup time)
   ansible.builtin.dnf:
     name: "*"
     state: latest

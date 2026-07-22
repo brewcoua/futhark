@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/controlplaneio-fluxcd/flux-operator/main/config/crd/bases/fluxcd.controlplane.io_fluxinstances.json
+# Applied once by ansible/roles/flux_bootstrap — not itself reconciled by Flux, to
+# avoid a self-sync loop. Everything it points at (infra/, nodes/) IS reconciled.
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: flux-system
+spec:
+  distribution:
+    version: "2.x"
+    registry: ghcr.io/fluxcd
+  sync:
+    kind: GitRepository
+    url: git@github.com:brewcoua/futhark.git
+    ref: refs/heads/master
+    path: flux
+    pullSecret: git-deploy-key

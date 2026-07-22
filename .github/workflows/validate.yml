@@ -1,0 +1,22 @@
+---
+name: validate
+on:
+  pull_request:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install pre-commit
+      - run: pre-commit run --all-files
+
+  ansible-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install ansible-core
+      - run: ansible-playbook --syntax-check playbooks/*.yml
+        working-directory: ansible

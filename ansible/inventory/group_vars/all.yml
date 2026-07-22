@@ -8,3 +8,8 @@ admin:
   ssh_pubkey: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/public key') }}"
 
 ssh_port: 2222
+
+# Repo-relative paths used by cluster-provisioning roles (k0s_cluster, flux_bootstrap)
+# to render and read artifacts that never get committed — see .gitignore.
+repo_root: "{{ inventory_dir }}/../.."
+generated_dir: "{{ repo_root }}/ansible/.generated"

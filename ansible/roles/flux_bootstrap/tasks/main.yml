@@ -1,0 +1,74 @@
+---
+# Talks to the cluster over the network via the k0sctl-fetched kubeconfig — no SSH,
+# no become, this isn't executing "on" a node.
+- name: Install the Flux Operator
+  kubernetes.core.helm:
+    name: flux-operator
+    chart_ref: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+    release_namespace: flux-system
+    create_namespace: true
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+
+- name: Fetch GitHub's SSH host key
+  ansible.builtin.command:
+    cmd: ssh-keyscan github.com
+  register: flux_bootstrap_known_hosts
+  changed_when: false
+
+- name: Bridge the Flux git deploy key
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: git-deploy-key
+        namespace: flux-system
+      type: Opaque
+      stringData:
+        identity: "{{ lookup('protonpass', 'pass://futharkd/kenaz/flux-deploy-key') }}"
+        known_hosts: "{{ flux_bootstrap_known_hosts.stdout }}"
+
+- name: Ensure the infisical-operator namespace exists
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: infisical-operator
+
+- name: Bridge the Infisical machine identity
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: infisical-machine-identity
+        namespace: infisical-operator
+      type: Opaque
+      stringData:
+        clientId: "{{ lookup('protonpass', 'pass://futharkd/kenaz/infisical-client-id') }}"
+        clientSecret: "{{ lookup('protonpass', 'pass://futharkd/kenaz/infisical-client-secret') }}"
+
+- name: Wait for the Flux Operator to be ready
+  kubernetes.core.k8s_info:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    kind: Pod
+    namespace: flux-system
+    label_selectors:
+      - app.kubernetes.io/name=flux-operator
+  register: flux_bootstrap_operator_pods
+  until: flux_bootstrap_operator_pods.resources | selectattr('status.phase', 'equalto', 'Running') | list | length > 0
+  retries: 30
+  delay: 10
+
+- name: Apply the FluxInstance
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    src: "{{ repo_root }}/flux/cluster.yaml"

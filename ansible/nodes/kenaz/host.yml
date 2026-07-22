@@ -1,0 +1,9 @@
+---
+node:
+  hostname: kenaz
+  os: fedora
+  workflow: k0s
+  k0s_role: controller+worker
+  ip: "{{ lookup('protonpass', 'pass://futharkd/kenaz/public-ip') }}"
+  initial_user: fedora
+  initial_port: 22
