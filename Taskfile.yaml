@@ -3,7 +3,7 @@
 version: "3"
 
 includes:
-  ansible: .taskfiles/ansible/Taskfile.yaml
+  ans: .taskfiles/ansible/Taskfile.yaml
 
 tasks:
   default:
