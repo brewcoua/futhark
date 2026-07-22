@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  ANSIBLE_DIR: "{{.ROOT_DIR}}/ansible"
+
+tasks:
+  setup:
+    desc: "Run the setup playbook [LIMIT=<host>]"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: "ansible-playbook playbooks/setup.yml {{if .LIMIT}}-l {{.LIMIT}}{{end}}"
+
+  ping:
+    desc: Ping all nodes
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible all -m ping
+
+  lint:
+    desc: Lint playbooks and roles
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-lint

@@ -1,0 +1,31 @@
+# Disable root/password login and move sshd to ssh_port, via a drop-in
+# (sshd_config.d/*.conf, included by default) rather than editing sshd_config itself.
+- name: SELinux port label for the hardened SSH port
+  community.general.seport:
+    ports: "{{ ssh_port }}"
+    proto: tcp
+    setype: ssh_port_t
+    state: present
+  when: node.os == 'fedora'
+
+- name: Open the hardened SSH port in firewalld
+  ansible.posix.firewalld:
+    port: "{{ ssh_port }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: node.os == 'fedora'
+
+- name: Install sshd drop-in (port, no root login, key-only auth)
+  ansible.builtin.template:
+    src: 90-futhark.conf.j2
+    dest: /etc/ssh/sshd_config.d/90-futhark.conf
+    owner: root
+    group: root
+    mode: "0600"
+    validate: "sshd -t -f %s"
+
+- name: Restart sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted

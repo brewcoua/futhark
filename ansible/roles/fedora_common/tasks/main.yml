@@ -1,0 +1,15 @@
+# Base host prep (Fedora): full update + the tooling later steps rely on.
+- name: Full system upgrade
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+
+- name: Install base tooling
+  ansible.builtin.dnf:
+    name:
+      - policycoreutils-python-utils # semanage (SELinux port labelling)
+      - fail2ban
+      - curl
+      - "@core"
+    state: present

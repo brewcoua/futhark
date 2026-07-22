@@ -1,0 +1,31 @@
+# Create the non-root sudo admin user (key-only, passwordless sudo).
+- name: Create admin user in wheel
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: wheel
+    append: true
+    shell: /bin/bash
+    create_home: true
+
+- name: Ensure admin ~/.ssh
+  ansible.builtin.file:
+    path: "/home/{{ admin_user }}/.ssh"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0700"
+
+- name: Install admin authorized_keys
+  ansible.builtin.copy:
+    dest: "/home/{{ admin_user }}/.ssh/authorized_keys"
+    content: "{{ admin_ssh_pubkey }}\n"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0600"
+
+- name: Passwordless sudo for admin
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ admin_user }}"
+    content: "{{ admin_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    mode: "0440"
+    validate: "visudo -cf %s"

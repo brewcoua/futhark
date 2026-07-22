@@ -1,0 +1,6 @@
+# Shared, non-sensitive defaults for every node. Per-node overrides live in
+# ansible/nodes/<host>/host.yml under the `node:` key.
+
+admin_user: futhark
+admin_ssh_pubkey: "ssh-ed25519 AAAA... replace-me"
+ssh_port: 2222

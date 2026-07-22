@@ -1,0 +1,23 @@
+# Nodes
+
+One `<hostname>/host.yml` per node — the source of truth for that host. Symlink it into
+`ansible/inventory/host_vars/<hostname>.yml` so Ansible picks it up automatically.
+
+```yaml
+node:
+  hostname: kenaz
+  os: fedora          # fedora only for now; more OSes later
+  workflow: k3s        # k3s | podman | none — branches later setup steps, unused today
+  ip: 203.0.113.10
+  initial_user: fedora # first-contact login (provider default, before `admin_user` exists)
+  initial_port: 22
+```
+
+To add a node:
+
+```bash
+mkdir -p ansible/nodes/<hostname>
+$EDITOR ansible/nodes/<hostname>/host.yml
+ln -s ../../nodes/<hostname>/host.yml ansible/inventory/host_vars/<hostname>.yml
+# add <hostname>: {} under all.hosts in ansible/inventory/hosts.yml
+```

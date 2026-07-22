@@ -1,0 +1,11 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+includes:
+  ansible: .taskfiles/ansible/Taskfile.yaml
+
+tasks:
+  default:
+    silent: true
+    cmd: task --list

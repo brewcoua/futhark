@@ -1,0 +1,25 @@
+---
+# Setup — first contact on a fresh node. Update, create the admin user, harden SSH.
+# Re-runnable: ssh_identity picks whichever login currently answers.
+- name: Setup (update + admin user + SSH hardening)
+  hosts: all
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Pick the SSH identity
+      ansible.builtin.import_role:
+        name: ssh_identity
+    - name: Gather facts
+      ansible.builtin.setup:
+  roles:
+    - role: fedora_common
+      when: node.os == 'fedora'
+    - admin_user
+    - ssh_harden
+  post_tasks:
+    # set_fact persists for the rest of the run — the host now answers only as the
+    # admin user on the hardened port, even if ssh_identity picked the initial login.
+    - name: The host now answers as the admin user on the hardened port
+      ansible.builtin.set_fact:
+        ansible_user: "{{ admin_user }}"
+        ansible_port: "{{ ssh_port }}"

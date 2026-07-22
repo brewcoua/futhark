@@ -1,0 +1,26 @@
+# Pick the SSH identity that actually answers, so the setup playbook stays re-runnable.
+# A fresh host answers as node.initial_user on node.initial_port; once the admin user +
+# hardened port exist, that login is gone. Probing the hardened port is enough: the
+# admin_user role installs the key before ssh_harden closes the initial port.
+- name: Probe the hardened SSH port
+  ansible.builtin.shell:
+    cmd: "timeout 5 bash -c '</dev/tcp/{{ node.ip }}/{{ ssh_port }}'"
+    executable: /bin/bash
+  delegate_to: localhost
+  become: false
+  register: _hardened
+  failed_when: false
+  changed_when: false
+
+- name: Connect as the admin user if the host is already set up, else the initial login
+  ansible.builtin.set_fact:
+    host_bootstrapped: "{{ _hardened.rc == 0 }}"
+    ansible_host: "{{ node.ip }}"
+    ansible_user: "{{ admin_user if _hardened.rc == 0 else node.initial_user }}"
+    ansible_port: "{{ ssh_port if _hardened.rc == 0 else node.initial_port }}"
+
+- name: Report the chosen identity
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}: connecting as {{ ansible_user }}@{{ ansible_port }}
+      ({{ 'already set up' if host_bootstrapped else 'fresh host' }})
