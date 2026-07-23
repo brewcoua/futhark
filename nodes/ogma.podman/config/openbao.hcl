@@ -14,3 +14,4 @@ listener "tcp" {
 api_addr      = "https://ogma:8200"
 cluster_addr  = "https://ogma:8201"
 disable_mlock = true
+ui            = true

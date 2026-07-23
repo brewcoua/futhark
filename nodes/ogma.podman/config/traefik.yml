@@ -1,23 +1,25 @@
 ---
-# Static config only — no secrets. BUNNY_API_KEY (for DNS-01) is host-mounted via
-# /etc/traefik/env (EnvironmentFile in the quadlet), provisioned by ansible/roles/pocketid.
-# ${DOMAIN} is substituted by the gitops-pull script (envsubst) at deploy time, from
-# infra/_components/domain/domain.env, the same source Flux-managed apps use.
-# vault binds an internal-only container port — Traefik isn't on host networking, so it can
-# never bind a host-only tailnet IP directly. Tailnet-only exposure is instead enforced by the
-# quadlet's PublishPort, which binds the host side to ${TAILNET_IP}. Can't share port 443 with
-# websecure's 0.0.0.0:443: podman won't let a specific-IP publish coexist with the wildcard one
-# on the same port ("address already in use"), so this stays on its own port, 8200.
+# Static config, plus one dynamic bit at the bottom — no secrets. BUNNY_API_KEY (for DNS-01) is
+# host-mounted via /etc/traefik/env (EnvironmentFile in the quadlet), provisioned by
+# ansible/roles/pocketid. ${DOMAIN} is substituted by the gitops-pull script (envsubst) at
+# deploy time, from infra/_components/domain/domain.env, the same source Flux-managed apps use.
+# OpenBao's vault.${INT_DOMAIN} HTTP router (see nodes/ogma.podman/quadlets/openbao.container)
+# shares this same entryPoint with pocketid, restricted to the tailnet by an ipAllowList
+# middleware instead of a separate port/IP bind.
 entryPoints:
   websecure:
     address: ":443"
-  vault:
-    address: ":8200"
 
 providers:
   docker:
     endpoint: "unix:///run/podman/podman.sock"
     exposedByDefault: false
+  # serversTransports (needed below for OpenBao's self-signed backend cert) can't be defined via
+  # docker labels at all — only the file provider supports them. Traefik's static and file-provider
+  # dynamic parsers each just ignore the other's top-level keys, so this file can serve both roles
+  # rather than needing a second mounted file.
+  file:
+    filename: /etc/traefik/traefik.yml
 
 certificatesResolvers:
   bunny:
@@ -26,3 +28,18 @@ certificatesResolvers:
       storage: /letsencrypt/acme.json
       dnsChallenge:
         provider: bunny
+        # Skip the host's local resolver (127.0.0.53, systemd-resolved) for the propagation
+        # check — it negative-caches NXDOMAIN/NODATA per the zone's SOA minimum (24h on
+        # brewen.dev), so any lookup for a not-yet-created record before this point makes every
+        # later check fail for a full day even after the record exists on Bunny's own
+        # nameservers. Public recursive resolvers don't share that stale cache.
+        resolvers:
+          - "1.1.1.1:53"
+          - "8.8.8.8:53"
+
+# Dynamic config (file provider, see above) — referenced from openbao.container's
+# traefik.http.services.vault.loadbalancer.serverstransport label as vault-insecure@file.
+http:
+  serversTransports:
+    vault-insecure:
+      insecureSkipVerify: true

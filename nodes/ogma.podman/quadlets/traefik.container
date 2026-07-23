@@ -11,8 +11,12 @@ After=network-online.target
 [Container]
 Image=docker.io/library/traefik:v3
 ContainerName=traefik
-PublishPort=443:443
-PublishPort=${TAILNET_IP}:8200:8200
+# Rootful podman's bridge networking masquerades even externally-forwarded traffic on published
+# ports — every connection appeared to Traefik as coming from the bridge gateway (10.88.0.1),
+# breaking the vault-tailnet ipAllowList (and any other source-IP-based logic). Host networking
+# skips the bridge/NAT layer entirely, so Traefik sees real client IPs. No PublishPort needed —
+# entryPoint addresses (see traefik.yml) bind directly on the host.
+Network=host
 Volume=/etc/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro,Z
 Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro
 Volume=traefik-acme.volume:/letsencrypt

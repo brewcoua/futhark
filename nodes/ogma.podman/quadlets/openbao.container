@@ -1,11 +1,14 @@
 # Podman Quadlet — pure git-managed unit, deployed only by the gitops-pull timer
 # (ansible/roles/gitops_pull) into /etc/containers/systemd/. No Ansible role templates this
 # file. TLS material is host-level and provisioned separately by ansible/roles/openbao —
-# nothing sensitive lives in this repo. Reached only via Traefik's tailnet-only "vault"
-# entryPoint (see nodes/ogma.podman/config/traefik.yml) — TLS passthrough, since OpenBao
-# terminates its own self-signed cert (the one ESO trusts) rather than Traefik. ${INT_DOMAIN}
-# is substituted by the gitops-pull script (envsubst) from infra/_components/domain/domain.env,
-# the same source Flux-managed apps use.
+# nothing sensitive lives in this repo. Reached via Traefik's websecure entryPoint (see
+# nodes/ogma.podman/config/traefik.yml), sharing port 443 with pocketid, restricted to the
+# tailnet by the vault-tailnet ipAllowList below. Traefik terminates TLS here with a real
+# Let's Encrypt cert (browsers won't trust OpenBao's own self-signed one) and re-encrypts to
+# OpenBao's backend, skipping verification of that self-signed cert (vault-insecure
+# serversTransport) — that hop never leaves the container network. ${INT_DOMAIN} is substituted
+# by the gitops-pull script (envsubst) from infra/_components/domain/domain.env, the same
+# source Flux-managed apps use.
 [Unit]
 Description=OpenBao server
 After=network-online.target
@@ -19,10 +22,18 @@ Volume=/etc/openbao/tls:/openbao/tls:ro,Z
 Environment=BAO_CACERT=/openbao/tls/openbao.crt
 Exec=bao server -config=/openbao/config/openbao.hcl
 Label=traefik.enable=true
-Label=traefik.tcp.routers.vault.rule=HostSNI(`vault.${INT_DOMAIN}`)
-Label=traefik.tcp.routers.vault.entrypoints=vault
-Label=traefik.tcp.routers.vault.tls.passthrough=true
-Label=traefik.tcp.services.vault.loadbalancer.server.port=8200
+Label=traefik.http.routers.vault.rule=Host(`vault.${INT_DOMAIN}`)
+Label=traefik.http.routers.vault.entrypoints=websecure
+Label=traefik.http.routers.vault.tls.certresolver=bunny
+Label=traefik.http.routers.vault.middlewares=vault-tailnet
+Label=traefik.http.services.vault.loadbalancer.server.port=8200
+Label=traefik.http.services.vault.loadbalancer.server.scheme=https
+# vault-insecure is defined in nodes/ogma.podman/config/traefik.yml's file provider, not here —
+# docker labels can't define a serversTransport at all (only reference one by name).
+Label=traefik.http.services.vault.loadbalancer.serverstransport=vault-insecure@file
+# Sharing websecure's port 443 with pocketid instead of needing its own — tailnet-only access is
+# enforced here instead, via source IP: 100.90.0.0/24 (nodes) and 100.91.0.0/24 (users).
+Label=traefik.http.middlewares.vault-tailnet.ipallowlist.sourcerange=100.90.0.0/24,100.91.0.0/24
 
 [Service]
 Restart=always
