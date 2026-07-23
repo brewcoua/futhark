@@ -4,12 +4,15 @@
 # so this only ever touches ogma today without hardcoding its hostname. Traefik (which fronts
 # this container) is provisioned separately by ansible/roles/traefik — shared edge infra, not
 # pocketid-specific.
-- name: Ensure Pocket ID's secrets directory exists
+- name:
+    Ensure Pocket ID's secrets directory exists (group 1000 — the image entrypoint's default
+    PUID/PGID, which it su-exec's into before ever reading the encryption key, needs to
+    traverse this directory)
   ansible.builtin.file:
     path: /etc/pocketid
     state: directory
     owner: root
-    group: root
+    group: "1000"
     mode: "0750"
 
 - name: Check for an existing Pocket ID encryption key
@@ -23,12 +26,12 @@
   when: not pocketid_encryption_key.stat.exists
   changed_when: true
 
-- name: Restrict the encryption key's permissions
+- name: Restrict the encryption key's permissions (group-readable by the image's PUID/PGID, 1000)
   ansible.builtin.file:
     path: /etc/pocketid/encryption_key
     owner: root
-    group: root
-    mode: "0600"
+    group: "1000"
+    mode: "0640"
 
 - name: Ensure Traefik's secrets directory exists
   ansible.builtin.file:

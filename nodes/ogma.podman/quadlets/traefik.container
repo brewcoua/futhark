@@ -14,10 +14,16 @@ ContainerName=traefik
 PublishPort=443:443
 PublishPort=${TAILNET_IP}:8200:8200
 Volume=/etc/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro,Z
-Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro,Z
+Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro
 Volume=traefik-acme.volume:/letsencrypt
 EnvironmentFile=/etc/traefik/env
 Exec=traefik --configFile=/etc/traefik/traefik.yml
+# The socket keeps its native container_runtime_t label (relabeling it with :Z/:z only ever gets
+# it to container_file_t, which podman's own SELinux policy doesn't grant connectto on). Instead
+# put Traefik's own process in the same domain podman.service already runs in — the documented
+# fix for mounting the podman/docker socket into a container:
+# https://github.com/containers/podman/discussions/9860
+SecurityLabelType=container_runtime_t
 
 [Service]
 Restart=always
