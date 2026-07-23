@@ -54,3 +54,10 @@ repos:
         language: system
         files: ^(flux|infra|nodes)/.*\.ya?ml$
         pass_filenames: false
+      - id: tofu-validate
+        name: tofu validate
+        # -backend=false: no state/credentials needed, just provider schemas, to validate.
+        entry: bash -c 'for d in $(find tofu -name "*.tf" -exec dirname {} \; | sort -u); do tofu -chdir="$d" fmt -check -diff || exit 1; tofu -chdir="$d" init -backend=false -input=false > /dev/null || exit 1; tofu -chdir="$d" validate || exit 1; done'
+        language: system
+        files: ^tofu/.*\.tf$
+        pass_filenames: false

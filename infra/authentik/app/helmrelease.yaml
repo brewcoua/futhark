@@ -1,0 +1,80 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
+#
+# The embedded outpost isn't a values toggle — the server pod IS the outpost by default
+# (authentik-server:9000/outpost.goauthentik.io/auth/traefik, referenced by middleware.yaml).
+# `postgresql.*` enables the chart's bundled Bitnami subchart: futhark has no shared Postgres yet,
+# so standing up a whole separate database stack just for this isn't worth it.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  interval: 1h
+  releaseName: authentik
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: authentik
+      sourceRef:
+        kind: OCIRepository
+        name: authentik
+        namespace: authentik
+  # secret_key and the postgres password never appear here in plaintext — HelmRelease's own
+  # secret-injection mechanism (spec.valuesFrom + targetPath) splices a single key from
+  # authentik-secrets straight into the rendered values, unlike a plain k8s env secretKeyRef which
+  # only works for container env vars, not Helm template values like `authentik.secret_key`.
+  valuesFrom:
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: secret-key
+      targetPath: authentik.secret_key
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: postgres-password
+      targetPath: authentik.postgresql.password
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: postgres-password
+      targetPath: postgresql.auth.password
+  values:
+    postgresql:
+      enabled: true
+    global:
+      env:
+        - name: AUTHENTIK_REDIS__HOST
+          value: authentik-redis
+        - name: AUTHENTIK_REDIS__PORT
+          value: "6379"
+        - name: AUTHENTIK_REDIS__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secrets
+              key: redis-password
+      # Per-app <APP>_CLIENT_ID/<APP>_CLIENT_SECRET pairs, read by blueprints via !Env — see
+      # blueprints/README.md.
+      envFrom:
+        - secretRef:
+            name: authentik-app-secrets
+    blueprints:
+      configMaps:
+        - authentik-blueprints
+    server:
+      ingress:
+        enabled: true
+        ingressClassName: edge
+        annotations:
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
+        hosts:
+          - auth.DOMAIN
+        tls:
+          - secretName: authentik-tls
+            hosts:
+              - auth.DOMAIN

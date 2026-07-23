@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  TOFU_DIR: "{{.ROOT_DIR}}/tofu"
+
+tasks:
+  init:
+    desc: "Init a tofu module -- <module>"
+    dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
+    cmd: pass-cli run --env-file secrets.env -- tofu init
+
+  plan:
+    desc: "Plan a tofu module -- <module>"
+    dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
+    cmd: pass-cli run --env-file secrets.env -- tofu plan
+
+  apply:
+    desc: "Apply a tofu module -- <module>"
+    dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
+    cmd: pass-cli run --env-file secrets.env -- tofu apply
+
+  validate:
+    desc: "Validate a tofu module -- <module>"
+    dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
+    cmd: tofu validate

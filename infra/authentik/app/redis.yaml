@@ -1,0 +1,56 @@
+---
+# The authentik chart doesn't bundle Redis/Valkey (only Postgres, via a `postgresql.enabled`
+# subchart) — authentik needs one anyway (cache + Celery broker), so it's hand-rolled here rather
+# than pulling in a whole extra HelmRepository/HelmRelease pair for a single-replica cache.
+# No PVC: losing this on restart only drops in-flight background tasks, not durable state.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-redis
+  namespace: authentik
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: authentik-redis
+  template:
+    metadata:
+      labels:
+        app: authentik-redis
+    spec:
+      containers:
+        - name: valkey
+          image: docker.io/valkey/valkey:8-alpine
+          command:
+            - sh
+            - -c
+            - exec valkey-server --requirepass "$REDIS_PASSWORD"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: authentik-secrets
+                  key: redis-password
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik-redis
+  namespace: authentik
+spec:
+  selector:
+    app: authentik-redis
+  ports:
+    - port: 6379
+      targetPort: 6379

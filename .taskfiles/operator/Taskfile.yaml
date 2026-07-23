@@ -16,7 +16,7 @@ tasks:
   deps:
     desc: >-
       Install required packages (ansible-core, ansible-lint, yamllint, pass-cli,
-      pre-commit, kubectl, helm, kustomize, k0sctl)
+      pre-commit, kubectl, helm, kustomize, k0sctl, tofu)
     cmds:
       - sudo dnf install -y ansible-core yamllint kubernetes-client helm
       - uv tool install --upgrade ansible-lint
@@ -24,6 +24,7 @@ tasks:
       - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
       - curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | sudo bash -s -- /usr/local/bin
       - curl -fsSL https://github.com/k0sproject/k0sctl/releases/latest/download/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
+      - curl -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh && chmod +x /tmp/install-opentofu.sh && /tmp/install-opentofu.sh --install-method rpm
     preconditions:
       - which dnf
       - which uv

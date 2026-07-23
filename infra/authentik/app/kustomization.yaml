@@ -1,0 +1,71 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - ociRepository.yaml
+  - redis.yaml
+  - infisical-secret.yaml
+  - middleware.yaml
+  - certificate.yaml
+  - helmrelease.yaml
+
+# Only keys ending .yaml are picked up by the chart's blueprint loader — see
+# https://docs.goauthentik.io and blueprints/*.yaml in this directory. No hash suffix: the
+# HelmRelease references this name as a plain string in spec.values, a field kustomize's
+# nameReference transformer doesn't rewrite, so a suffixed name would silently break the mount.
+configMapGenerator:
+  - name: authentik-blueprints
+    files:
+      - blueprints/groups.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+
+# Splices DOMAIN into the ingress/cert hostnames below, and PROJECT_ID into both
+# InfisicalStaticSecrets — Flux's postBuild.substituteFrom can't reach HelmRelease.spec.values or
+# arbitrary CRD fields, so this has to happen here at kustomize-build time instead. See
+# infra/monitoring/app/kustomization.yaml and infra/_components/infisical/kustomization.yaml.
+components:
+  - ../../_components/domain
+  - ../../_components/infisical
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: domain
+      fieldPath: data.DOMAIN
+    targets:
+      - select:
+          kind: HelmRelease
+          name: authentik
+        fieldPaths:
+          - spec.values.server.ingress.hosts.0
+          - spec.values.server.ingress.tls.0.hosts.0
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: Certificate
+          name: authentik-tls
+        fieldPaths:
+          - spec.commonName
+          - spec.dnsNames.0
+        options:
+          delimiter: "."
+          index: 1
+  - source:
+      kind: ConfigMap
+      name: infisical
+      fieldPath: data.PROJECT_ID
+    targets:
+      - select:
+          kind: InfisicalStaticSecret
+          name: authentik-secrets
+        fieldPaths:
+          - spec.sources.0.projectId
+      - select:
+          kind: InfisicalStaticSecret
+          name: authentik-app-secrets
+        fieldPaths:
+          - spec.sources.0.projectId
