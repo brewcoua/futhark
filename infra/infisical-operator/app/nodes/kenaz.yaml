@@ -1,0 +1,15 @@
+---
+# kenaz's own identity: read-only on /nodes/kenaz/** only (see
+# infra/infisical-operator/README.md). Bridged into infisical-machine-identity-kenaz by
+# ansible/roles/flux_bootstrap. Add one nodes/<hostname>.yaml like this per node.
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalAuth
+metadata:
+  name: infisical-kenaz
+  namespace: infisical-operator
+spec:
+  connectionRef:
+    name: infisical
+  universalAuth:
+    secretsRef:
+      secretName: infisical-machine-identity-kenaz

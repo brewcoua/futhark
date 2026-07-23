@@ -24,3 +24,8 @@ $EDITOR ansible/nodes/<hostname>/host.yml
 ln -s ../../nodes/<hostname>/host.yml ansible/inventory/host_vars/<hostname>.yml
 # add <hostname>: {} under all.hosts in ansible/inventory/hosts.yml
 ```
+
+If `workflow: k0s`, the node also needs its own Infisical machine identity (read-only on
+`/nodes/<hostname>/**` — see `infra/infisical-operator/README.md`): create the identity + role
+in Infisical, then add the Proton Pass items `futharkd/<hostname>/infisical-client-id` and
+`futharkd/<hostname>/infisical-client-secret` before running `task ans:k0s`.

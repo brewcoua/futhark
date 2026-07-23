@@ -1,7 +1,9 @@
 ---
-# Universal Auth via the machine identity Ansible bridges into
-# infisical-operator/infisical-machine-identity (clientId/clientSecret keys) — see
-# ansible/roles/flux_bootstrap. Field names need the same verification as connection.yaml.
+# The infra identity: read-only on /infra/** and /monitoring/** in Infisical (see
+# infra/infisical-operator/README.md for the full permission model). Universal Auth via the
+# machine identity Ansible bridges into infisical-operator/infisical-machine-identity
+# (clientId/clientSecret keys) — see ansible/roles/flux_bootstrap. Field names need the same
+# verification as connection.yaml.
 apiVersion: secrets.infisical.com/v1beta1
 kind: InfisicalAuth
 metadata:

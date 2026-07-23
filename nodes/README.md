@@ -14,7 +14,12 @@ This is a different `nodes/` from `ansible/nodes/`: Ansible's copy is provisioni
   tech-agnostic top-level `nodes/` is that this doesn't require restructuring anything
   above it when it shows up.
 
+A `k0s` node's own apps read their secrets from `/nodes/<hostname>/apps/<app>` in Infisical,
+via that node's own `InfisicalAuth` (`infisical-<hostname>`, not the shared infra one) — see
+`infra/infisical-operator/README.md`.
+
 ## kenaz.k0s
 
 Currently empty — `kenaz` runs k0s + Flux + the Infisical Operator (`infra/`), but no
-apps yet. First app lands here as `kenaz.k0s/<app>/{ks.yaml,app/}`.
+apps yet. First app lands here as `kenaz.k0s/<app>/{ks.yaml,app/}`, reading its secrets from
+`/nodes/kenaz/apps/<app>` via the `infisical-kenaz` auth.
