@@ -1,14 +1,18 @@
 ---
 # Static config only — no secrets. BUNNY_API_KEY (for DNS-01) is host-mounted via
 # /etc/traefik/env (EnvironmentFile in the quadlet), provisioned by ansible/roles/pocketid.
-# ${TAILNET_IP} and ${DOMAIN} are substituted by the gitops-pull script (envsubst) at deploy
-# time — TAILNET_IP from `tailscale ip -4` (host-specific), DOMAIN from
+# ${DOMAIN} is substituted by the gitops-pull script (envsubst) at deploy time, from
 # infra/_components/domain/domain.env, the same source Flux-managed apps use.
+# vault binds an internal-only container port — Traefik isn't on host networking, so it can
+# never bind a host-only tailnet IP directly. Tailnet-only exposure is instead enforced by the
+# quadlet's PublishPort, which binds the host side to ${TAILNET_IP}. Can't share port 443 with
+# websecure's 0.0.0.0:443: podman won't let a specific-IP publish coexist with the wildcard one
+# on the same port ("address already in use"), so this stays on its own port, 8200.
 entryPoints:
   websecure:
     address: ":443"
   vault:
-    address: "${TAILNET_IP}:8200"
+    address: ":8200"
 
 providers:
   docker:

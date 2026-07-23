@@ -12,8 +12,9 @@ After=network-online.target
 Image=docker.io/library/traefik:v3
 ContainerName=traefik
 PublishPort=443:443
+PublishPort=${TAILNET_IP}:8200:8200
 Volume=/etc/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro,Z
-Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro
+Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro,Z
 Volume=traefik-acme.volume:/letsencrypt
 EnvironmentFile=/etc/traefik/env
 Exec=traefik --configFile=/etc/traefik/traefik.yml
