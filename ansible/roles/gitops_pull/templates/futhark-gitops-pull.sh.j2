@@ -39,6 +39,7 @@ git -C "${CLONE_DIR}" reset --hard origin/master || fail "reset failed"
 # /etc/openbao/config/openbao.hcl — a change restarts the co-located unit of the same basename,
 # if one is deployed).
 declare -A changed_units=()
+changed_count=0
 shopt -s nullglob
 for src in "${CLONE_DIR}/${NODE_PATH}"/quadlets/*; do
   name="$(basename "${src}")"
@@ -46,6 +47,7 @@ for src in "${CLONE_DIR}/${NODE_PATH}"/quadlets/*; do
   if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
     install -m 644 "${src}" "${dest}"
     changed_units["${name%.*}"]=1
+    changed_count=$((changed_count + 1))
   fi
 done
 for src in "${CLONE_DIR}/${NODE_PATH}"/config/*; do
@@ -56,11 +58,12 @@ for src in "${CLONE_DIR}/${NODE_PATH}"/config/*; do
   if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
     install -m 644 "${src}" "${dest}"
     changed_units["${name%.*}"]=1
+    changed_count=$((changed_count + 1))
   fi
 done
 shopt -u nullglob
 
-if [ "${#changed_units[@]}" -gt 0 ]; then
+if [ "${changed_count}" -gt 0 ]; then
   systemctl daemon-reload
   for unit in "${!changed_units[@]}"; do
     if systemctl list-unit-files "${unit}.service" > /dev/null 2>&1; then
