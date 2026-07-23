@@ -16,6 +16,7 @@ ContainerName=openbao
 Volume=openbao.volume:/openbao/data
 Volume=/etc/openbao/config:/openbao/config:ro,Z
 Volume=/etc/openbao/tls:/openbao/tls:ro,Z
+Environment=BAO_CACERT=/openbao/tls/openbao.crt
 Exec=bao server -config=/openbao/config/openbao.hcl
 Label=traefik.enable=true
 Label=traefik.tcp.routers.vault.rule=HostSNI(`vault.${INT_DOMAIN}`)

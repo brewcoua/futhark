@@ -1,0 +1,33 @@
+---
+# Host-level prep for the standalone Traefik edge on ogma — the container itself is a quadlet
+# deployed by gitops_pull, never templated here. apps-gated ('traefik' in node.apps), not
+# workflow-gated. Fronts both pocketid (auth.$DOMAIN) and openbao (vault.$INT_DOMAIN, tailnet
+# entrypoint) — shared edge infra, not pocketid-specific.
+- name:
+    Allow HTTPS publicly (auth must survive a k0s/kenaz outage, so it can't sit behind
+    traefik-edge)
+  ansible.posix.firewalld:
+    port: 443/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when: node.os == 'fedora'
+
+- name: Ensure Traefik's secrets directory exists
+  ansible.builtin.file:
+    path: /etc/traefik
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Write Traefik's env file (Bunny API key, for DNS-01 — same key tofu/bunny already uses)
+  ansible.builtin.copy:
+    dest: /etc/traefik/env
+    content: |
+      BUNNY_API_KEY={{ lookup('protonpass', 'pass://futharkd/bunny/api key') }}
+    owner: root
+    group: root
+    mode: "0600"
+  notify: Restart Traefik to pick up the env file
+  no_log: true

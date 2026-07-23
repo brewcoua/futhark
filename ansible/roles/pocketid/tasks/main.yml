@@ -1,17 +1,9 @@
 ---
-# Runs only against the already-running pocketid/traefik containers deployed by gitops_pull —
-# never templates a container unit itself. apps-gated ('pocketid' in node.apps), not
-# workflow-gated, so this only ever touches ogma today without hardcoding its hostname.
-- name:
-    Allow HTTPS publicly (auth must survive a k0s/kenaz outage, so it can't sit behind
-    traefik-edge)
-  ansible.posix.firewalld:
-    port: 443/tcp
-    permanent: true
-    immediate: true
-    state: enabled
-  when: node.os == 'fedora'
-
+# Runs only against the already-running pocketid container deployed by gitops_pull — never
+# templates a container unit itself. apps-gated ('pocketid' in node.apps), not workflow-gated,
+# so this only ever touches ogma today without hardcoding its hostname. Traefik (which fronts
+# this container) is provisioned separately by ansible/roles/traefik — shared edge infra, not
+# pocketid-specific.
 - name: Ensure Pocket ID's secrets directory exists
   ansible.builtin.file:
     path: /etc/pocketid

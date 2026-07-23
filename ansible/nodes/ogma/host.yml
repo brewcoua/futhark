@@ -4,7 +4,7 @@ node:
   os: fedora
   workflow: podman
   mesh: true
-  apps: [openbao, pocketid]
+  apps: [openbao, pocketid, traefik]
   ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/ip address') }}"
   initial_user: fedora
   initial_port: 22

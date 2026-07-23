@@ -2,56 +2,10 @@
 # Runs only against the already-running OpenBao container deployed by gitops_pull — never
 # templates the container unit itself. apps-gated ('openbao' in node.apps), not workflow-gated,
 # so this only ever touches ogma today without hardcoding its hostname in the role.
-- name: Get this node's Tailscale mesh IP
-  ansible.builtin.command:
-    cmd: tailscale ip -4
-  register: openbao_mesh_ip
-  changed_when: false
-  failed_when: false
-
-- name: Assert the mesh is actually present
-  ansible.builtin.assert:
-    that: openbao_mesh_ip.rc == 0
-    fail_msg: >-
-      ogma has no Tailscale mesh IP — openbao needs node.mesh: true
-      (see ansible/roles/tailscale) to run before this role in the play.
-
-- name: Ensure the TLS directory exists
-  ansible.builtin.file:
-    path: /etc/openbao/tls
-    state: directory
-    owner: root
-    group: root
-    mode: "0750"
-
-- name: Check for an existing TLS key
-  ansible.builtin.stat:
-    path: /etc/openbao/tls/openbao.key
-  register: openbao_tls_key
-
-- name: Generate the OpenBao self-signed TLS cert/key
-  ansible.builtin.command:
-    cmd: >
-      openssl req -x509 -newkey rsa:4096 -nodes
-      -keyout /etc/openbao/tls/openbao.key
-      -out /etc/openbao/tls/openbao.crt
-      -days 3650
-      -subj "/CN=ogma"
-      -addext "subjectAltName=DNS:ogma,DNS:vault.{{ int_domain }},DNS:localhost,IP:{{ openbao_mesh_ip.stdout }},IP:127.0.0.1"
-  when: not openbao_tls_key.stat.exists
-  changed_when: true
-
-- name: Restrict TLS key permissions
-  ansible.builtin.file:
-    path: /etc/openbao/tls/openbao.key
-    owner: root
-    group: root
-    mode: "0600"
-
-- name: Read the self-signed cert (public, non-secret) so ESO can trust it
-  ansible.builtin.slurp:
-    src: /etc/openbao/tls/openbao.crt
-  register: openbao_ca_cert
+# TLS prep (tasks_from: prep) already ran earlier in the play, before gitops_pull — the quadlet
+# mounts /etc/openbao/tls read-only, so it must exist by the time gitops_pull starts the
+# container. openbao_ca_cert (registered there) is still available here: registered vars persist
+# for the whole play, not just the task block that set them.
 
 - name: Check whether the k0s kubeconfig has been generated yet
   ansible.builtin.stat:

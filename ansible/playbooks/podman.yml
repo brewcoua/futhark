@@ -1,5 +1,7 @@
 ---
 # Podman workflow nodes. Runs after setup.yml (mesh join, if any, already happened there).
+# tasks: (not roles:) throughout, since ordering must interleave openbao's TLS prep between
+# pocketid and gitops_pull — roles: doesn't allow mixing in a plain import_role like that.
 - name: Provision podman workflow nodes
   hosts: all
   become: true
@@ -8,12 +10,29 @@
     - name: Pick the SSH identity
       ansible.builtin.import_role:
         name: ssh_identity
-  roles:
-    - role: podman_host
+  tasks:
+    - name: Podman host prep
+      ansible.builtin.import_role:
+        name: podman_host
       when: node.workflow == 'podman'
-    - role: pocketid
+    - name: Traefik prep
+      ansible.builtin.import_role:
+        name: traefik
+      when: "'traefik' in (node.apps | default([]))"
+    - name: Pocket ID prep
+      ansible.builtin.import_role:
+        name: pocketid
       when: "'pocketid' in (node.apps | default([]))"
-    - role: gitops_pull
+    - name: Generate OpenBao's TLS cert before gitops_pull mounts it into the quadlet
+      ansible.builtin.import_role:
+        name: openbao
+        tasks_from: prep
+      when: "'openbao' in (node.apps | default([]))"
+    - name: Deploy git-managed quadlets
+      ansible.builtin.import_role:
+        name: gitops_pull
       when: node.workflow == 'podman'
-    - role: openbao
+    - name: OpenBao init/unseal/bootstrap
+      ansible.builtin.import_role:
+        name: openbao
       when: "'openbao' in (node.apps | default([]))"
