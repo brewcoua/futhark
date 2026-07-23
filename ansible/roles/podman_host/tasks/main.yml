@@ -6,6 +6,12 @@
     name: podman
     state: present
 
+- name: Enable the rootful podman API socket (bind-mounted by containers that need it, e.g. Traefik)
+  ansible.builtin.systemd:
+    name: podman.socket
+    state: started
+    enabled: true
+
 - name: Ensure /etc/containers/systemd exists
   ansible.builtin.file:
     path: /etc/containers/systemd

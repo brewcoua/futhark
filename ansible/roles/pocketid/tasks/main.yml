@@ -12,12 +12,6 @@
     state: enabled
   when: node.os == 'fedora'
 
-- name: Enable the rootful podman API socket (Traefik's docker-provider endpoint)
-  ansible.builtin.systemd:
-    name: podman.socket
-    state: started
-    enabled: true
-
 - name: Ensure Pocket ID's secrets directory exists
   ansible.builtin.file:
     path: /etc/pocketid
@@ -60,4 +54,5 @@
     owner: root
     group: root
     mode: "0600"
+  notify: Restart Traefik to pick up the env file
   no_log: true

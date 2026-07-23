@@ -1,0 +1,5 @@
+---
+- name: Restart Traefik to pick up the env file
+  ansible.builtin.systemd:
+    name: traefik.service
+    state: restarted
