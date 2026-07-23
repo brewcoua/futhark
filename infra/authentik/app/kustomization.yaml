@@ -22,13 +22,12 @@ configMapGenerator:
 generatorOptions:
   disableNameSuffixHash: true
 
-# Splices DOMAIN into the ingress/cert hostnames below, and PROJECT_ID into both
-# InfisicalStaticSecrets — Flux's postBuild.substituteFrom can't reach HelmRelease.spec.values or
-# arbitrary CRD fields, so this has to happen here at kustomize-build time instead. See
-# infra/monitoring/app/kustomization.yaml and infra/_components/infisical/kustomization.yaml.
+# Splices DOMAIN into the ingress/cert hostnames below — needs delimiter/index string-splitting,
+# which Flux's postBuild.substituteFrom can't do, so this has to happen here at kustomize-build
+# time instead. See infra/monitoring/app/kustomization.yaml. PROJECT_ID (a whole-value token) is
+# handled separately by postBuild.substituteFrom in ks.yaml.
 components:
   - ../../_components/domain
-  - ../../_components/infisical
 
 replacements:
   - source:
@@ -54,18 +53,3 @@ replacements:
         options:
           delimiter: "."
           index: 1
-  - source:
-      kind: ConfigMap
-      name: infisical
-      fieldPath: data.PROJECT_ID
-    targets:
-      - select:
-          kind: InfisicalStaticSecret
-          name: authentik-secrets
-        fieldPaths:
-          - spec.sources.0.projectId
-      - select:
-          kind: InfisicalStaticSecret
-          name: authentik-app-secrets
-        fieldPaths:
-          - spec.sources.0.projectId

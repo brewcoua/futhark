@@ -55,6 +55,20 @@
         clientId: "{{ lookup('protonpass', 'pass://futharkd/kenaz/infisical-client-id') }}"
         clientSecret: "{{ lookup('protonpass', 'pass://futharkd/kenaz/infisical-client-secret') }}"
 
+- name: Bridge the Infisical project ID
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: infisical-project-vars
+        namespace: flux-system
+      type: Opaque
+      stringData:
+        INFISICAL_PROJECT_ID: "{{ lookup('protonpass', 'pass://futharkd/infisical/project id') }}"
+
 - name: Wait for the Flux Operator to be ready
   kubernetes.core.k8s_info:
     kubeconfig: "{{ generated_dir }}/kubeconfig"

@@ -12,3 +12,7 @@ spec:
     kind: GitRepository
     name: flux-system
   path: ./infra/storage/app
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: infisical-project-vars

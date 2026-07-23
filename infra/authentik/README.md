@@ -7,9 +7,10 @@ No Terraform/OpenTofu: futhark has none, and config-as-code here is Authentik's 
 (`app/blueprints/*.yaml`, mounted from the `authentik-blueprints` ConfigMap) instead — pure YAML,
 Flux-reconciled, no external apply step or state file.
 
-The Infisical project id is centralized in `infra/_components/infisical` (not a secret — same class
-as `infra/_components/domain` — so it's a committed constant, not something bridged through
-Proton Pass/ansible like the actual Infisical machine-identity credentials are).
+The Infisical project id is not committed — `projectId: ${INFISICAL_PROJECT_ID}` in
+`infisical-secret.yaml` is resolved at apply time by Flux's `postBuild.substituteFrom`
+from the `infisical-project-vars` Secret, bridged from Proton Pass by
+`ansible/roles/flux_bootstrap`.
 
 ## Protecting an app
 

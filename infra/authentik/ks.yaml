@@ -16,3 +16,7 @@ spec:
     - name: cert-manager
     - name: infisical-operator
     - name: traefik-edge
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: infisical-project-vars
