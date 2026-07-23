@@ -27,15 +27,51 @@
   changed_when: false
   failed_when: false
 
+- name: Get an OAuth access token scoped to auth-key creation
+  ansible.builtin.uri:
+    url: https://api.tailscale.com/api/v2/oauth/token
+    method: POST
+    body_format: form-urlencoded
+    body:
+      client_id: "{{ lookup('protonpass', 'pass://futharkd/tailscale/client id') }}"
+      client_secret: "{{ lookup('protonpass', 'pass://futharkd/tailscale/client secret') }}"
+    status_code: 200
+  register: tailscale_oauth_token
+  no_log: true
+  when: >-
+    tailscale_status.rc != 0 or
+    (tailscale_status.stdout | from_json).BackendState != 'Running'
+
+# Single-use, tag-scoped, short-lived — minted fresh for this join instead of reading a
+# standing reusable authkey out of Proton Pass.
+- name: Mint a single-use auth key
+  ansible.builtin.uri:
+    url: https://api.tailscale.com/api/v2/tailnet/-/keys
+    method: POST
+    headers:
+      Authorization: "Bearer {{ tailscale_oauth_token.json.access_token }}"
+    body_format: json
+    body:
+      capabilities:
+        devices:
+          create:
+            reusable: false
+            ephemeral: false
+            preauthorized: true
+            tags: ["tag:futhark-node"]
+      expirySeconds: 300
+    status_code: 200
+  register: tailscale_authkey
+  no_log: true
+  when: tailscale_oauth_token is not skipped
+
 - name: Join the tailnet
   ansible.builtin.command:
     cmd: >
       tailscale up
-      --authkey={{ lookup('protonpass', 'pass://futharkd/tailscale/authkey') }}
+      --authkey={{ tailscale_authkey.json.key }}
       --advertise-tags=tag:futhark-node
       --ssh
-  when: >-
-    tailscale_status.rc != 0 or
-    (tailscale_status.stdout | from_json).BackendState != 'Running'
+  when: tailscale_authkey is not skipped
   changed_when: true
   no_log: true
