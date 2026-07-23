@@ -8,6 +8,13 @@
     state: present
   when: node.os == 'fedora'
 
+- name: Ensure firewalld is running
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+  when: node.os == 'fedora'
+
 - name: Open the hardened SSH port in firewalld
   ansible.posix.firewalld:
     port: "{{ ssh_port }}/tcp"
