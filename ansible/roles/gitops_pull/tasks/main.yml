@@ -1,0 +1,48 @@
+---
+# Installs the pull-reconcile script + its timer, and runs it once synchronously so the node's
+# committed quadlets (nodes/<host>.podman/) are live by the end of this play. This script is the
+# ONLY writer of /etc/containers/systemd/* — no role, including openbao, ever templates a unit.
+- name: Resolve the healthchecks.io ping URL for this node's reconcile timer
+  ansible.builtin.copy:
+    dest: /etc/futhark-gitops-pull.env
+    content: |
+      HEALTHCHECKS_PING_URL={{ lookup('protonpass', 'pass://futharkd/' + node.hostname + '/healthchecks-gitops-pull') }}
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Install the gitops-pull script
+  ansible.builtin.template:
+    src: futhark-gitops-pull.sh.j2
+    dest: /usr/local/bin/futhark-gitops-pull.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the gitops-pull service unit
+  ansible.builtin.template:
+    src: futhark-gitops-pull.service.j2
+    dest: /etc/systemd/system/futhark-gitops-pull.service
+    mode: "0644"
+
+- name: Install the gitops-pull timer unit
+  ansible.builtin.template:
+    src: futhark-gitops-pull.timer.j2
+    dest: /etc/systemd/system/futhark-gitops-pull.timer
+    mode: "0644"
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start the gitops-pull timer
+  ansible.builtin.systemd:
+    name: futhark-gitops-pull.timer
+    state: started
+    enabled: true
+
+- name: Run the gitops-pull script once synchronously (bootstrap)
+  ansible.builtin.command:
+    cmd: /usr/local/bin/futhark-gitops-pull.sh
+  changed_when: true

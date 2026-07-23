@@ -7,10 +7,8 @@ No Terraform/OpenTofu: futhark has none, and config-as-code here is Authentik's 
 (`app/blueprints/*.yaml`, mounted from the `authentik-blueprints` ConfigMap) instead — pure YAML,
 Flux-reconciled, no external apply step or state file.
 
-The Infisical project id is not committed — `projectId: ${INFISICAL_PROJECT_ID}` in
-`infisical-secret.yaml` is resolved at apply time by Flux's `postBuild.substituteFrom`
-from the `infisical-project-vars` Secret, bridged from Proton Pass by
-`ansible/roles/flux_bootstrap`.
+Secrets come from OpenBao via `secret.yaml`'s `ExternalSecret`s — see
+`infra/external-secrets/README.md`.
 
 ## Protecting an app
 
@@ -32,8 +30,8 @@ spec:
 
 ## Onboarding a new app
 
-1. In Infisical, add a `<APP>_CLIENT_ID` / `<APP>_CLIENT_SECRET` pair under
-   `/infra/authentik/app-clients` (synced into the `authentik-app-secrets` Secret, `envFrom`'d into
+1. In OpenBao's `infra` namespace, add a `<APP>_CLIENT_ID` / `<APP>_CLIENT_SECRET` pair under
+   `secret/authentik/app-clients` (synced into the `authentik-app-secrets` Secret, `envFrom`'d into
    the authentik server/worker — this is what a blueprint's `!Env` reads).
 2. Add a blueprint file under `app/blueprints/` for the app:
    - **Proxy-fronted app** (no OIDC support of its own): `authentik_providers_proxy.proxyprovider`
@@ -42,7 +40,6 @@ spec:
      nothing further — the Middleware above is the entire integration.
    - **Native-OIDC app**: `authentik_providers_oauth2.oauth2provider` with `client_id`/`client_secret`
      set via `!Env [<APP>_CLIENT_ID]` / `!Env [<APP>_CLIENT_SECRET]` + `authentik_core.application`.
-     The app's own `InfisicalStaticSecret` should read the _same_ `/infra/authentik/app-clients`
-     path, so both sides always agree on the client secret — no reading it back out of Authentik
-     after the fact.
+     The app's own `ExternalSecret` should read the _same_ `authentik/app-clients` key, so both
+     sides always agree on the client secret — no reading it back out of Authentik after the fact.
 3. `kustomization.yaml`'s `configMapGenerator` picks up any new file under `blueprints/` automatically.

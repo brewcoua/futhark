@@ -11,6 +11,13 @@ node:
   k0s_role:
     controller+worker # controller+worker | controller | worker — only when workflow: k0s;
     # drives ansible/roles/k0s_cluster's generated k0sctl.yaml
+  mesh:
+    true # optional, default false — joins the Tailscale mesh (see ansible/roles/tailscale).
+    # Orthogonal to workflow: opt in for any node (cloud or local) that needs mesh reachability,
+    # e.g. a VPS node reaching a home node, or OpenBao staying off the public internet.
+  apps: [] # optional, default [] — app-specific roles to run, only meaningful for workflow:
+    # podman (a podman node is one process per app; see ansible/playbooks/podman.yml). A k0s
+    # node's apps live under nodes/<hostname>.k0s/ instead, not here.
   ip: 203.0.113.10
   initial_user: fedora # first-contact login (provider default, before `admin_user` exists)
   initial_port: 22
@@ -25,7 +32,7 @@ ln -s ../../nodes/<hostname>/host.yml ansible/inventory/host_vars/<hostname>.yml
 # add <hostname>: {} under all.hosts in ansible/inventory/hosts.yml
 ```
 
-If `workflow: k0s`, the node also needs its own Infisical machine identity (read-only on
-`/nodes/<hostname>/**` — see `infra/infisical-operator/README.md`): create the identity + role
-in Infisical, then add the Proton Pass items `futharkd/<hostname>/infisical-client-id` and
-`futharkd/<hostname>/infisical-client-secret` before running `task ans:k0s`.
+If `workflow: k0s`, the node also needs its own OpenBao namespace (`node-<hostname>`, read-only
+via that namespace's `kubernetes` auth role — see `infra/external-secrets/README.md` and
+`ansible/roles/openbao/`): re-run `task ans:podman` against ogma to bootstrap the namespace, then
+add `infra/external-secrets/app/nodes/<hostname>.yaml` (copy `kenaz.yaml`, swap the hostname).

@@ -1,0 +1,6 @@
+[Unit]
+Description=Futhark GitOps pull-reconcile ({{ node.hostname }})
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/futhark-gitops-pull.sh

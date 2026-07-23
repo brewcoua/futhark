@@ -2,10 +2,8 @@
 # Internal ingress: reachable ONLY over the Tailscale mesh. Serves the *.in.futk.eu wildcard
 # cert, so internal Ingresses never carry their own tls: block.
 #
-# PLACEHOLDER: kenaz's Tailscale mesh isn't bootstrapped in this repo yet (no `tailscale`
-# ansible role ported) — REPLACE_WITH_MESH_IP below must become kenaz's real mesh IP once it is,
-# the same way infisical-operator/infisical-machine-identity is bridged in
-# ansible/roles/flux_bootstrap.
+# PLACEHOLDER: REPLACE_WITH_MESH_IP below must become kenaz's real Tailscale mesh IP once
+# ansible/roles/tailscale has joined it (node.mesh: true in ansible/nodes/kenaz/host.yml).
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

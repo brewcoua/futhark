@@ -6,8 +6,8 @@ is blueprints (`infra/authentik/README.md`), not Tofu, for exactly that reason.
 
 ## Rules for any module here
 
-- Read-only against Infisical if it needs to read anything from there at all; never let a module
-  write to Infisical. Anything a module _mints_ becomes a `sensitive` output, pasted into Infisical
+- Read-only against OpenBao if it needs to read anything from there at all; never let a module
+  write to OpenBao. Anything a module _mints_ becomes a `sensitive` output, pasted into OpenBao
   by hand.
 - Provider tokens are never committed. A module's `secrets.env` holds only Proton Pass `pass://`
   **pointers** (safe to commit) resolved at runtime by `pass-cli run --env-file`. This also covers

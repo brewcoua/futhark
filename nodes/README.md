@@ -10,16 +10,21 @@ This is a different `nodes/` from `ansible/nodes/`: Ansible's copy is provisioni
 - `k0s` — kustomize manifests, one subdirectory per app: `ks.yaml` (the Flux
   `Kustomization` CR) + `app/` (the actual manifests). See `flux/README.md` for the
   `ks.yaml` convention this follows.
-- `podman` — not built yet; would hold compose/quadlet files instead. The point of a
-  tech-agnostic top-level `nodes/` is that this doesn't require restructuring anything
-  above it when it shows up.
+- `podman` — `quadlets/` (Podman Quadlet `.container`/`.volume` units) + `config/`, synced onto
+  the node by that node's `futhark-gitops-pull` timer (`ansible/roles/gitops_pull`) rather than
+  by Flux — see `ogma.podman/README.md` for the concrete shape and the pull mechanism.
 
-A `k0s` node's own apps read their secrets from `/nodes/<hostname>/apps/<app>` in Infisical,
-via that node's own `InfisicalAuth` (`infisical-<hostname>`, not the shared infra one) — see
-`infra/infisical-operator/README.md`.
+A `k0s` node's own apps read their secrets from OpenBao namespace `node-<hostname>`, via that
+node's own `ClusterSecretStore` (`bao-node-<hostname>`, not the shared `bao-infra` one) — see
+`infra/external-secrets/README.md`.
+
+## ogma.podman
+
+Standalone Podman node running OpenBao, the secrets backend every other node/app reads from —
+see `ogma.podman/README.md`.
 
 ## kenaz.k0s
 
-Currently empty — `kenaz` runs k0s + Flux + the Infisical Operator (`infra/`), but no
+Currently empty — `kenaz` runs k0s + Flux + External Secrets Operator (`infra/`), but no
 apps yet. First app lands here as `kenaz.k0s/<app>/{ks.yaml,app/}`, reading its secrets from
-`/nodes/kenaz/apps/<app>` via the `infisical-kenaz` auth.
+OpenBao namespace `node-kenaz` via the `bao-node-kenaz` `ClusterSecretStore`.

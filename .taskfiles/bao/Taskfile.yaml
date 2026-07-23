@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  ANSIBLE_DIR: "{{.ROOT_DIR}}/ansible"
+
+tasks:
+  status:
+    desc: Show OpenBao's seal/init status
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook playbooks/bao.yml -e bao_task=status
+
+  unseal:
+    desc: Unseal OpenBao using the key from Proton Pass
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook playbooks/bao.yml -e bao_task=unseal
+
+  policy-sync:
+    desc: Re-run the namespace/mount/auth/policy bootstrap idempotently
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook playbooks/podman.yml -l ogma --tags openbao_namespaces
+
+  reconcile-now:
+    desc: Trigger an immediate gitops-pull reconcile on ogma
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook playbooks/bao.yml -e bao_task=reconcile-now
+
+  rollback:
+    desc: "Roll ogma's gitops-pull clone back to a known-good SHA [-- <sha>]"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible-playbook playbooks/bao.yml -e bao_task=rollback -e bao_sha={{.CLI_ARGS}}

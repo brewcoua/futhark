@@ -1,7 +1,0 @@
----
-# Also pre-created by ansible/roles/flux_bootstrap (needed before Flux exists, to hold
-# the bridged machine-identity Secret) — declared here too so Flux tracks/prunes it.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: infisical-operator

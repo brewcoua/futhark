@@ -1,0 +1,28 @@
+---
+# Generic podman-host plumbing, workflow: podman-gated only — app-agnostic, doesn't know or
+# care what quadlets eventually land here.
+- name: Install podman
+  ansible.builtin.dnf:
+    name: podman
+    state: present
+
+- name: Ensure /etc/containers/systemd exists
+  ansible.builtin.file:
+    path: /etc/containers/systemd
+    state: directory
+    mode: "0755"
+
+- name: Create the gitops-pull service user
+  ansible.builtin.user:
+    name: futhark-gitops
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Ensure the gitops-pull clone directory exists
+  ansible.builtin.file:
+    path: /var/lib/futhark-gitops
+    state: directory
+    owner: futhark-gitops
+    group: futhark-gitops
+    mode: "0750"

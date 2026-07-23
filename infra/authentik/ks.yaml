@@ -14,9 +14,5 @@ spec:
   path: ./infra/authentik/app
   dependsOn:
     - name: cert-manager
-    - name: infisical-operator
+    - name: external-secrets
     - name: traefik-edge
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: infisical-project-vars

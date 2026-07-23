@@ -1,0 +1,2 @@
+# Named volume for OpenBao's Raft storage.
+[Volume]

@@ -1,0 +1,58 @@
+---
+# Day-2 OpenBao ops against ogma, wrapped by .taskfiles/bao/Taskfile.yaml. Select the action via
+# -e bao_task=status|unseal|reconcile-now|rollback (rollback also needs -e bao_sha=<sha>).
+- name: OpenBao ops
+  hosts: ogma
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Pick the SSH identity
+      ansible.builtin.import_role:
+        name: ssh_identity
+  tasks:
+    - name: Status
+      ansible.builtin.command:
+        cmd: podman exec openbao bao status
+      register: bao_status
+      changed_when: false
+      failed_when: false
+      when: bao_task == 'status'
+
+    - name: Unseal
+      ansible.builtin.command:
+        argv:
+          - podman
+          - exec
+          - openbao
+          - bao
+          - operator
+          - unseal
+          - "{{ lookup('protonpass', 'pass://futharkd/openbao/unseal key') }}"
+      register: bao_unseal
+      changed_when: true
+      no_log: true
+      when: bao_task == 'unseal'
+
+    - name: Reconcile now
+      ansible.builtin.command:
+        cmd: /usr/local/bin/futhark-gitops-pull.sh
+      register: bao_reconcile
+      changed_when: true
+      when: bao_task == 'reconcile-now'
+
+    - name: Rollback to a known-good SHA
+      ansible.builtin.shell: |
+        set -euo pipefail
+        git -C /var/lib/futhark-gitops/repo fetch origin
+        git -C /var/lib/futhark-gitops/repo reset --hard {{ bao_sha }}
+        /usr/local/bin/futhark-gitops-pull.sh
+      register: bao_rollback
+      changed_when: true
+      when: bao_task == 'rollback'
+
+    - name: Print the result
+      ansible.builtin.debug:
+        msg: >-
+          {{ (bao_status.stdout_lines | default([]))
+            + (bao_reconcile.stdout_lines | default([]))
+            + (bao_rollback.stdout_lines | default([])) }}

@@ -1,5 +1,6 @@
 # Ansible-rendered artifacts (k0sctl.yaml, kubeconfig) — resolved values, never committed.
 ansible/.generated/
+.ansible/
 
 # Tofu state can hold minted credentials in plaintext even when marked `sensitive`.
 # .terraform.lock.hcl is NOT here — that's the provider version lockfile, meant to be committed.

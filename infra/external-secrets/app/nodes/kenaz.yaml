@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/external-secrets/external-secrets/main/deploy/crds/bundle.yaml
+#
+# kenaz's own namespace: read-only on OpenBao namespace node-kenaz only (see
+# infra/external-secrets/README.md). Add one nodes/<hostname>.yaml like this per k0s node.
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: bao-node-kenaz
+spec:
+  provider:
+    vault:
+      server: https://REPLACE_WITH_OGMA_MESH_ADDR:8200
+      namespace: node-kenaz
+      path: secret
+      version: v2
+      caProvider:
+        type: ConfigMap
+        name: openbao-ca
+        namespace: external-secrets
+        key: ca.crt
+      auth:
+        kubernetes:
+          mountPath: kubernetes
+          role: eso
+          serviceAccountRef:
+            name: external-secrets
+            namespace: external-secrets

@@ -1,0 +1,10 @@
+[Unit]
+Description=Run futhark-gitops-pull every 5 minutes ({{ node.hostname }})
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+Unit=futhark-gitops-pull.service
+
+[Install]
+WantedBy=timers.target

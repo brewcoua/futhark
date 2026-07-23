@@ -6,7 +6,7 @@ resources:
   - namespace.yaml
   - ociRepository.yaml
   - redis.yaml
-  - infisical-secret.yaml
+  - secret.yaml
   - middleware.yaml
   - certificate.yaml
   - helmrelease.yaml

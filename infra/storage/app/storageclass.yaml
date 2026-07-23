@@ -1,6 +1,6 @@
 ---
 # Hetzner Storage Box via rclone crypt->sftp (zero-knowledge). rclone config lives in the
-# Infisical-synced Secret csi-rclone/storagebox-secret.
+# ESO-synced Secret csi-rclone/storagebox-secret.
 #
 # `remote` MUST match the crypt section header in that configData INI ([storagebox-crypt]).
 #

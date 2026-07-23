@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Managed by ansible/roles/gitops_pull — pull-reconcile for nodes/{{ node.hostname }}.podman/.
+# The only writer of /etc/containers/systemd/*; no Ansible role templates a unit directly.
+set -euo pipefail
+
+REPO_URL="{{ gitops_pull_repo_url }}"
+NODE_PATH="nodes/{{ node.hostname }}.podman"
+CLONE_DIR="/var/lib/futhark-gitops/repo"
+UNIT_DIR="/etc/containers/systemd"
+CONFIG_DIR="/etc/openbao/config"
+STATE_FILE="/var/lib/futhark-gitops/.last-applied"
+
+# shellcheck disable=SC1091
+source /etc/futhark-gitops-pull.env
+
+fail() {
+  echo "$1" >&2
+  curl -fsS -m 10 --retry 3 "${HEALTHCHECKS_PING_URL}/fail" -d "$1" > /dev/null || true
+  exit 1
+}
+
+if [ ! -d "${CLONE_DIR}/.git" ]; then
+  git clone --filter=blob:none --sparse --no-checkout "${REPO_URL}" "${CLONE_DIR}" || fail "clone failed"
+  git -C "${CLONE_DIR}" sparse-checkout set "${NODE_PATH}"
+  git -C "${CLONE_DIR}" checkout master || fail "initial checkout failed"
+fi
+
+git -C "${CLONE_DIR}" fetch origin master || fail "fetch failed"
+
+LOCAL_SHA="$(git -C "${CLONE_DIR}" rev-parse HEAD)"
+REMOTE_SHA="$(git -C "${CLONE_DIR}" rev-parse origin/master)"
+if [ "${LOCAL_SHA}" = "${REMOTE_SHA}" ] && [ -f "${STATE_FILE}" ]; then
+  exit 0
+fi
+
+git -C "${CLONE_DIR}" reset --hard origin/master || fail "reset failed"
+
+# Diff quadlets/ (unit files, restarted individually by basename) and config/ (support files —
+# a change restarts the co-located unit of the same basename, e.g. config/openbao.hcl ->
+# openbao.service, if one is deployed).
+declare -A changed_units=()
+shopt -s nullglob
+for src in "${CLONE_DIR}/${NODE_PATH}"/quadlets/*; do
+  name="$(basename "${src}")"
+  dest="${UNIT_DIR}/${name}"
+  if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
+    install -m 644 "${src}" "${dest}"
+    changed_units["${name%.*}"]=1
+  fi
+done
+mkdir -p "${CONFIG_DIR}"
+for src in "${CLONE_DIR}/${NODE_PATH}"/config/*; do
+  name="$(basename "${src}")"
+  dest="${CONFIG_DIR}/${name}"
+  if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
+    install -m 644 "${src}" "${dest}"
+    changed_units["${name%.*}"]=1
+  fi
+done
+shopt -u nullglob
+
+if [ "${#changed_units[@]}" -gt 0 ]; then
+  systemctl daemon-reload
+  for unit in "${!changed_units[@]}"; do
+    if systemctl list-unit-files "${unit}.service" > /dev/null 2>&1; then
+      systemctl restart "${unit}.service" || fail "restart of ${unit}.service failed"
+    fi
+  done
+fi
+
+git -C "${CLONE_DIR}" rev-parse HEAD > "${STATE_FILE}"
+curl -fsS -m 10 --retry 3 "${HEALTHCHECKS_PING_URL}" > /dev/null || true

@@ -1,0 +1,17 @@
+---
+# Podman workflow nodes. Runs after setup.yml (mesh join, if any, already happened there).
+- name: Provision podman workflow nodes
+  hosts: all
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Pick the SSH identity
+      ansible.builtin.import_role:
+        name: ssh_identity
+  roles:
+    - role: podman_host
+      when: node.workflow == 'podman'
+    - role: gitops_pull
+      when: node.workflow == 'podman'
+    - role: openbao
+      when: "'openbao' in (node.apps | default([]))"

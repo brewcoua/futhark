@@ -1,0 +1,41 @@
+---
+# Generic Tailscale mesh join. Gated by node.mesh in playbooks/setup.yml — nothing in here
+# branches on hostname or workflow, so any future node opts in just by setting node.mesh: true.
+- name: Install the Tailscale repo
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/fedora/tailscale.repo
+    dest: /etc/yum.repos.d/tailscale.repo
+    mode: "0644"
+  when: node.os == 'fedora'
+
+- name: Install tailscale
+  ansible.builtin.dnf:
+    name: tailscale
+    state: present
+  when: node.os == 'fedora'
+
+- name: Enable and start tailscaled
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Check current Tailscale status
+  ansible.builtin.command:
+    cmd: tailscale status --json
+  register: tailscale_status
+  changed_when: false
+  failed_when: false
+
+- name: Join the tailnet
+  ansible.builtin.command:
+    cmd: >
+      tailscale up
+      --authkey={{ lookup('protonpass', 'pass://futharkd/tailscale/authkey') }}
+      --advertise-tags=tag:futhark-node
+      --ssh
+  when: >-
+    tailscale_status.rc != 0 or
+    (tailscale_status.stdout | from_json).BackendState != 'Running'
+  changed_when: true
+  no_log: true

@@ -1,0 +1,7 @@
+---
+# Also pre-created by ansible/roles/openbao (needed before Flux exists, to hold the
+# openbao-ca ConfigMap) — declared here too so Flux tracks/prunes it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets

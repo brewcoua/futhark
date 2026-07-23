@@ -16,6 +16,11 @@ tasks:
     dir: "{{.ANSIBLE_DIR}}"
     cmd: "ansible-playbook playbooks/k0s.yml"
 
+  podman:
+    desc: "Run the podman workflow playbook [-- <host>]"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: "ansible-playbook playbooks/podman.yml {{if .CLI_ARGS}}-l {{.CLI_ARGS}}{{end}}"
+
   ping:
     desc: Ping all nodes
     dir: "{{.ANSIBLE_DIR}}"

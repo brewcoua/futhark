@@ -14,7 +14,3 @@ spec:
   path: ./infra/monitoring/app
   dependsOn:
     - name: traefik-internal
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: infisical-project-vars

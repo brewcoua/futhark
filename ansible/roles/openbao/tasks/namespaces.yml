@@ -1,0 +1,96 @@
+---
+# Idempotent per-namespace bootstrap: kv-v2 mount + kubernetes auth mount/config + reader
+# policy + an ESO-bound auth role. Looped once for 'infra' and once per k0s node
+# ('node-<hostname>') by tasks/main.yml. Isolation is the namespace boundary itself — every
+# namespace binds the same ESO ServiceAccount, since what differs per namespace is which
+# secret/ mount and reader policy that binding can reach, not the identity doing the binding.
+- name: "Create namespace {{ openbao_namespace }}"
+  ansible.builtin.command:
+    cmd: podman exec -e BAO_TOKEN={{ openbao_root_token }} openbao bao namespace create {{ openbao_namespace }}
+  register: openbao_ns_create
+  changed_when: "'already exists' not in (openbao_ns_create.stderr | default(''))"
+  failed_when: >-
+    openbao_ns_create.rc != 0 and
+    'already exists' not in (openbao_ns_create.stderr | default(''))
+  no_log: true
+
+- name: "Enable the secret/ kv-v2 mount in {{ openbao_namespace }}"
+  ansible.builtin.command:
+    cmd: >-
+      podman exec -e BAO_TOKEN={{ openbao_root_token }} -e BAO_NAMESPACE={{ openbao_namespace }}
+      openbao bao secrets enable -path=secret kv-v2
+  register: openbao_kv_enable
+  changed_when: "'path is already in use' not in (openbao_kv_enable.stderr | default(''))"
+  failed_when: >-
+    openbao_kv_enable.rc != 0 and
+    'path is already in use' not in (openbao_kv_enable.stderr | default(''))
+  no_log: true
+
+- name: "Enable the kubernetes auth method in {{ openbao_namespace }}"
+  ansible.builtin.command:
+    cmd: >-
+      podman exec -e BAO_TOKEN={{ openbao_root_token }} -e BAO_NAMESPACE={{ openbao_namespace }}
+      openbao bao auth enable kubernetes
+  register: openbao_k8s_auth_enable
+  changed_when: "'path is already in use' not in (openbao_k8s_auth_enable.stderr | default(''))"
+  failed_when: >-
+    openbao_k8s_auth_enable.rc != 0 and
+    'path is already in use' not in (openbao_k8s_auth_enable.stderr | default(''))
+  no_log: true
+
+- name: "Configure the kubernetes auth method in {{ openbao_namespace }}"
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - -e
+      - BAO_TOKEN={{ openbao_root_token }}
+      - -e
+      - BAO_NAMESPACE={{ openbao_namespace }}
+      - openbao
+      - bao
+      - write
+      - auth/kubernetes/config
+      - kubernetes_host={{ openbao_kubeconfig.clusters[0].cluster.server }}
+      - kubernetes_ca_cert={{ openbao_kubeconfig.clusters[0].cluster['certificate-authority-data'] | b64decode }}
+  changed_when: true
+  no_log: true
+
+- name: "Write the reader policy in {{ openbao_namespace }}"
+  ansible.builtin.copy:
+    dest: "/etc/openbao/policies/{{ openbao_namespace }}-reader.hcl"
+    content: |
+      path "secret/data/*" {
+        capabilities = ["read"]
+      }
+      path "secret/metadata/*" {
+        capabilities = ["list", "read"]
+      }
+    mode: "0644"
+
+- name: "Upload the reader policy in {{ openbao_namespace }}"
+  ansible.builtin.shell: >-
+    podman exec -i -e BAO_TOKEN={{ openbao_root_token }} -e BAO_NAMESPACE={{ openbao_namespace }}
+    openbao bao policy write reader - < /etc/openbao/policies/{{ openbao_namespace }}-reader.hcl
+  changed_when: true
+  no_log: true
+
+- name: "Bind the ESO ServiceAccount to the reader policy in {{ openbao_namespace }}"
+  ansible.builtin.command:
+    argv:
+      - podman
+      - exec
+      - -e
+      - BAO_TOKEN={{ openbao_root_token }}
+      - -e
+      - BAO_NAMESPACE={{ openbao_namespace }}
+      - openbao
+      - bao
+      - write
+      - auth/kubernetes/role/eso
+      - bound_service_account_names=external-secrets
+      - bound_service_account_namespaces=external-secrets
+      - policies=reader
+      - ttl=15m
+  changed_when: true
+  no_log: true
