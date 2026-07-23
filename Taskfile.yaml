@@ -5,7 +5,7 @@ version: "3"
 includes:
   ans: .taskfiles/ansible/Taskfile.yaml
   ops: .taskfiles/operator/Taskfile.yaml
-  tofu: .taskfiles/tofu/Taskfile.yaml
+  tf: .taskfiles/tofu/Taskfile.yaml
 
 tasks:
   default:
