@@ -18,6 +18,9 @@ jobs:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
       - run: uv tool install pre-commit
+      # tofu-validate (in .pre-commit-config.yaml) only runs fmt/validate, not init — init can
+      # touch .terraform.lock.hcl, and pre-commit fails a hook that modifies tracked files.
+      - run: for d in $(find tofu -name "*.tf" -exec dirname {} \; | sort -u); do tofu -chdir="$d" init -backend=false -input=false; done
       - run: pre-commit run --all-files
 
   ansible-syntax:

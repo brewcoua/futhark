@@ -7,9 +7,12 @@ vars:
 
 tasks:
   init:
-    desc: "Init a tofu module -- <module>"
-    dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
-    cmd: pass-cli run --env-file secrets.env -- tofu init
+    desc: "Init tofu module(s) [-- <module>] (no secrets needed: provider download only)"
+    dir: "{{.ROOT_DIR}}"
+    cmd: |
+      for d in {{if .CLI_ARGS}}tofu/{{.CLI_ARGS}}{{else}}$(find tofu -mindepth 1 -maxdepth 1 -type d){{end}}; do
+        (cd "$d" && tofu init -input=false)
+      done
 
   plan:
     desc: "Plan a tofu module -- <module>"

@@ -7,24 +7,27 @@ vars:
 
 tasks:
   setup:
-    desc: Fully set up this machine as a futhark operator (packages + collections + hooks)
+    desc: Fully set up this machine as a futhark operator (packages + collections + hooks + tofu)
     cmds:
       - task: deps
       - task: collections
       - task: hooks
+      - task: ":tofu:init"
 
   deps:
     desc: >-
       Install required packages (ansible-core, ansible-lint, yamllint, pass-cli,
       pre-commit, kubectl, helm, kustomize, k0sctl, tofu)
     cmds:
-      - sudo dnf install -y ansible-core yamllint kubernetes-client helm
+      # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
+      # ships a same-path conflicting package literally named `tofu`, don't use it here.
+      - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu
       - uv tool install --upgrade ansible-lint
       - uv tool install --upgrade pre-commit
       - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
-      - curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | sudo bash -s -- /usr/local/bin
+      # The installer script refuses to run if the binary already exists, so ops:setup can be rerun.
+      - command -v kustomize > /dev/null || curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | sudo bash -s -- /usr/local/bin
       - curl -fsSL https://github.com/k0sproject/k0sctl/releases/latest/download/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
-      - curl -fsSL https://get.opentofu.org/install-opentofu.sh -o /tmp/install-opentofu.sh && chmod +x /tmp/install-opentofu.sh && /tmp/install-opentofu.sh --install-method rpm
     preconditions:
       - which dnf
       - which uv

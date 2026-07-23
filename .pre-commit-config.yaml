@@ -56,8 +56,10 @@ repos:
         pass_filenames: false
       - id: tofu-validate
         name: tofu validate
-        # -backend=false: no state/credentials needed, just provider schemas, to validate.
-        entry: bash -c 'for d in $(find tofu -name "*.tf" -exec dirname {} \; | sort -u); do tofu -chdir="$d" fmt -check -diff || exit 1; tofu -chdir="$d" init -backend=false -input=false > /dev/null || exit 1; tofu -chdir="$d" validate || exit 1; done'
+        # No `tofu init` here: it can touch .terraform.lock.hcl, and pre-commit treats a hook
+        # editing tracked files as a failure. CI runs init as its own step first (see
+        # .github/workflows/validate.yml); locally, run `task tofu:init -- <module>` once first.
+        entry: bash -c 'for d in $(find tofu -name "*.tf" -exec dirname {} \; | sort -u); do tofu -chdir="$d" fmt -check -diff || exit 1; tofu -chdir="$d" validate || exit 1; done'
         language: system
         files: ^tofu/.*\.tf$
         pass_filenames: false

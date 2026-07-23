@@ -29,12 +29,18 @@ cert-manager's DNS-01 webhook already points at that same zone.
 
 ```bash
 cd tofu/bunny
-pass-cli run --env-file secrets.env -- tofu init
+tofu init  # no secrets needed, provider download only
 pass-cli run --env-file secrets.env -- tofu plan
 pass-cli run --env-file secrets.env -- tofu apply
 ```
 
-(`task tofu:plan` / `task tofu:apply` wrap this — see `.taskfiles/tofu/Taskfile.yaml`.)
+(`task tofu:init [-- bunny]` / `task tofu:plan -- bunny` / `task tofu:apply -- bunny` wrap this —
+see `.taskfiles/tofu/Taskfile.yaml`. `task tofu:init` with no module inits every module under
+`tofu/`, and runs as part of `task ops:setup`.)
+
+The pre-commit `tofu-validate` hook only runs `fmt`/`validate`, not `init` — a hook that touches
+`.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
+`task tofu:init` once locally before committing; CI runs init as its own step first.
 
 Before the first apply: populate the two Proton Pass items `secrets.env` points at —
 `futharkd/kenaz/public-ip` and `futharkd/bunny/api-key` (same permissions as the key already used by
