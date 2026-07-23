@@ -1,9 +1,29 @@
-# Base host prep (Fedora): full update + the tooling later steps rely on.
+# Base host prep (Fedora): hostname, full update + the tooling later steps rely on.
+- name: Set hostname
+  ansible.builtin.hostname:
+    name: "{{ node.hostname }}"
+
 - name: Full system upgrade # noqa: package-latest (intentional: full dnf upgrade at setup time)
   ansible.builtin.dnf:
     name: "*"
     state: latest
     update_cache: true
+  register: fedora_common_upgrade
+
+- name: Install dnf-utils (needs-restarting)
+  ansible.builtin.dnf:
+    name: dnf-utils
+    state: present
+
+- name: Check if a reboot is required
+  ansible.builtin.command: dnf needs-restarting -r
+  register: fedora_common_reboot_required
+  changed_when: false
+  failed_when: fedora_common_reboot_required.rc not in [0, 1]
+
+- name: Reboot if the upgrade needs it
+  ansible.builtin.reboot:
+  when: fedora_common_reboot_required.rc == 1
 
 - name: Install base tooling
   ansible.builtin.dnf:
