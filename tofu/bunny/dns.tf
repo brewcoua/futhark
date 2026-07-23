@@ -4,12 +4,13 @@ data "bunnynet_dns_zone" "this" {
   domain = var.domain
 }
 
-# One record per edge-exposed hostname. auth.DOMAIN is the first (infra/authentik) — add one
-# bunnynet_dns_record block per additional edge app as they land.
+# One record per edge-exposed hostname — add one bunnynet_dns_record block per additional edge
+# app as they land. auth.DOMAIN points at ogma directly (Pocket ID + its own Traefik), not
+# kenaz/traefik-edge, so auth survives a k0s outage.
 resource "bunnynet_dns_record" "auth" {
   zone  = data.bunnynet_dns_zone.this.id
   name  = "auth"
   type  = "A"
-  value = var.kenaz_public_ip
+  value = var.ogma_public_ip
   ttl   = 300
 }

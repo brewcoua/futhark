@@ -9,4 +9,3 @@ resources:
   - traefik-edge/ks.yaml
   - storage/ks.yaml
   - monitoring/ks.yaml
-  - authentik/ks.yaml

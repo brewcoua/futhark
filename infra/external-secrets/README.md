@@ -7,8 +7,7 @@ enforced by OpenBao **namespaces** rather than path-prefix policies — each nam
 compromised binding can't read outside its own namespace by construction:
 
 - **`infra` namespace** (`clustersecretstore-infra.yaml`, store `bao-infra`) — used by every
-  node-agnostic component (`infra/authentik`, `infra/cert-manager`, `infra/storage`,
-  `infra/monitoring`, ...).
+  node-agnostic component (`infra/cert-manager`, `infra/storage`, `infra/monitoring`, ...).
 - **`node-<hostname>` namespace** (`nodes/<hostname>.yaml`, one per k0s node, store
   `bao-node-<hostname>`) — that node's own apps (`nodes/<hostname>.k0s/<app>/app/`).
 

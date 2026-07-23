@@ -1,0 +1,63 @@
+---
+# Runs only against the already-running pocketid/traefik containers deployed by gitops_pull —
+# never templates a container unit itself. apps-gated ('pocketid' in node.apps), not
+# workflow-gated, so this only ever touches ogma today without hardcoding its hostname.
+- name:
+    Allow HTTPS publicly (auth must survive a k0s/kenaz outage, so it can't sit behind
+    traefik-edge)
+  ansible.posix.firewalld:
+    port: 443/tcp
+    permanent: true
+    immediate: true
+    state: enabled
+  when: node.os == 'fedora'
+
+- name: Enable the rootful podman API socket (Traefik's docker-provider endpoint)
+  ansible.builtin.systemd:
+    name: podman.socket
+    state: started
+    enabled: true
+
+- name: Ensure Pocket ID's secrets directory exists
+  ansible.builtin.file:
+    path: /etc/pocketid
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Check for an existing Pocket ID encryption key
+  ansible.builtin.stat:
+    path: /etc/pocketid/encryption_key
+  register: pocketid_encryption_key
+
+- name: Generate the Pocket ID encryption key (persisted on disk, never git-synced)
+  ansible.builtin.shell:
+    cmd: openssl rand -base64 32 > /etc/pocketid/encryption_key
+  when: not pocketid_encryption_key.stat.exists
+  changed_when: true
+
+- name: Restrict the encryption key's permissions
+  ansible.builtin.file:
+    path: /etc/pocketid/encryption_key
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Ensure Traefik's secrets directory exists
+  ansible.builtin.file:
+    path: /etc/traefik
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Write Traefik's env file (Bunny API key, for DNS-01 — same key tofu/bunny already uses)
+  ansible.builtin.copy:
+    dest: /etc/traefik/env
+    content: |
+      BUNNY_API_KEY={{ lookup('protonpass', 'pass://futharkd/bunny/api key') }}
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true

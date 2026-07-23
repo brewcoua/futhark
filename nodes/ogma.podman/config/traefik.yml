@@ -1,0 +1,19 @@
+---
+# Static config only — no secrets. BUNNY_API_KEY (for DNS-01) is host-mounted via
+# /etc/traefik/env (EnvironmentFile in the quadlet), provisioned by ansible/roles/pocketid.
+entryPoints:
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    endpoint: "unix:///run/podman/podman.sock"
+    exposedByDefault: false
+
+certificatesResolvers:
+  bunny:
+    acme:
+      email: contact@brewen.dev
+      storage: /letsencrypt/acme.json
+      dnsChallenge:
+        provider: bunny

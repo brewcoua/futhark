@@ -1,8 +1,9 @@
 # OpenTofu — the cloud plane
 
 Provider-API resources that Flux/Kustomize can't own, because they live outside the cluster (a DNS
-record, a registrar/CDN account). Not used for anything Flux can reconcile — Authentik's own config
-is blueprints (`infra/authentik/README.md`), not Tofu, for exactly that reason.
+record, a registrar/CDN account). Not used for anything Flux can reconcile — Pocket ID isn't a
+Tofu-managed resource either, it's a Podman Quadlet reconciled by `ansible/roles/gitops_pull`
+(see `nodes/ogma.podman/README.md`), for exactly that reason.
 
 ## Rules for any module here
 
@@ -23,9 +24,9 @@ is blueprints (`infra/authentik/README.md`), not Tofu, for exactly that reason.
 
 ## bunny
 
-Manages public DNS records for edge-exposed apps (`auth.DOMAIN` for `infra/authentik` today) against
-the existing `brewen.dev` zone in Bunny DNS — looked up via a data source, not created, since
-cert-manager's DNS-01 webhook already points at that same zone.
+Manages public DNS records for edge-exposed apps (`auth.DOMAIN` for Pocket ID on `ogma` today)
+against the existing `brewen.dev` zone in Bunny DNS — looked up via a data source, not created,
+since cert-manager's DNS-01 webhook already points at that same zone.
 
 ```bash
 cd tofu/bunny
@@ -42,6 +43,7 @@ The pre-commit `tofu-validate` hook only runs `fmt`/`validate`, not `init` — a
 `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
 `task tofu:init` once locally before committing; CI runs init as its own step first.
 
-Before the first apply: populate the two Proton Pass items `secrets.env` points at —
-`futharkd/kenaz/public-ip` and `futharkd/bunny/api-key` (same permissions as the key already used by
-`infra/cert-manager`'s DNS-01 webhook — Bunny API keys are account-wide, not zone-scoped).
+Before the first apply: populate the Proton Pass items `secrets.env` points at —
+`futharkd/kenaz/public-ip`, `futharkd/ogma/ip address`, and `futharkd/bunny/api-key` (same
+permissions as the key already used by `infra/cert-manager`'s DNS-01 webhook — Bunny API keys are
+account-wide, not zone-scoped).

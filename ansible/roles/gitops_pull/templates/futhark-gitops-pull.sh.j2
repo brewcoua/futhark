@@ -7,7 +7,6 @@ REPO_URL="{{ gitops_pull_repo_url }}"
 NODE_PATH="nodes/{{ node.hostname }}.podman"
 CLONE_DIR="/var/lib/futhark-gitops/repo"
 UNIT_DIR="/etc/containers/systemd"
-CONFIG_DIR="/etc/openbao/config"
 STATE_FILE="/var/lib/futhark-gitops/.last-applied"
 
 # shellcheck disable=SC1091
@@ -35,9 +34,10 @@ fi
 
 git -C "${CLONE_DIR}" reset --hard origin/master || fail "reset failed"
 
-# Diff quadlets/ (unit files, restarted individually by basename) and config/ (support files —
-# a change restarts the co-located unit of the same basename, e.g. config/openbao.hcl ->
-# openbao.service, if one is deployed).
+# Diff quadlets/ (unit files, restarted individually by basename) and config/ (support files,
+# installed to /etc/<basename-without-extension>/config/ — e.g. config/openbao.hcl ->
+# /etc/openbao/config/openbao.hcl — a change restarts the co-located unit of the same basename,
+# if one is deployed).
 declare -A changed_units=()
 shopt -s nullglob
 for src in "${CLONE_DIR}/${NODE_PATH}"/quadlets/*; do
@@ -48,10 +48,11 @@ for src in "${CLONE_DIR}/${NODE_PATH}"/quadlets/*; do
     changed_units["${name%.*}"]=1
   fi
 done
-mkdir -p "${CONFIG_DIR}"
 for src in "${CLONE_DIR}/${NODE_PATH}"/config/*; do
   name="$(basename "${src}")"
-  dest="${CONFIG_DIR}/${name}"
+  config_dir="/etc/${name%.*}/config"
+  mkdir -p "${config_dir}"
+  dest="${config_dir}/${name}"
   if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
     install -m 644 "${src}" "${dest}"
     changed_units["${name%.*}"]=1

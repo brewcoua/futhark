@@ -1,0 +1,25 @@
+# Podman Quadlet — pure git-managed unit, deployed only by the gitops-pull timer
+# (ansible/roles/gitops_pull) into /etc/containers/systemd/. No Ansible role templates this
+# file. The Bunny API key (for DNS-01) is host-level and provisioned separately by
+# ansible/roles/pocketid — nothing sensitive lives in this repo. Routes to other containers
+# purely via Docker-compatible labels read off the podman socket — exposedByDefault is off, so
+# only containers carrying traefik.enable=true (currently just pocketid) are ever routed to.
+[Unit]
+Description=Traefik (ogma public edge)
+After=network-online.target
+
+[Container]
+Image=docker.io/library/traefik:v3
+ContainerName=traefik
+PublishPort=443:443
+Volume=/etc/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro,Z
+Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro
+Volume=traefik-acme.volume:/letsencrypt
+EnvironmentFile=/etc/traefik/env
+Exec=traefik --configFile=/etc/traefik/traefik.yml
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
