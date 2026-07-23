@@ -2,6 +2,12 @@
 # Installs the pull-reconcile script + its timer, and runs it once synchronously so the node's
 # committed quadlets (nodes/<host>.podman/) are live by the end of this play. This script is the
 # ONLY writer of /etc/containers/systemd/* — no role, including openbao, ever templates a unit.
+- name: Install git
+  ansible.builtin.dnf:
+    name: git
+    state: present
+  when: node.os == 'fedora'
+
 - name: Resolve the healthchecks.io ping URL for this node's reconcile timer
   ansible.builtin.copy:
     dest: /etc/futhark-gitops-pull.env
