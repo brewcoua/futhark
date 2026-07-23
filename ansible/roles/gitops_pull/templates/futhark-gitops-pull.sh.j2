@@ -9,8 +9,12 @@ CLONE_DIR="/var/lib/futhark-gitops/repo"
 UNIT_DIR="/etc/containers/systemd"
 STATE_FILE="/var/lib/futhark-gitops/.last-applied"
 
+# set -a exports everything sourced below (DOMAIN, INT_DOMAIN, ...) so envsubst — a child
+# process — can actually see them; plain `source` only sets shell-local variables.
+set -a
 # shellcheck disable=SC1091
 source /etc/futhark-gitops-pull.env
+set +a
 
 # Available for envsubst below — lets config/ files bind to the tailnet interface without a
 # hardcoded IP (e.g. Traefik's tailnet-only entryPoint for OpenBao).
