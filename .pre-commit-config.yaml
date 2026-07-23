@@ -46,6 +46,9 @@ repos:
         files: ^ansible/
         pass_filenames: false
         language_version: python3
+        # Upstream's own hook manifest sets always_run: true, which overrides `files:` above
+        # unless cleared here — without this, ansible-lint runs on every commit regardless.
+        always_run: false
   - repo: local
     hooks:
       - id: kustomize-build
