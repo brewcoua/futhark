@@ -15,7 +15,7 @@ PublishPort=443:443
 Volume=/etc/traefik/config/traefik.yml:/etc/traefik/traefik.yml:ro,Z
 Volume=/run/podman/podman.sock:/run/podman/podman.sock:ro
 Volume=traefik-acme.volume:/letsencrypt
-EnvironmentFile=-/etc/traefik/env
+EnvironmentFile=/etc/traefik/env
 Exec=traefik --configFile=/etc/traefik/traefik.yml
 
 [Service]

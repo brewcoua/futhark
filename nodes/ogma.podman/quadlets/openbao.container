@@ -1,7 +1,11 @@
 # Podman Quadlet — pure git-managed unit, deployed only by the gitops-pull timer
 # (ansible/roles/gitops_pull) into /etc/containers/systemd/. No Ansible role templates this
-# file. TLS material and the mesh firewall rule are host-level and provisioned separately by
-# ansible/roles/openbao — nothing sensitive lives in this repo.
+# file. TLS material is host-level and provisioned separately by ansible/roles/openbao —
+# nothing sensitive lives in this repo. Reached only via Traefik's tailnet-only "vault"
+# entryPoint (see nodes/ogma.podman/config/traefik.yml) — TLS passthrough, since OpenBao
+# terminates its own self-signed cert (the one ESO trusts) rather than Traefik. ${INT_DOMAIN}
+# is substituted by the gitops-pull script (envsubst) from infra/_components/domain/domain.env,
+# the same source Flux-managed apps use.
 [Unit]
 Description=OpenBao server
 After=network-online.target
@@ -12,8 +16,12 @@ ContainerName=openbao
 Volume=openbao.volume:/openbao/data
 Volume=/etc/openbao/config:/openbao/config:ro,Z
 Volume=/etc/openbao/tls:/openbao/tls:ro,Z
-PublishPort=8200:8200
 Exec=bao server -config=/openbao/config/openbao.hcl
+Label=traefik.enable=true
+Label=traefik.tcp.routers.vault.rule=HostSNI(`vault.${INT_DOMAIN}`)
+Label=traefik.tcp.routers.vault.entrypoints=vault
+Label=traefik.tcp.routers.vault.tls.passthrough=true
+Label=traefik.tcp.services.vault.loadbalancer.server.port=8200
 
 [Service]
 Restart=always

@@ -14,9 +14,10 @@ Tofu-managed resource either, it's a Podman Quadlet reconciled by `ansible/roles
   **pointers** (safe to commit) resolved at runtime by `pass-cli run --env-file`. This also covers
   _identifying_ values that aren't credentials but still shouldn't sit in git in plaintext (a real
   public IP — the same thing `REPLACE_WITH_PUBLIC_IP` guards against in
-  `infra/traefik-edge/app/helmrelease.yaml`) — set those as `TF_VAR_<name>=pass://...`. Only a
-  genuinely non-identifying constant (a domain name, already public via `infra/_components/domain`)
-  belongs in a plain, committed `terraform.tfvars`.
+  `infra/traefik-edge/app/helmrelease.yaml`) — set those as `TF_VAR_<name>=pass://...`. A
+  genuinely non-identifying constant that's also shared with other parts of the repo (the domain
+  name) is read straight from its committed source (`infra/_components/domain/domain.env`) as a
+  `local`, rather than duplicated into `terraform.tfvars`.
 - State stays local and gitignored (`tofu/**/.terraform/`, `tofu/**/*.tfstate*`) — a module's minted
   credentials can sit in it in plaintext even when marked `sensitive` (that only suppresses
   console/plan output). Keep it on the operator machine.
@@ -24,9 +25,13 @@ Tofu-managed resource either, it's a Podman Quadlet reconciled by `ansible/roles
 
 ## bunny
 
-Manages public DNS records for edge-exposed apps (`auth.DOMAIN` for Pocket ID on `ogma` today)
-against the existing `brewen.dev` zone in Bunny DNS — looked up via a data source, not created,
-since cert-manager's DNS-01 webhook already points at that same zone.
+Manages public DNS records against the existing zone in Bunny DNS for
+`infra/_components/domain/domain.env`'s `DOMAIN` — looked up via a data source, not created, since
+cert-manager's DNS-01 webhook already points at that same zone.
+
+- `auth.DOMAIN` — Pocket ID, ogma's public IP.
+- `vault.INT_DOMAIN` — OpenBao, ogma's Tailscale mesh IP. Resolves publicly to a CGNAT
+  (`100.64.0.0/10`) address, so it's only reachable from the tailnet.
 
 ```bash
 cd tofu/bunny

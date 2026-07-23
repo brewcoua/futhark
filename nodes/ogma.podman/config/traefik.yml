@@ -1,9 +1,14 @@
 ---
 # Static config only — no secrets. BUNNY_API_KEY (for DNS-01) is host-mounted via
 # /etc/traefik/env (EnvironmentFile in the quadlet), provisioned by ansible/roles/pocketid.
+# ${TAILNET_IP} and ${DOMAIN} are substituted by the gitops-pull script (envsubst) at deploy
+# time — TAILNET_IP from `tailscale ip -4` (host-specific), DOMAIN from
+# infra/_components/domain/domain.env, the same source Flux-managed apps use.
 entryPoints:
   websecure:
     address: ":443"
+  vault:
+    address: "${TAILNET_IP}:8200"
 
 providers:
   docker:
@@ -13,7 +18,7 @@ providers:
 certificatesResolvers:
   bunny:
     acme:
-      email: contact@brewen.dev
+      email: contact@${DOMAIN}
       storage: /letsencrypt/acme.json
       dnsChallenge:
         provider: bunny

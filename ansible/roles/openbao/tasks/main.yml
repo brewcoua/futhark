@@ -16,14 +16,6 @@
       ogma has no Tailscale mesh IP — openbao needs node.mesh: true
       (see ansible/roles/tailscale) to run before this role in the play.
 
-- name: Allow OpenBao's port only from the tailnet
-  ansible.posix.firewalld:
-    rich_rule: 'rule family="ipv4" source address="100.64.0.0/10" port port="8200" protocol="tcp" accept'
-    permanent: true
-    immediate: true
-    state: enabled
-  when: node.os == 'fedora'
-
 - name: Ensure the TLS directory exists
   ansible.builtin.file:
     path: /etc/openbao/tls
@@ -45,7 +37,7 @@
       -out /etc/openbao/tls/openbao.crt
       -days 3650
       -subj "/CN=ogma"
-      -addext "subjectAltName=DNS:ogma,DNS:localhost,IP:{{ openbao_mesh_ip.stdout }},IP:127.0.0.1"
+      -addext "subjectAltName=DNS:ogma,DNS:vault.{{ int_domain }},DNS:localhost,IP:{{ openbao_mesh_ip.stdout }},IP:127.0.0.1"
   when: not openbao_tls_key.stat.exists
   changed_when: true
 

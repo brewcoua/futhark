@@ -2,7 +2,10 @@
 
 `ogma` is a standalone Podman node (not part of the k0s cluster), running OpenBao — the secrets
 backend for the whole fleet — and Pocket ID + a standalone Traefik, the fleet's SSO/OIDC provider
-(`auth.brewen.dev`), deliberately kept off k0s so auth survives a cluster outage.
+(`auth.$DOMAIN`), deliberately kept off k0s so auth survives a cluster outage. `$DOMAIN`/
+`$INT_DOMAIN` come from `infra/_components/domain/domain.env`, the same source Flux-managed apps
+use — the gitops-pull script (`ansible/roles/gitops_pull`) substitutes them into `quadlets/` and
+`config/` at deploy time (see below).
 
 - `quadlets/` — Podman Quadlet units (`.container`/`.volume`), synced verbatim into
   `/etc/containers/systemd/` by the gitops-pull timer (`ansible/roles/gitops_pull`). This is the
@@ -15,10 +18,14 @@ backend for the whole fleet — and Pocket ID + a standalone Traefik, the fleet'
     DNS-01 resolver). The Bunny API key is host-mounted via `/etc/traefik/env`, provisioned by
     `ansible/roles/pocketid`, and never committed.
 
-Traefik discovers Pocket ID (and only Pocket ID — `exposedByDefault: false`) via labels on
-`pocketid.container`, read off the rootful podman socket (`/run/podman/podman.sock`), and routes
-`auth.brewen.dev` to it with a Let's Encrypt cert from Bunny DNS-01. `tofu/bunny/dns.tf` points
-`auth.brewen.dev` straight at ogma's own public IP.
+Traefik discovers containers only via labels (`exposedByDefault: false`), read off the rootful
+podman socket (`/run/podman/podman.sock`):
+
+- Pocket ID (`pocketid.container`) — routed at `auth.$DOMAIN` with a Let's Encrypt cert from Bunny
+  DNS-01. `tofu/bunny/dns.tf` points `auth.$DOMAIN` straight at ogma's own public IP.
+- OpenBao (`openbao.container`) — routed at `vault.$INT_DOMAIN` on a tailnet-only entryPoint
+  (`traefik.yml`'s `vault` entryPoint, bound to `$TAILNET_IP`), TLS passthrough since OpenBao
+  terminates its own self-signed cert (the one ESO trusts) rather than Traefik.
 
 Reconciled every 5 minutes by `futhark-gitops-pull.timer` on ogma; push to `master` and it
 converges on its own, or run `task bao:reconcile-now` for an immediate pull. See

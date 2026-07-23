@@ -6,6 +6,11 @@
     name: podman
     state: present
 
+- name: Install gettext (envsubst — gitops_pull renders tailnet-bound values into config/)
+  ansible.builtin.dnf:
+    name: gettext
+    state: present
+
 - name: Enable the rootful podman API socket (bind-mounted by containers that need it, e.g. Traefik)
   ansible.builtin.systemd:
     name: podman.socket

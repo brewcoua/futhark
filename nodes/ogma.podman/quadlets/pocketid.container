@@ -1,7 +1,8 @@
 # Podman Quadlet — pure git-managed unit, deployed only by the gitops-pull timer
 # (ansible/roles/gitops_pull) into /etc/containers/systemd/. No Ansible role templates this
 # file. The encryption key is host-level and provisioned separately by ansible/roles/pocketid
-# — nothing sensitive lives in this repo.
+# — nothing sensitive lives in this repo. ${DOMAIN} is substituted by the gitops-pull script
+# (envsubst) from infra/_components/domain/domain.env, the same source Flux-managed apps use.
 [Unit]
 Description=Pocket ID
 After=network-online.target
@@ -10,7 +11,7 @@ After=network-online.target
 Image=ghcr.io/pocket-id/pocket-id:v2
 ContainerName=pocketid
 Volume=pocketid.volume:/app/data:Z
-Environment=APP_URL=https://auth.brewen.dev
+Environment=APP_URL=https://auth.${DOMAIN}
 Environment=TRUST_PROXY=true
 Environment=ENCRYPTION_KEY_FILE=/run/secrets/pocketid_encryption_key
 Volume=/etc/pocketid/encryption_key:/run/secrets/pocketid_encryption_key:ro,Z
@@ -20,7 +21,7 @@ HealthTimeout=5s
 HealthRetries=2
 HealthStartPeriod=10s
 Label=traefik.enable=true
-Label=traefik.http.routers.pocketid.rule=Host(`auth.brewen.dev`)
+Label=traefik.http.routers.pocketid.rule=Host(`auth.${DOMAIN}`)
 Label=traefik.http.routers.pocketid.entrypoints=websecure
 Label=traefik.http.routers.pocketid.tls.certresolver=bunny
 Label=traefik.http.services.pocketid.loadbalancer.server.port=1411

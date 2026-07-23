@@ -1,5 +1,13 @@
 ---
+# On a fresh node this fires before gitops_pull has ever deployed the traefik quadlet, so the
+# unit doesn't exist yet — skip the restart, gitops_pull will start it with the env already in place.
+- name: Check whether Traefik's quadlet has been deployed yet
+  ansible.builtin.stat:
+    path: /etc/containers/systemd/traefik.container
+  register: pocketid_traefik_unit
+
 - name: Restart Traefik to pick up the env file
   ansible.builtin.systemd:
     name: traefik.service
     state: restarted
+  when: pocketid_traefik_unit.stat.exists

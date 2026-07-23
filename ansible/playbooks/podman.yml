@@ -11,9 +11,9 @@
   roles:
     - role: podman_host
       when: node.workflow == 'podman'
+    - role: pocketid
+      when: "'pocketid' in (node.apps | default([]))"
     - role: gitops_pull
       when: node.workflow == 'podman'
     - role: openbao
       when: "'openbao' in (node.apps | default([]))"
-    - role: pocketid
-      when: "'pocketid' in (node.apps | default([]))"

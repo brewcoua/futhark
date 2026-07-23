@@ -12,6 +12,11 @@ STATE_FILE="/var/lib/futhark-gitops/.last-applied"
 # shellcheck disable=SC1091
 source /etc/futhark-gitops-pull.env
 
+# Available for envsubst below — lets config/ files bind to the tailnet interface without a
+# hardcoded IP (e.g. Traefik's tailnet-only entryPoint for OpenBao).
+TAILNET_IP="$(tailscale ip -4 2> /dev/null || true)"
+export TAILNET_IP
+
 fail() {
   echo "$1" >&2
   curl -fsS -m 10 --retry 3 "${HEALTHCHECKS_PING_URL}/fail" -d "$1" > /dev/null || true
@@ -40,12 +45,14 @@ git -C "${CLONE_DIR}" reset --hard origin/master || fail "reset failed"
 # if one is deployed).
 declare -A changed_units=()
 changed_count=0
+rendered="$(mktemp)"
 shopt -s nullglob
 for src in "${CLONE_DIR}/${NODE_PATH}"/quadlets/*; do
   name="$(basename "${src}")"
   dest="${UNIT_DIR}/${name}"
-  if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
-    install -m 644 "${src}" "${dest}"
+  envsubst '${TAILNET_IP} ${DOMAIN} ${INT_DOMAIN}' < "${src}" > "${rendered}"
+  if ! cmp -s "${rendered}" "${dest}" 2> /dev/null; then
+    install -m 644 "${rendered}" "${dest}"
     changed_units["${name%.*}"]=1
     changed_count=$((changed_count + 1))
   fi
@@ -55,12 +62,14 @@ for src in "${CLONE_DIR}/${NODE_PATH}"/config/*; do
   config_dir="/etc/${name%.*}/config"
   mkdir -p "${config_dir}"
   dest="${config_dir}/${name}"
-  if ! cmp -s "${src}" "${dest}" 2> /dev/null; then
-    install -m 644 "${src}" "${dest}"
+  envsubst '${TAILNET_IP} ${DOMAIN} ${INT_DOMAIN}' < "${src}" > "${rendered}"
+  if ! cmp -s "${rendered}" "${dest}" 2> /dev/null; then
+    install -m 644 "${rendered}" "${dest}"
     changed_units["${name%.*}"]=1
     changed_count=$((changed_count + 1))
   fi
 done
+rm -f "${rendered}"
 shopt -u nullglob
 
 if [ "${changed_count}" -gt 0 ]; then

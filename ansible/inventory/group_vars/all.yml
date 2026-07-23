@@ -13,3 +13,9 @@ ssh_port: 2222
 # to render and read artifacts that never get committed — see .gitignore.
 repo_root: "{{ inventory_dir }}/../.."
 generated_dir: "{{ repo_root }}/ansible/.generated"
+
+# Same source of truth as infra/_components/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN,
+# used across Flux-managed apps) — read straight from that file so ansible and k8s never drift.
+domain_env_file: "{{ lookup('ansible.builtin.file', repo_root + '/infra/_components/domain/domain.env') }}"
+domain: "{{ (domain_env_file | regex_findall('^DOMAIN=(.*)$', multiline=True))[0] }}"
+int_domain: "{{ (domain_env_file | regex_findall('^INT_DOMAIN=(.*)$', multiline=True))[0] }}"

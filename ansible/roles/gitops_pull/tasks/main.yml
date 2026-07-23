@@ -13,6 +13,8 @@
     dest: /etc/futhark-gitops-pull.env
     content: |
       HEALTHCHECKS_PING_URL={{ lookup('protonpass', 'pass://futharkd/' + node.hostname + '/healthcheck url') }}
+      DOMAIN={{ domain }}
+      INT_DOMAIN={{ int_domain }}
     owner: root
     group: root
     mode: "0600"
