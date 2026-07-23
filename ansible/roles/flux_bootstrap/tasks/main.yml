@@ -52,8 +52,8 @@
         namespace: infisical-operator
       type: Opaque
       stringData:
-        clientId: "{{ lookup('protonpass', 'pass://futharkd/infisical/client-id') }}"
-        clientSecret: "{{ lookup('protonpass', 'pass://futharkd/infisical/client-secret') }}"
+        clientId: "{{ lookup('protonpass', 'pass://futharkd/infisical/client id') }}"
+        clientSecret: "{{ lookup('protonpass', 'pass://futharkd/infisical/client secret') }}"
 
 # One identity per k0s node, scoped in Infisical to /nodes/<hostname>/** only — see
 # infra/infisical-operator/README.md. Loop mirrors the same workflow filter
@@ -70,8 +70,8 @@
         namespace: infisical-operator
       type: Opaque
       stringData:
-        clientId: "{{ lookup('protonpass', 'pass://futharkd/' + item + '/infisical-client-id') }}"
-        clientSecret: "{{ lookup('protonpass', 'pass://futharkd/' + item + '/infisical-client-secret') }}"
+        clientId: "{{ lookup('protonpass', 'pass://futharkd/' + item + '/client id') }}"
+        clientSecret: "{{ lookup('protonpass', 'pass://futharkd/' + item + '/client secret') }}"
   loop: "{{ groups['all'] | map('extract', hostvars) | selectattr('node.workflow', 'equalto', 'k0s') | map(attribute='node.hostname') | list }}"
 
 - name: Bridge the Infisical project ID
