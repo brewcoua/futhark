@@ -1,0 +1,41 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - pvc-server-files.yaml
+  - pvc-user-files.yaml
+  - configmap.yaml
+  - externalsecret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Splices INT_DOMAIN into the ingress host and the OIDC hostname config below — see
+# infra/monitoring/app/kustomization.yaml and flux/README.md.
+components:
+  - ../../../../infra/_components/domain
+
+replacements:
+  - source:
+      kind: ConfigMap
+      name: domain
+      fieldPath: data.INT_DOMAIN
+    targets:
+      - select:
+          kind: Ingress
+          name: actual
+        fieldPaths:
+          - spec.rules.0.host
+        options:
+          delimiter: "."
+          index: 1
+      - select:
+          kind: ConfigMap
+          name: actual-config
+        fieldPaths:
+          - data.ACTUAL_OPENID_SERVER_HOSTNAME
+        options:
+          delimiter: "."
+          index: 1

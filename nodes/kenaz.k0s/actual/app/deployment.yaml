@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual
+  namespace: actual
+spec:
+  replicas: 1
+  # Single-writer SQLite on a non-shared volume: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: actual
+  template:
+    metadata:
+      labels:
+        app: actual
+    spec:
+      # Service "actual" -> kubelet injects ACTUAL_PORT=tcp://<ip>:80, colliding with
+      # convict's ACTUAL_* env prefix and breaking Actual's port validation.
+      enableServiceLinks: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: actual
+          image: actualbudget/actual-server:26.7.0
+          ports:
+            - name: http
+              containerPort: 5006
+          envFrom:
+            - configMapRef:
+                name: actual-config
+            - secretRef:
+                name: actual-secrets
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: server-files
+              mountPath: /data/server-files
+            - name: user-files
+              mountPath: /data/user-files
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 384Mi
+      volumes:
+        - name: server-files
+          persistentVolumeClaim:
+            claimName: actual-server-files
+        - name: user-files
+          persistentVolumeClaim:
+            claimName: actual-user-files
+        - name: tmp
+          emptyDir: {}

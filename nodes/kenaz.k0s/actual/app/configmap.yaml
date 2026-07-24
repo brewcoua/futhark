@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: actual-config
+  namespace: actual
+data:
+  ACTUAL_OPENID_SERVER_HOSTNAME: https://actual.INT_DOMAIN
+  ACTUAL_OPENID_CLIENT_ID: actual
+  ACTUAL_OPENID_ENFORCE: "true"
+  # First OIDC login becomes the server owner automatically, no manual promotion step.
+  ACTUAL_USER_CREATION_MODE: "login"
+  # Pocket ID's own public endpoint (ogma, podman-workflow) — a stable external dependency,
+  # not a per-node value, so it's not spliced via the domain component like the field above:
+  # that splice works only for a bare `sub.INT_DOMAIN` field, and breaks once a path (the
+  # /.well-known/... suffix here) reintroduces a dot after the domain.
+  ACTUAL_OPENID_DISCOVERY_URL: https://auth.brewen.dev/.well-known/openid-configuration

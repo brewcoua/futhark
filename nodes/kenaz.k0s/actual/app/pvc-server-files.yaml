@@ -1,0 +1,16 @@
+---
+# SQLite budget DBs. local-path is node-local hostPath storage — avoids the locking issues
+# a network filesystem (storagebox-crypt) can cause for SQLite. No off-node durability yet;
+# backups are separate future work.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: actual-server-files
+  namespace: actual
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

@@ -1,0 +1,15 @@
+---
+# Uploaded attachments. storagebox-crypt is off-node and Retain-reclaimed — safe to use here
+# since it's plain blob storage, not SQLite (see pvc-server-files.yaml).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: actual-user-files
+  namespace: actual
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: storagebox-crypt
+  resources:
+    requests:
+      storage: 10Gi
