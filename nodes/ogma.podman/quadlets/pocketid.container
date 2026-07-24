@@ -15,6 +15,8 @@ Environment=APP_URL=https://auth.${DOMAIN}
 Environment=TRUST_PROXY=true
 Environment=ENCRYPTION_KEY_FILE=/run/secrets/pocketid_encryption_key
 Volume=/etc/pocketid/encryption_key:/run/secrets/pocketid_encryption_key:ro,Z
+Environment=MAXMIND_LICENSE_KEY_FILE=/run/secrets/maxmind_license_key
+Volume=/etc/pocketid/maxmind_license_key:/run/secrets/maxmind_license_key:ro,Z
 HealthCmd=/app/pocket-id healthcheck
 HealthInterval=1m30s
 HealthTimeout=5s

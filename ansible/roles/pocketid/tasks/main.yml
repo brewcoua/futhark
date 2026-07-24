@@ -33,6 +33,15 @@
     group: "1000"
     mode: "0640"
 
+- name: Write the MaxMind license key (used for Pocket ID's GeoIP lookups)
+  ansible.builtin.copy:
+    dest: /etc/pocketid/maxmind_license_key
+    content: "{{ lookup('protonpass', 'pass://futharkd/pocketid/license key') }}"
+    owner: root
+    group: "1000"
+    mode: "0640"
+  no_log: true
+
 - name: Ensure Traefik's secrets directory exists
   ansible.builtin.file:
     path: /etc/traefik
