@@ -12,7 +12,7 @@ tasks:
       - task: deps
       - task: collections
       - task: hooks
-      - task: ":tofu:init"
+      - task: ":tf:init"
 
   deps:
     desc: >-
@@ -24,6 +24,11 @@ tasks:
       - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu
       - uv tool install --upgrade ansible-lint
       - uv tool install --upgrade pre-commit
+      # kubernetes.core's modules (flux_bootstrap, openbao's namespace bootstrap) import this
+      # library directly, not the kubectl binary above — installed into /usr/bin/python3's
+      # site-packages since that's the interpreter ansible-core actually runs modules with,
+      # not a uv tool's isolated venv.
+      - sudo uv pip install --python /usr/bin/python3 kubernetes
       - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
       # The installer script refuses to run if the binary already exists, so ops:setup can be rerun.
       - command -v kustomize > /dev/null || curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | sudo bash -s -- /usr/local/bin
