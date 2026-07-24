@@ -75,3 +75,16 @@
   when: tailscale_authkey is not skipped
   changed_when: true
   no_log: true
+
+# Bind tailscale0 to firewalld's built-in "trusted" zone: the tailnet is the mesh's own
+# trust boundary (see host.yml's mesh_ip comment), so anything a node binds to its mesh_ip
+# (k0s's API server, OpenBao, ...) is reachable over it without punching per-port holes in
+# the public zone (ens3), which stays limited to the hardened SSH port.
+- name: Put tailscale0 in firewalld's trusted zone
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: tailscale0
+    permanent: true
+    immediate: true
+    state: enabled
+  when: node.os == 'fedora'
