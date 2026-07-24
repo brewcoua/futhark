@@ -9,6 +9,14 @@ admin:
 
 ssh_port: 2222
 
+# Real Ansible connection vars, always-on: day-2 ad-hoc commands (task pm:*) target only
+# already-bootstrapped hosts, so they don't need ssh_identity's fresh-vs-hardened probe.
+# setup.yml still overrides these via set_fact for first-time provisioning — facts win
+# over inventory vars, so that dynamic dance is untouched.
+ansible_host: "{{ node.mesh_ip if node.mesh | default(false) else node.ip }}"
+ansible_user: "{{ admin.user }}"
+ansible_port: "{{ ssh_port }}"
+
 # Repo-relative paths used by cluster-provisioning roles (k0s_cluster, flux_bootstrap)
 # to render and read artifacts that never get committed — see .gitignore. playbook_dir,
 # not inventory_dir: those roles run against hosts: localhost (implicit, not in

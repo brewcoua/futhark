@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  ANSIBLE_DIR: "{{.ROOT_DIR}}/ansible"
+
+tasks:
+  ps:
+    desc: List podman containers on ogma
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible ogma -b -m command -a "podman ps"
+
+  logs:
+    desc: "Tail a podman container's logs [-- <container>]"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible ogma -b -m command -a "podman logs --tail 200 {{.CLI_ARGS}}"
+
+  restart:
+    desc: "Restart a quadlet-managed podman service [-- <container>]"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: ansible ogma -b -m systemd -a "name={{.CLI_ARGS}}.service state=restarted"

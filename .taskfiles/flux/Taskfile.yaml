@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  KUBECONFIG: "{{.ROOT_DIR}}/ansible/.generated/kubeconfig"
+
+env:
+  KUBECONFIG: "{{.KUBECONFIG}}"
+
+tasks:
+  get:
+    desc: List Kustomizations and their sync status
+    cmd: flux get kustomizations -A
+
+  sources:
+    desc: List GitRepository sources and their sync status
+    cmd: flux get sources git -A
+
+  reconcile:
+    desc: "Force-reconcile a Kustomization [-- <name>]"
+    cmd: flux reconcile kustomization {{.CLI_ARGS}} --with-source
+
+  logs:
+    desc: "Tail controller logs [-- <controller>, default kustomize-controller]"
+    cmd: "flux logs --follow --controller={{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}kustomize-controller{{end}}"

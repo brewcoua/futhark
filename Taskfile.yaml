@@ -7,6 +7,9 @@ includes:
   bao: .taskfiles/bao/Taskfile.yaml
   ops: .taskfiles/operator/Taskfile.yaml
   tf: .taskfiles/tofu/Taskfile.yaml
+  pm: .taskfiles/podman/Taskfile.yaml
+  k0s: .taskfiles/k0s/Taskfile.yaml
+  fx: .taskfiles/flux/Taskfile.yaml
 
 tasks:
   default:

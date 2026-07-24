@@ -100,7 +100,7 @@
     msg: >-
       {{ generated_dir }}/kubeconfig not found — run ansible/playbooks/k0s.yml, then
       re-run this role to bootstrap namespaces, mounts, auth methods, and policies.
-  when: not openbao_kubeconfig_file.stat.exists
+  when: not hostvars['localhost'].openbao_kubeconfig_file.stat.exists
 
 - name: Bootstrap namespaces, mounts, auth methods, and policies
   ansible.builtin.include_tasks: namespaces.yml
@@ -113,5 +113,5 @@
       | list) }}
   loop_control:
     loop_var: openbao_namespace
-  when: openbao_kubeconfig_file.stat.exists
+  when: hostvars['localhost'].openbao_kubeconfig_file.stat.exists
   tags: [openbao_namespaces]

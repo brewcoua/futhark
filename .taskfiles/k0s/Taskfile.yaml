@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+version: "3"
+
+vars:
+  KUBECONFIG: "{{.ROOT_DIR}}/ansible/.generated/kubeconfig"
+
+env:
+  KUBECONFIG: "{{.KUBECONFIG}}"
+
+tasks:
+  nodes:
+    desc: List cluster nodes
+    cmd: kubectl get nodes -o wide
+
+  pods:
+    desc: "List pods [-- <namespace>, default all]"
+    cmd: "kubectl get pods {{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}}"
+
+  events:
+    desc: "Show recent events [-- <namespace>, default all]"
+    cmd: "kubectl get events --sort-by=.lastTimestamp {{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}}"
+
+  apply:
+    desc: Re-converge the cluster with k0sctl and re-bootstrap Flux
+    dir: "{{.ROOT_DIR}}/ansible"
+    cmd: ansible-playbook playbooks/k0s.yml
