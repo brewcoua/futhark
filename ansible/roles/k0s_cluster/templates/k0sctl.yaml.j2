@@ -12,5 +12,9 @@ spec:
         address: {{ hostvars[host].node.mesh_ip if hostvars[host].node.mesh | default(false) else hostvars[host].node.ip }}
         user: {{ hostvars[host].admin.user }}
         port: {{ hostvars[host].ssh_port }}
+{% if hostvars[host].node.k0s_role == 'controller+worker' %}
+      installFlags:
+        - --no-taints
+{% endif %}
 {% endif %}
 {% endfor %}

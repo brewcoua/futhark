@@ -22,6 +22,8 @@ tasks:
       # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
       # ships a same-path conflicting package literally named `tofu`, don't use it here.
       - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu
+      # kubernetes.core.helm's idempotency check shells out to this plugin if present.
+      - helm plugin list | grep -q ^diff || helm plugin install --verify=false https://github.com/databus23/helm-diff
       - uv tool install --upgrade ansible-lint
       - uv tool install --upgrade pre-commit
       # kubernetes.core's modules (flux_bootstrap, openbao's namespace bootstrap) import this
