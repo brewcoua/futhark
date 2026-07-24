@@ -6,3 +6,4 @@ ansible/.generated/
 # .terraform.lock.hcl is NOT here — that's the provider version lockfile, meant to be committed.
 tofu/**/.terraform/
 tofu/**/terraform.tfstate*
+tofu/oidc/openbao-ca.crt

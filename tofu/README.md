@@ -8,8 +8,12 @@ Tofu-managed resource either, it's a Podman Quadlet reconciled by `ansible/roles
 ## Rules for any module here
 
 - Read-only against OpenBao if it needs to read anything from there at all; never let a module
-  write to OpenBao. Anything a module _mints_ becomes a `sensitive` output, pasted into OpenBao
-  by hand.
+  write to OpenBao — anything a module _mints_ becomes a `sensitive` output, pasted into OpenBao
+  by hand. **Exception: `oidc`.** It mints OIDC client secrets in Pocket ID and the whole point
+  is removing that hand-paste step for this one round trip, so it's allowed to write those
+  secrets straight to OpenBao via the `vault` provider, using the same root-token auth ansible
+  already uses for namespace bootstrap (Proton Pass `futharkd/openbao/root token`, no narrower
+  policy). Every other module stays read-only.
 - Provider tokens are never committed. A module's `secrets.env` holds only Proton Pass `pass://`
   **pointers** (safe to commit) resolved at runtime by `pass-cli run --env-file`. This also covers
   _identifying_ values that aren't credentials but still shouldn't sit in git in plaintext (a real
@@ -52,3 +56,7 @@ Before the first apply: populate the Proton Pass items `secrets.env` points at �
 `futharkd/kenaz/public-ip`, `futharkd/ogma/ip address`, and `futharkd/bunny/api-key` (same
 permissions as the key already used by `infra/cert-manager`'s DNS-01 webhook — Bunny API keys are
 account-wide, not zone-scoped).
+
+## oidc
+
+See `tofu/oidc/README.md`.
