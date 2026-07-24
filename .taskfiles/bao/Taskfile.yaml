@@ -30,3 +30,11 @@ tasks:
     desc: "Roll ogma's gitops-pull clone back to a known-good SHA [-- <sha>]"
     dir: "{{.ANSIBLE_DIR}}"
     cmd: ansible-playbook playbooks/bao.yml -e bao_task=rollback -e bao_sha={{.CLI_ARGS}}
+
+  kv:
+    desc: "Run 'bao kv' on ogma, root token auto-injected from Proton Pass [-- put -namespace=<ns> <path> key=value ...]"
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: >-
+      ansible ogma -b -m command -a "podman exec
+      -e BAO_TOKEN=$(pass-cli item view 'pass://futharkd/openbao/root token' --output human)
+      openbao bao kv {{.CLI_ARGS}}"
