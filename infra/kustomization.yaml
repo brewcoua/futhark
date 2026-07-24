@@ -4,7 +4,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - external-secrets/ks.yaml
+  - external-secrets/config-ks.yaml
   - cert-manager/ks.yaml
+  - cert-manager/config-ks.yaml
   - traefik-internal/ks.yaml
   - traefik-edge/ks.yaml
   - storage/ks.yaml

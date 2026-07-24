@@ -12,3 +12,5 @@ spec:
     kind: GitRepository
     name: flux-system
   path: ./infra/storage/app
+  dependsOn:
+    - name: external-secrets-config

@@ -1,9 +1,12 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Split from ks.yaml: ClusterIssuer/ExternalSecret here need the cert-manager and
+# external-secrets CRDs to already exist, which their own Kustomization can't guarantee for
+# itself (chicken-and-egg on first apply).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: traefik-internal
+  name: cert-manager-config
   namespace: flux-system
 spec:
   interval: 10m
@@ -11,6 +14,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./infra/traefik-internal/app
+  path: ./infra/cert-manager/config
   dependsOn:
-    - name: cert-manager-config
+    - name: cert-manager
+    - name: external-secrets-config
