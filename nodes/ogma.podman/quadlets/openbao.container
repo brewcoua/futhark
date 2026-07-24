@@ -21,6 +21,10 @@ Volume=/etc/openbao/config:/openbao/config:ro,Z
 Volume=/etc/openbao/tls:/openbao/tls:ro,Z
 Environment=BAO_CACERT=/openbao/tls/openbao.crt
 Exec=bao server -config=/openbao/config/openbao.hcl
+# Direct access for automation that already trusts the self-signed cert (ansible's openbao
+# role, tofu/oidc's vault provider) — tailnet-only, same firewalld trusted-zone model as k0s's
+# 6443 (see ansible/roles/tailscale). Browser/UI traffic still goes through Traefik on 443.
+PublishPort=8200:8200
 Label=traefik.enable=true
 Label=traefik.http.routers.vault.rule=Host(`vault.${INT_DOMAIN}`)
 Label=traefik.http.routers.vault.entrypoints=websecure
