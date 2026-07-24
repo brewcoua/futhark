@@ -12,8 +12,11 @@ ssh_port: 2222
 # Real Ansible connection vars, always-on: day-2 ad-hoc commands (task pm:*) target only
 # already-bootstrapped hosts, so they don't need ssh_identity's fresh-vs-hardened probe.
 # setup.yml still overrides these via set_fact for first-time provisioning — facts win
-# over inventory vars, so that dynamic dance is untouched.
-ansible_host: "{{ node.mesh_ip if node.mesh | default(false) else node.ip }}"
+# over inventory vars, so that dynamic dance is untouched. Guarded on `node is defined`
+# because k0s_cluster/flux_bootstrap run against hosts: localhost (implicit, not in
+# inventory, no `node` var) — the ternary's false branch is never evaluated, so it can't
+# blow up on a plain omit.
+ansible_host: "{{ (node.mesh_ip if node.mesh | default(false) else node.ip) if node is defined else omit }}"
 ansible_user: "{{ admin.user }}"
 ansible_port: "{{ ssh_port }}"
 
