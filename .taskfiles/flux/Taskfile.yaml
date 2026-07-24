@@ -18,8 +18,15 @@ tasks:
     cmd: flux get sources git -A
 
   reconcile:
-    desc: "Force-reconcile a Kustomization [-- <name>]"
-    cmd: flux reconcile kustomization {{.CLI_ARGS}} --with-source
+    desc: "Force-reconcile a Kustomization, or all of them [-- <name>]"
+    cmd: |
+      {{if .CLI_ARGS}}
+      flux reconcile kustomization {{.CLI_ARGS}} --with-source
+      {{else}}
+      flux get kustomizations -A --no-header | awk 'NF {print $1, $2}' | while read -r ns ks; do
+        flux reconcile kustomization "$ks" -n "$ns" --with-source
+      done
+      {{end}}
 
   logs:
     desc: "Tail controller logs [-- <controller>, default kustomize-controller]"
