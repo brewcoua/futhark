@@ -13,7 +13,7 @@ spec:
     registry: ghcr.io/fluxcd
   sync:
     kind: GitRepository
-    url: git@github.com:brewcoua/futhark.git
+    url: ssh://git@github.com/brewcoua/futhark.git
     ref: refs/heads/master
     path: flux
     pullSecret: git-deploy-key
