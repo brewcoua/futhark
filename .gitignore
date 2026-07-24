@@ -7,3 +7,6 @@ ansible/.generated/
 tofu/**/.terraform/
 tofu/**/terraform.tfstate*
 tofu/oidc/openbao-ca.crt
+
+# Local configs
+.claude
