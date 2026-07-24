@@ -6,5 +6,6 @@ node:
   mesh: true
   apps: [openbao, pocketid, traefik]
   ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/ip address') }}"
+  mesh_ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/mesh ip') }}"
   initial_user: fedora
   initial_port: 22

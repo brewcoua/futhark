@@ -9,7 +9,7 @@ spec:
 {% if hostvars[host].node.workflow == 'k0s' %}
     - role: {{ hostvars[host].node.k0s_role }}
       ssh:
-        address: {{ hostvars[host].node.ip }}
+        address: {{ hostvars[host].node.mesh_ip if hostvars[host].node.mesh | default(false) else hostvars[host].node.ip }}
         user: {{ hostvars[host].admin.user }}
         port: {{ hostvars[host].ssh_port }}
 {% endif %}

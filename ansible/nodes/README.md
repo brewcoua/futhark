@@ -15,6 +15,9 @@ node:
     true # optional, default false — joins the Tailscale mesh (see ansible/roles/tailscale).
     # Orthogonal to workflow: opt in for any node (cloud or local) that needs mesh reachability,
     # e.g. a VPS node reaching a home node, or OpenBao staying off the public internet.
+  mesh_ip:
+    100.64.0.10 # required if mesh: true — the tailnet IP, used instead of `ip` for
+    # SSH/API traffic (k0sctl, etc.) once the node has joined (see ansible/roles/k0s_cluster).
   apps: [] # optional, default [] — app-specific roles to run, only meaningful for workflow:
     # podman (a podman node is one process per app; see ansible/playbooks/podman.yml). A k0s
     # node's apps live under nodes/<hostname>.k0s/ instead, not here.
