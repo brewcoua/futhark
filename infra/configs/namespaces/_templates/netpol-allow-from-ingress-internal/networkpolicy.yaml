@@ -1,15 +1,12 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
 #
-# Opt-in bridge: only for namespaces that actually expose an Ingress. Most infra namespaces
-# (cert-manager, external-secrets, csi-rclone) never receive Ingress traffic and stay out of
-# this file. Add a block here (picking ingress-internal and/or ingress-edge) whenever a new
-# app/nodes/<hostname>.k0s/<app>/app/ingress.yaml lands — see flux/README.md.
+# Opt-in bridge: only for namespaces that actually expose an Ingress. Add this template to a
+# namespace's overlay whenever its app/ingress.yaml lands.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: allow-from-ingress-internal
-  namespace: actual
 spec:
   podSelector: {}
   policyTypes: [Ingress]

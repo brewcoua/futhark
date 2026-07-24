@@ -8,8 +8,9 @@ This is a different `nodes/` from `ansible/nodes/`: Ansible's copy is provisioni
 — what runs once the host exists. A node's `workflow` decides the shape of its directory:
 
 - `k0s` — kustomize manifests, one subdirectory per app: `ks.yaml` (the Flux
-  `Kustomization` CR) + `app/` (the actual manifests). See `flux/README.md` for the
-  `ks.yaml` convention this follows.
+  `Kustomization` CR) + `app/` (the actual manifests). See
+  [`CONVENTIONS.md`](../CONVENTIONS.md) for the `ks.yaml`/namespace/network-policy
+  conventions this follows.
 - `podman` — `quadlets/` (Podman Quadlet `.container`/`.volume` units) + `config/`, synced onto
   the node by that node's `futhark-gitops-pull` timer (`ansible/roles/gitops_pull`) rather than
   by Flux — see `ogma.podman/README.md` for the concrete shape and the pull mechanism.
@@ -18,11 +19,6 @@ A `k0s` node's own apps read their secrets from OpenBao namespace `node-<hostnam
 node's own `ClusterSecretStore` (`bao-node-<hostname>`, not the shared `bao-infra` one) — see
 `infra/external-secrets/README.md`.
 
-A `k0s` app's own Kubernetes `Namespace` isn't declared in its own `app/` directory — it's
-centralized in `infra/configs/namespaces.yaml` (labeled `futk.eu/tier: node`, `futk.eu/node:
-<hostname>`) alongside the default-deny `NetworkPolicy` baseline every namespace gets, and its
-`ks.yaml` depends on that `infra-configs` Kustomization. See `flux/README.md`.
-
 ## ogma.podman
 
 Standalone Podman node running OpenBao, the secrets backend every other node/app reads from —
@@ -30,6 +26,8 @@ see `ogma.podman/README.md`.
 
 ## kenaz.k0s
 
-Currently empty — `kenaz` runs k0s + Flux + External Secrets Operator (`infra/`), but no
-apps yet. First app lands here as `kenaz.k0s/<app>/{ks.yaml,app/}`, reading its secrets from
-OpenBao namespace `node-kenaz` via the `bao-node-kenaz` `ClusterSecretStore`.
+`kenaz` runs k0s + Flux + External Secrets Operator (`infra/`). Its first (and so far only)
+app is `actual` (`kenaz.k0s/actual/{ks.yaml,app/}`), reading its secrets from OpenBao namespace
+`node-kenaz` via the `bao-node-kenaz` `ClusterSecretStore`. New apps land the same way, one
+directory per app: `<app>/ks.yaml` + `<app>/app/` — add the app's directory to the sibling
+`kustomization.yaml`'s `resources:`.

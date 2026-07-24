@@ -1,0 +1,32 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/role-rbac-v1.json
+#
+# Grants the external-secrets ServiceAccount (external-secrets namespace) write access to
+# Secrets in this one namespace only — the chart's own cluster-wide RBAC is disabled
+# (infra/external-secrets/app/helmrelease.yaml's values.rbac.create: false) in favor of this,
+# same "scoped grant per boundary" OpenBao already does with bound_service_account_namespaces.
+# Add this template to a namespace's overlay whenever an ExternalSecret lands there.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: external-secrets-writer
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch, create, update, delete, patch]
+  - apiGroups: [external-secrets.io]
+    resources: [externalsecrets, secretstores]
+    verbs: [get, list, watch, update, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: external-secrets-writer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: external-secrets-writer
+subjects:
+  - kind: ServiceAccount
+    name: external-secrets
+    namespace: external-secrets

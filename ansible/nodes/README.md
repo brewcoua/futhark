@@ -6,7 +6,7 @@ One `<hostname>/host.yml` per node — the source of truth for that host. Symlin
 ```yaml
 node:
   hostname: kenaz
-  os: fedora # fedora only for now; more OSes later
+  os: fedora
   workflow: k0s # k0s | podman | none — branches later setup steps
   k0s_role:
     controller+worker # controller+worker | controller | worker — only when workflow: k0s;

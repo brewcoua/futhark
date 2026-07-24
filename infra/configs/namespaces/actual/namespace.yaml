@@ -1,10 +1,8 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/namespace.json
 # One Namespace per tenant/node app (nodes/<hostname>.k0s/<app>/), not per infra controller —
-# each infra controller keeps declaring its own namespace.yaml next to itself (there are few of
-# them, each already owns that file). Add one block here per new app, labeled with the node it
-# runs on, mirroring OpenBao's own infra/node-<hostname> namespace split
-# (ansible/roles/openbao/tasks/namespaces.yml). See flux/README.md.
+# each infra controller keeps declaring its own app/namespace.yaml next to itself instead. See
+# CONVENTIONS.md.
 apiVersion: v1
 kind: Namespace
 metadata:

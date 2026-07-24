@@ -1,6 +1,7 @@
 # futhark
 
-This is the code for my GitOps-driven homelab.
+This is the code for my GitOps-driven homelab. See [`CONVENTIONS.md`](CONVENTIONS.md)
+for the repo-wide rules the GitOps tree follows.
 
 ## License
 

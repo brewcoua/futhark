@@ -3,7 +3,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - namespaces.yaml
-  - netpol-baseline.yaml
-  - netpol-allow-ingress.yaml
-  - rbac-eso.yaml
+  - namespaces/actual
+  - namespaces/cert-manager
+  - namespaces/external-secrets
+  - namespaces/monitoring
+  - namespaces/csi-rclone
+  - namespaces/ingress-internal
+  - namespaces/ingress-edge

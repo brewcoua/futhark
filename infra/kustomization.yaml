@@ -2,6 +2,7 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: flux-system
 resources:
   - configs-ks.yaml
   - external-secrets/ks.yaml
@@ -12,3 +13,20 @@ resources:
   - traefik-edge/ks.yaml
   - storage/ks.yaml
   - monitoring/ks.yaml
+# Every Flux Kustomization CR under infra/ shares interval/prune/sourceRef — patched in here so
+# each ks.yaml only states name, path, dependsOn. See CONVENTIONS.md.
+patches:
+  - target:
+      group: kustomize.toolkit.fluxcd.io
+      kind: Kustomization
+    patch: |
+      apiVersion: kustomize.toolkit.fluxcd.io/v1
+      kind: Kustomization
+      metadata:
+        name: unused
+      spec:
+        interval: 10m
+        prune: true
+        sourceRef:
+          kind: GitRepository
+          name: flux-system
