@@ -4,6 +4,7 @@ version: "3"
 
 vars:
   TOFU_DIR: "{{.ROOT_DIR}}/tofu"
+  ANSIBLE_DIR: "{{.ROOT_DIR}}/ansible"
 
 tasks:
   init:
@@ -28,3 +29,10 @@ tasks:
     desc: "Validate a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
     cmd: tofu validate
+
+  oidc-ca:
+    desc: Fetch OpenBao's CA cert from ogma straight into tofu/oidc (bypasses Proton Pass)
+    dir: "{{.ANSIBLE_DIR}}"
+    cmd: >-
+      ansible ogma -b -m fetch
+      -a "src=/etc/openbao/tls/openbao.crt dest={{.TOFU_DIR}}/oidc/openbao-ca.crt flat=yes"
