@@ -7,12 +7,13 @@
 # container. openbao_ca_cert (registered there) is still available here: registered vars persist
 # for the whole play, not just the task block that set them.
 
+# A plain set_fact templates its RHS on the controller before dispatch, so this needs no
+# delegate_to/register — sidesteps the delegated-register host-attachment ambiguity that
+# hostvars['localhost'] kept tripping on.
 - name: Check whether the k0s kubeconfig has been generated yet
-  ansible.builtin.stat:
-    path: "{{ generated_dir }}/kubeconfig"
-  register: openbao_kubeconfig_file
-  delegate_to: localhost
-  become: false
+  ansible.builtin.set_fact:
+    openbao_kubeconfig_file_exists: "{{ (generated_dir + '/kubeconfig') is exists }}"
+  tags: [always]
 
 - name: Ensure the external-secrets namespace exists (may run before Flux creates it)
   kubernetes.core.k8s:
@@ -25,7 +26,7 @@
         name: external-secrets
   delegate_to: localhost
   become: false
-  when: openbao_kubeconfig_file.stat.exists
+  when: openbao_kubeconfig_file_exists
 
 - name: Publish the cert as a ConfigMap for infra/external-secrets' ClusterSecretStores
   kubernetes.core.k8s:
@@ -41,7 +42,7 @@
         ca.crt: "{{ openbao_ca_cert.content | b64decode }}"
   delegate_to: localhost
   become: false
-  when: openbao_kubeconfig_file.stat.exists
+  when: openbao_kubeconfig_file_exists
 
 - name: Wait for the OpenBao container to answer
   ansible.builtin.command:
@@ -88,19 +89,21 @@
     openbao_kubeconfig: "{{ lookup('ansible.builtin.file', generated_dir + '/kubeconfig') | from_yaml }}"
   delegate_to: localhost
   become: false
-  when: openbao_kubeconfig_file.stat.exists
+  when: openbao_kubeconfig_file_exists
+  tags: [always]
 
 - name: Resolve the OpenBao root token
   ansible.builtin.set_fact:
     openbao_root_token: "{{ lookup('protonpass', 'pass://futharkd/openbao/root token') }}"
   no_log: true
+  tags: [always]
 
 - name: Skip namespace/auth bootstrap — k0s cluster isn't up yet
   ansible.builtin.debug:
     msg: >-
       {{ generated_dir }}/kubeconfig not found — run ansible/playbooks/k0s.yml, then
       re-run this role to bootstrap namespaces, mounts, auth methods, and policies.
-  when: not hostvars['localhost'].openbao_kubeconfig_file.stat.exists
+  when: not openbao_kubeconfig_file_exists
 
 - name: Bootstrap namespaces, mounts, auth methods, and policies
   ansible.builtin.include_tasks: namespaces.yml
@@ -113,5 +116,5 @@
       | list) }}
   loop_control:
     loop_var: openbao_namespace
-  when: hostvars['localhost'].openbao_kubeconfig_file.stat.exists
+  when: openbao_kubeconfig_file_exists
   tags: [openbao_namespaces]
