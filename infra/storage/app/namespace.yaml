@@ -1,0 +1,10 @@
+---
+# Also created implicitly by the HelmRelease's install.createNamespace: true (harmless no-op
+# once this exists) — declared here so Flux tracks/prunes it and it can carry labels, same
+# reasoning as infra/external-secrets/app/namespace.yaml.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csi-rclone
+  labels:
+    futk.eu/tier: infra

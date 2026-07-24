@@ -26,3 +26,5 @@ spec:
     installCRDs: true
     serviceAccount:
       name: external-secrets
+    rbac:
+      create: false

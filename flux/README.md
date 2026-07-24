@@ -31,6 +31,36 @@ matching repo-root directory (`../infra`, `../nodes`).
   placeholder, no options for a bare `INT_DOMAIN` field). See `infra/monitoring/app/
 kustomization.yaml` for the pattern. Each manifest still only writes its own subdomain
   (`dash.INT_DOMAIN`, not the literal domain) — the base domain is the one thing that's shared.
+- Every non-control-plane namespace carries a `futk.eu/tier` label: `infra` for node-agnostic
+  cluster infra (`cert-manager`, `external-secrets`, `monitoring`, `csi-rclone`,
+  `ingress-internal`, `ingress-edge`), or `node` + `futk.eu/node: <hostname>` for a node's own
+  apps (`actual`) — same `infra`/`node-<hostname>` split OpenBao already uses
+  (`ansible/roles/openbao/tasks/namespaces.yml`). Every namespace also gets a default-deny
+  `NetworkPolicy` baseline from `infra/configs` (see below) — Kubernetes has no nested-namespace
+  primitive, so isolation is enforced by that baseline plus explicit "bridge" policies for the
+  few flows that must cross a namespace boundary (ingress → app, monitoring → scrape target),
+  not by literal nesting.
+- **`infra/configs`** is shared config other Kustomizations `dependsOn` (its Flux
+  `Kustomization` is named `infra-configs`) — a `Namespace` per tenant/node app plus the
+  default-deny `NetworkPolicy` baseline for every non-control-plane namespace. Adding an app
+  under `nodes/<hostname>.k0s/<app>/`: add its `Namespace` to `infra/configs/namespaces.yaml`
+  (labeled `futk.eu/tier: node`, `futk.eu/node: <hostname>`), add a block to
+  `infra/configs/netpol-allow-ingress.yaml` iff it ships an `Ingress`, and give its `ks.yaml` a
+  `dependsOn: [name: infra-configs]`. Infra controllers keep declaring their own
+  `namespace.yaml` next to themselves instead (there are few of them, each already owns that
+  file) — only label it `futk.eu/tier: infra`.
+- **External Secrets' RBAC is hand-scoped, not chart-managed**
+  (`infra/external-secrets/app/helmrelease.yaml`'s `values.rbac.create: false`): the chart's
+  default `ClusterRoleBinding` would let the `external-secrets` ServiceAccount write a `Secret`
+  into any namespace, because `ClusterSecretStore` doesn't confine it on its own and there's no
+  supported chart flag to narrow that without disabling `ClusterSecretStore` entirely. Instead,
+  `infra/external-secrets/app/{clusterrole.yaml,role.yaml}` grant only what's genuinely
+  cluster-scoped (`ClusterSecretStore`, `Namespace` reads) plus what ESO needs in its own
+  namespace, and `infra/configs/rbac-eso.yaml` grants `secrets`/`externalsecrets` write access
+  **per namespace**, one `Role`+`RoleBinding` block per namespace that actually has an
+  `ExternalSecret`. Adding an `ExternalSecret` to a new namespace: add a block there too — same
+  motion as the `NetworkPolicy` bridge files, and `infra-configs` already `dependsOn`s the infra
+  controllers whose namespaces it grants into.
 
 ## Bootstrap sequence
 

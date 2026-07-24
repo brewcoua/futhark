@@ -1,0 +1,20 @@
+---
+# The k0s kube-apiserver runs as a host process, not a pod — it can't be matched by any
+# podSelector/namespaceSelector, so the default-deny baseline (infra/configs/netpol-baseline.yaml)
+# would otherwise block the apiserver's admission calls into this webhook. Standard exception
+# cert-manager's own docs call out for locked-down clusters: scope the allow to the webhook pod
+# only, on its port, not the whole namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apiserver-webhook
+  namespace: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: webhook
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 10250

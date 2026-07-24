@@ -12,12 +12,13 @@ metadata:
 spec:
   interval: 1h
   releaseName: traefik-edge
-  targetNamespace: kube-system
+  targetNamespace: ingress-edge
   # traefik-internal owns the Traefik CRDs (installed once); this release must not also try to
   # own them, or Helm errors on CRD ownership.
   dependsOn:
     - name: traefik-internal
   install:
+    createNamespace: true
     crds: Skip
     remediation:
       retries: 3

@@ -12,8 +12,9 @@ metadata:
 spec:
   interval: 1h
   releaseName: traefik-internal
-  targetNamespace: kube-system
+  targetNamespace: ingress-internal
   install:
+    createNamespace: true
     remediation:
       retries: 3
   upgrade:

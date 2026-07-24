@@ -3,5 +3,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - namespace.yaml
-  - helmrelease.yaml
+  - namespaces.yaml
+  - netpol-baseline.yaml
+  - netpol-allow-ingress.yaml
+  - rbac-eso.yaml

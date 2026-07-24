@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Shared config other Kustomizations depend on: tenant/node namespaces, the default-deny
+# NetworkPolicy baseline, and the per-namespace ESO RBAC bridge (see
+# infra/configs/kustomization.yaml). dependsOn the infra controllers whose namespaces
+# rbac-eso.yaml grants into (cert-manager, monitoring, storage) so those Roles/RoleBindings land
+# on first apply instead of failing until the next reconcile.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infra-configs
+  namespace: flux-system
+spec:
+  interval: 10m
+  prune: true
+  dependsOn:
+    - name: cert-manager
+    - name: monitoring
+    - name: storage
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infra/configs

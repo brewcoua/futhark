@@ -1,0 +1,9 @@
+---
+# Own namespace instead of kube-system — a reserved namespace for cluster system components,
+# not a place for a workload's HelmRelease to land.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-edge
+  labels:
+    futk.eu/tier: infra
