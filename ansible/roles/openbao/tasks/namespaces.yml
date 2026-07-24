@@ -56,6 +56,12 @@
   changed_when: true
   no_log: true
 
+- name: Ensure the policies directory exists
+  ansible.builtin.file:
+    path: /etc/openbao/policies
+    state: directory
+    mode: "0755"
+
 - name: "Write the reader policy in {{ openbao_namespace }}"
   ansible.builtin.copy:
     dest: "/etc/openbao/policies/{{ openbao_namespace }}-reader.hcl"
