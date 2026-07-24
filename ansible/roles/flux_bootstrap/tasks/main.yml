@@ -27,7 +27,7 @@
         namespace: flux-system
       type: Opaque
       stringData:
-        identity: "{{ lookup('protonpass', 'pass://futharkd/kenaz/flux-deploy-key') }}"
+        identity: "{{ lookup('protonpass', 'pass://futharkd/kenaz/deploy key') }}"
         known_hosts: "{{ flux_bootstrap_known_hosts.stdout }}"
 
 - name: Wait for the Flux Operator to be ready
