@@ -88,3 +88,35 @@
     immediate: true
     state: enabled
   when: node.os == 'fedora'
+
+# kube-router's own FORWARD rules only ACCEPT forwarded traffic out via the node's public
+# interface (ens3) — nothing permits pod-originated traffic out via tailscale0. That silently
+# breaks anything dialing a peer's mesh IP from inside a pod (konnectivity-agent -> the
+# controller's konnectivity-server, port 8132, is what surfaced this: every dial failed with
+# "no route to host", which cascades into kubectl exec/logs/port-forward cluster-wide). Added
+# as firewalld direct rules (not raw iptables) so they persist across reboots/firewalld
+# reloads the same way kube-router's own FORWARD entries persist across pod restarts.
+- name: "Allow forwarding: pods -> mesh (kube-router only permits pods -> public interface)"
+  ansible.builtin.command:
+    cmd: >-
+      firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0
+      -i kube-bridge -o tailscale0 -j ACCEPT
+  register: tailscale_fwd_pod_to_mesh
+  changed_when: "'ALREADY_ENABLED' not in (tailscale_fwd_pod_to_mesh.stdout | default(''))"
+  when: node.os == 'fedora'
+
+- name: "Allow forwarding: mesh -> pods (return traffic)"
+  ansible.builtin.command:
+    cmd: >-
+      firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0
+      -i tailscale0 -o kube-bridge -j ACCEPT
+  register: tailscale_fwd_mesh_to_pod
+  changed_when: "'ALREADY_ENABLED' not in (tailscale_fwd_mesh_to_pod.stdout | default(''))"
+  when: node.os == 'fedora'
+
+- name: Reload firewalld to apply the new direct rules
+  ansible.builtin.command: firewall-cmd --reload
+  when: >-
+    node.os == 'fedora' and
+    (tailscale_fwd_pod_to_mesh.changed or tailscale_fwd_mesh_to_pod.changed)
+  changed_when: true
