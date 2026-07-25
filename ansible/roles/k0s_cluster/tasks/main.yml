@@ -31,6 +31,28 @@
   ansible.builtin.set_fact:
     k0s_cluster_controller_mesh_ip: "{{ k0s_cluster_controller_getent.stdout_lines[0].split()[0] }}"
 
+# privateInterface only feeds spec.api.address/etcd peerAddress above, never kubelet — under
+# --enable-cloud-provider=true (kubelet --cloud-provider=external) kubelet won't self-assign
+# InternalIP at all without an explicit --node-ip, so every k0s host needs its own mesh IP
+# resolved the same way, passed straight to kubelet via installFlags in the template.
+- name: Resolve every k0s host's mesh IP (for kubelet --node-ip)
+  ansible.builtin.command:
+    cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ tailnet_domain }}"
+  register: k0s_cluster_mesh_ip_getent
+  changed_when: false
+  loop: "{{ groups['all'] }}"
+  when: hostvars[item].node.workflow == 'k0s'
+
+- name: Build a hostname -> mesh IP map
+  ansible.builtin.set_fact:
+    k0s_cluster_mesh_ips: >-
+      {{ k0s_cluster_mesh_ips | default({}) |
+      combine({hostvars[item.item].node.hostname: item.stdout_lines[0].split()[0]}) }}
+  loop: "{{ k0s_cluster_mesh_ip_getent.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: not (item.skipped | default(false))
+
 - name: Render k0sctl.yaml from inventory
   ansible.builtin.template:
     src: k0sctl.yaml.j2
