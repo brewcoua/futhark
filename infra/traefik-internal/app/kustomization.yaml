@@ -11,7 +11,7 @@ resources:
 # Splices INT_DOMAIN into the wildcard cert below — see infra/monitoring/app/kustomization.yaml
 # and flux/README.md for why this happens here.
 components:
-  - ../../_components/domain
+  - ../../../config/domain
 
 replacements:
   - source:

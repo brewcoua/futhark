@@ -20,7 +20,7 @@ clients, an operation against Pocket ID's own API that no Kustomization can expr
   public IP — the same thing `REPLACE_WITH_PUBLIC_IP` guards against in
   `infra/traefik-edge/app/helmrelease.yaml`) — set those as `TF_VAR_<name>=pass://...`. A
   genuinely non-identifying constant that's also shared with other parts of the repo (the domain
-  name) is read straight from its committed source (`infra/_components/domain/domain.env`) as a
+  name) is read straight from its committed source (`config/domain/domain.env`) as a
   `local`, rather than duplicated into `terraform.tfvars`.
 - State stays local and gitignored (`tofu/**/.terraform/`, `tofu/**/*.tfstate*`) — a module's minted
   credentials can sit in it in plaintext even when marked `sensitive` (that only suppresses
@@ -30,7 +30,7 @@ clients, an operation against Pocket ID's own API that no Kustomization can expr
 ## bunny
 
 Manages public DNS records against the existing zone in Bunny DNS for
-`infra/_components/domain/domain.env`'s `DOMAIN` — looked up via a data source, not created, since
+`config/domain/domain.env`'s `DOMAIN` — looked up via a data source, not created, since
 cert-manager's DNS-01 webhook already points at that same zone.
 
 - `auth.DOMAIN` — kenaz's public IP (traefik-edge routes to `infra/auth`, pinned to ogma).

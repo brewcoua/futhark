@@ -18,7 +18,7 @@ resources:
 # reach HelmRelease.spec.values, so this has to happen here at kustomize-build time instead.
 # See flux/README.md.
 components:
-  - ../../_components/domain
+  - ../../../config/domain
 
 replacements:
   - source:

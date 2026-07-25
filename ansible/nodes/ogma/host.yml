@@ -6,6 +6,5 @@ node:
   k0s_role: worker
   mesh: true
   ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/ip address') }}"
-  mesh_ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/mesh ip') }}"
   initial_user: fedora
   initial_port: 22

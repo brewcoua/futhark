@@ -14,7 +14,7 @@ resources:
 # Splices INT_DOMAIN into the ingress host and the OIDC hostname config below — see
 # infra/monitoring/app/kustomization.yaml and flux/README.md.
 components:
-  - ../../../../infra/_components/domain
+  - ../../../../config/domain
 
 replacements:
   - source:

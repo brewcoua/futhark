@@ -7,17 +7,25 @@ admin:
   user: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/username') }}"
   ssh_pubkey: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/public key') }}"
 
+# The tailnet's MagicDNS suffix (e.g. foo-bar.ts.net) — identifying, so it's a pass://
+# lookup like the rest of ansible/roles/tailscale's Proton Pass item, never committed.
+tailnet_domain: "{{ lookup('protonpass', 'pass://futharkd/tailscale/magicdns domain') }}"
+
 ssh_port: 2222
 
-# Real Ansible connection vars, always-on: k0sctl's SSH to each host (rendered from these
-# same node.ip/mesh_ip values, see ansible/roles/k0s_cluster) and re-runs of task ans:setup
-# both target already-bootstrapped hosts, so neither needs ssh_identity's fresh-vs-hardened
-# probe. setup.yml still overrides these via set_fact for first-time provisioning — facts
-# win over inventory vars, so that dynamic dance is untouched. Guarded on `node is defined`
-# because k0s_cluster/flux_bootstrap/bao run against hosts: localhost (implicit, not in
-# inventory, no `node` var) — the ternary's false branch is never evaluated, so it can't
-# blow up on a plain omit.
-ansible_host: "{{ (node.mesh_ip if node.mesh | default(false) else node.ip) if node is defined else omit }}"
+# Real Ansible connection vars, always-on: k0sctl's SSH to each host (rendered from this
+# same node.hostname + tailnet_domain, see ansible/roles/k0s_cluster) and re-runs of task
+# ans:setup both target already-bootstrapped hosts, so neither needs ssh_identity's
+# fresh-vs-hardened probe. setup.yml still overrides these via set_fact for first-time
+# provisioning — facts win over inventory vars, so that dynamic dance is untouched. Guarded
+# on `node is defined` because k0s_cluster/flux_bootstrap/bao run against hosts: localhost
+# (implicit, not in inventory, no `node` var) — the ternary's false branch is never
+# evaluated, so it can't blow up on a plain omit.
+#
+# Mesh nodes are addressed by Tailscale MagicDNS name, not a stored mesh IP — the tailnet's
+# own resolver keeps it correct across re-keys/reassignments with nothing in this repo to
+# update. See ansible/nodes/README.md.
+ansible_host: "{{ (node.hostname + '.' + tailnet_domain if node.mesh | default(false) else node.ip) if node is defined else omit }}"
 ansible_user: "{{ admin.user }}"
 ansible_port: "{{ ssh_port }}"
 
@@ -28,8 +36,9 @@ ansible_port: "{{ ssh_port }}"
 repo_root: "{{ playbook_dir }}/../.."
 generated_dir: "{{ repo_root }}/ansible/.generated"
 
-# Same source of truth as infra/_components/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN,
-# used across Flux-managed apps) — read straight from that file so ansible and k8s never drift.
-domain_env_file: "{{ lookup('ansible.builtin.file', repo_root + '/infra/_components/domain/domain.env') }}"
+# Same source of truth as config/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN, used
+# across Flux-managed apps, see config/domain) — read straight from that file so ansible
+# and k8s never drift.
+domain_env_file: "{{ lookup('ansible.builtin.file', repo_root + '/config/domain/domain.env') }}"
 domain: "{{ (domain_env_file | regex_findall('^DOMAIN=(.*)$', multiline=True))[0] }}"
 int_domain: "{{ (domain_env_file | regex_findall('^INT_DOMAIN=(.*)$', multiline=True))[0] }}"

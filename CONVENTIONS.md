@@ -65,13 +65,15 @@ Secrets access is never cluster-wide.
 
 ## Domains
 
-Base domains live only in `infra/_components/domain/domain.env` (`DOMAIN`,
-`INT_DOMAIN`), never hardcoded per-app. Flux's `postBuild.substitute`/`substituteFrom`
-can't reach `HelmRelease.spec.values`, so domain injection instead goes through plain
-kustomize: any `app/` needing a hostname adds `components: [../../_components/domain]`
-plus a `replacements` block splicing a key into the target field — see
-`infra/monitoring/app/kustomization.yaml` for the pattern. Escape a literal `$` as `$$`
-in plain manifests reconciled by a Kustomization.
+Base domains live only in `config/domain/domain.env` (`DOMAIN`, `INT_DOMAIN`) — shared with
+ansible (`ansible/inventory/group_vars/all.yml` reads the same file) — never hardcoded
+per-app. `config/domain/kustomization.yaml` wraps it as a reusable Kustomize Component,
+centralized under `config/` (not `infra/`) since it isn't infra-only. Flux's
+`postBuild.substitute`/`substituteFrom` can't reach `HelmRelease.spec.values`, so domain
+injection instead goes through plain kustomize: any `app/` needing a hostname adds
+`components: [../../../config/domain]` plus a `replacements` block splicing a key into the
+target field — see `infra/monitoring/app/kustomization.yaml` for the pattern. Escape a
+literal `$` as `$$` in plain manifests reconciled by a Kustomization.
 
 ## Startup ordering
 

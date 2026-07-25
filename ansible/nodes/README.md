@@ -16,11 +16,12 @@ node:
   mesh:
     true # optional, default false — joins the Tailscale mesh (see ansible/roles/tailscale).
     # Orthogonal to workflow: opt in for any node (cloud or local) that needs mesh reachability,
-    # e.g. a VPS node reaching a home node.
-  mesh_ip:
-    100.64.0.10 # required if mesh: true — the tailnet IP, used both for SSH/API traffic
-    # (k0sctl, etc.) once the node has joined, and as the node's Kubernetes InternalIP
-    # (ansible/roles/k0s_cluster's privateInterface) — see ansible/roles/k0s_cluster.
+    # e.g. a VPS node reaching a home node. No mesh_ip to store: once joined, the node is
+    # addressed as <hostname>.<tailnet_domain> (ansible/inventory/group_vars/all.yml) for
+    # SSH/API traffic (k0sctl, etc.) — Tailscale's own MagicDNS resolver keeps that name
+    # correct across re-keys/reassignments, nothing here to update. The node's Kubernetes
+    # InternalIP instead comes from ansible/roles/k0s_cluster's privateInterface, which is
+    # interface-based (tailscale0), not this hostname.
   ip:
     203.0.113.10 # also becomes the node's Kubernetes ExternalIP, via the k0s cloud
     # provider's node-ip-external annotation — see ansible/roles/k0s_cluster.
