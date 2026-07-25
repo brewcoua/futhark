@@ -18,6 +18,8 @@
     - ssh_harden
     - role: tailscale
       when: node.mesh | default(false)
+    - role: firewall_ingress
+      when: node.public_ingress | default(false)
   post_tasks:
     # set_fact persists for the rest of the run — the host now answers only as the
     # admin user on the hardened port, even if ssh_identity picked the initial login.

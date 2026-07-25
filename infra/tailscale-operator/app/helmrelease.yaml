@@ -1,0 +1,38 @@
+---
+# Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass:
+# tailscale` (see infra/traefik-internal/app/helmrelease.yaml) — replaces hostNetwork/hostIP
+# for anything that only needs to be reachable over the mesh, not the public interface.
+#
+# The operator auto-detects a pre-created Secret named `operator-oauth` in its own namespace
+# (client_id/client_secret keys) rather than taking OAuth values inline — see
+# infra/tailscale-operator/config/secret.yaml. Verify chart values against
+# https://github.com/tailscale/tailscale/tree/main/cmd/k8s-operator/deploy/chart before first
+# apply — this is a new dependency with no prior usage in this repo to crib from.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tailscale-operator
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: tailscale-operator
+  targetNamespace: tailscale
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: tailscale-operator
+      version: "1.*"
+      sourceRef:
+        kind: HelmRepository
+        name: tailscale
+        namespace: flux-system
+  values:
+    operatorConfig:
+      defaultTags:
+        - "tag:k8s-operator"

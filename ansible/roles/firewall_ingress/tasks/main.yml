@@ -1,0 +1,14 @@
+---
+# Opens the public zone for edge ingress (80/443). Gated by node.public_ingress in
+# playbooks/setup.yml — nothing in here branches on hostname, same convention as
+# roles/tailscale (any future node opts in just by setting node.public_ingress: true).
+- name: Open HTTP/HTTPS in firewalld's public zone
+  ansible.posix.firewalld:
+    port: "{{ item }}/tcp"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - "80"
+    - "443"
+  when: node.os == 'fedora'

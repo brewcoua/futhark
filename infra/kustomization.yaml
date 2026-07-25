@@ -11,6 +11,8 @@ resources:
   - auth/ks.yaml
   - cert-manager/ks.yaml
   - cert-manager/config-ks.yaml
+  - tailscale-operator/ks.yaml
+  - tailscale-operator/config-ks.yaml
   - traefik-internal/ks.yaml
   - traefik-edge/ks.yaml
   - storage/ks.yaml

@@ -14,3 +14,14 @@ configMapGenerator:
       - domain.env
 generatorOptions:
   disableNameSuffixHash: true
+# Components can't set a top-level `namespace:` (reserved to the root Kustomization), so the
+# generated ConfigMap above would otherwise carry none and fail to apply. Every consumer
+# needs the same namespace regardless of its own target namespace, so it's patched here once.
+patches:
+  - target:
+      kind: ConfigMap
+      name: domain
+    patch: |
+      - op: add
+        path: /metadata/namespace
+        value: flux-system

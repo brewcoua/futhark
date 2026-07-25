@@ -9,3 +9,4 @@ resources:
   - ../_templates/netpol-allow-from-monitoring
   - ../_templates/netpol-allow-from-ingress-edge
   - ../_templates/rbac-eso-writer
+  - ../_templates/middleware-ratelimit

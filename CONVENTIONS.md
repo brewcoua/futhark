@@ -50,6 +50,18 @@ one file. Egress is left open everywhere (ESO's call to OpenBao, cert-manager's 
 calls, arbitrary app egress) — the risk that matters in a single-tenant homelab is
 inbound.
 
+## Rate limiting
+
+Every namespace with an `Ingress` also composes the `middleware-ratelimit` template from
+`infra/configs/namespaces/_templates/` (a Traefik `Middleware`, `average: 100`/`burst: 200`,
+per-source-IP) — basic DoS protection, not a precise budget. The Ingress itself must then
+reference it explicitly via
+`traefik.ingress.kubernetes.io/router.middlewares: <namespace>-ratelimit@kubernetescrd`
+(composing the template alone does nothing — Traefik only applies a `Middleware` to routers
+that name it). Same-namespace reference only; `traefik-edge`'s `kubernetesCRD` provider
+doesn't set `allowCrossNamespace` (unlike `traefik-internal`), so a shared/cross-namespace
+Middleware wouldn't resolve there.
+
 ## ESO RBAC
 
 The external-secrets chart's own cluster-wide RBAC is disabled

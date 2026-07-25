@@ -9,3 +9,4 @@ resources:
   - ../_templates/netpol-allow-from-monitoring
   - ../_templates/netpol-allow-from-ingress-internal
   - networkpolicy-from-eso.yaml
+  - ../_templates/middleware-ratelimit

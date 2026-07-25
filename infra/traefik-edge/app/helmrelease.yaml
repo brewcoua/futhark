@@ -56,10 +56,14 @@ spec:
         enabled: true
         ingressClass: edge
     hostNetwork: true
+    # kenaz is the only node with a public IP — pin here so the scheduler never lands this pod
+    # on ogma, where neither hostIP below exists on any interface.
+    nodeSelector:
+      kubernetes.io/hostname: kenaz
     ports:
       web:
         port: 80
-        hostIP: REPLACE_WITH_PUBLIC_IP
+        hostIP: ${PUBLIC_IP}
         http:
           redirections:
             entryPoint:
@@ -67,18 +71,18 @@ spec:
               scheme: https
       websecure:
         port: 443
-        hostIP: REPLACE_WITH_PUBLIC_IP
+        hostIP: ${PUBLIC_IP}
         http:
           tls:
             enabled: true
-      # Distinct port (8081, vs internal's 8080) AND bound to the mesh IP, so it neither
-      # collides with traefik-internal on the shared host netns nor exposes the API publicly.
+      # Bound to the mesh IP, not the public one, so the dashboard/API is reachable over the
+      # tailnet only, never on kenaz's public interface.
       traefik:
         port: 8081
-        hostIP: REPLACE_WITH_MESH_IP
+        hostIP: ${MESH_IP}
       metrics:
         port: 9181
-        hostIP: REPLACE_WITH_MESH_IP
+        hostIP: ${MESH_IP}
         exposedPort: 9181
     metrics:
       prometheus:

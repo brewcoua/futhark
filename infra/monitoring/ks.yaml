@@ -9,3 +9,9 @@ spec:
   dependsOn:
     - name: traefik-internal
     - name: external-secrets-config
+  # kenaz's mesh IP, ansible-pushed straight into the cluster (never git) — used to scrape
+  # traefik-edge's metrics port, still hostNetwork-bound. See ansible/roles/flux_bootstrap.
+  postBuild:
+    substituteFrom:
+      - kind: ConfigMap
+        name: kenaz-ips

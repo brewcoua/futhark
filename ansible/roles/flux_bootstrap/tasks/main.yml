@@ -42,6 +42,25 @@
   retries: 30
   delay: 10
 
+# kenaz's mesh/public IPs are identifying values (see tofu/README.md's rule, extended to every
+# file type) — never committed to git. Pushed straight into the cluster instead; Flux
+# Kustomizations pick them up via postBuild.substituteFrom (see infra/traefik-edge/ks.yaml,
+# infra/monitoring/ks.yaml). k0s_cluster_mesh_ips is set by roles/k0s_cluster (facts persist
+# across plays in one playbook run), node.ip is the pass://-sourced public IP.
+- name: Push kenaz's mesh/public IPs into the cluster
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kenaz-ips
+        namespace: flux-system
+      data:
+        MESH_IP: "{{ k0s_cluster_mesh_ips['kenaz'] }}"
+        PUBLIC_IP: "{{ hostvars['kenaz'].node.ip }}"
+
 - name: Apply the FluxInstance
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"

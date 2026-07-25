@@ -113,16 +113,19 @@ spec:
             - source_labels: [__name__]
               action: drop
               regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
-        # PLACEHOLDER targets: kenaz's Tailscale mesh isn't bootstrapped in this repo yet, so
-        # there's no mesh IP to scrape traefik-{internal,edge} over. Fill in once Tailscale
-        # lands (see infra/traefik-internal/app/helmrelease.yaml).
+        # traefik-internal has no hostNetwork/hostIP anymore (it's exposed via the Tailscale
+        # operator instead — see infra/traefik-internal/app/helmrelease.yaml), so its metrics
+        # port is just an ordinary in-cluster Service.
         - job_name: traefik-internal
           static_configs:
-            - targets: ["REPLACE_WITH_MESH_IP:9180"]
+            - targets:
+                ["traefik-internal.ingress-internal.svc.cluster.local:9180"]
               labels:
                 instance: traefik-internal
+        # traefik-edge is still hostNetwork-bound (kenaz's public IP), so its metrics port is
+        # only reachable over the mesh IP — ansible-pushed, see infra/monitoring/ks.yaml.
         - job_name: traefik-edge
           static_configs:
-            - targets: ["REPLACE_WITH_MESH_IP:9181"]
+            - targets: ["${MESH_IP}:9181"]
               labels:
                 instance: traefik-edge

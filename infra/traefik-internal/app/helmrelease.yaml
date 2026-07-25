@@ -2,8 +2,10 @@
 # Internal ingress: reachable ONLY over the Tailscale mesh. Serves the *.in.futk.eu wildcard
 # cert, so internal Ingresses never carry their own tls: block.
 #
-# PLACEHOLDER: REPLACE_WITH_MESH_IP below must become kenaz's real Tailscale mesh IP once
-# ansible/roles/tailscale has joined it (node.mesh: true in ansible/nodes/kenaz/host.yml).
+# Exposed via the Tailscale operator (infra/tailscale-operator), not hostNetwork/hostIP: this
+# Service gets its own tailnet identity, so ordinary NetworkPolicy still governs its traffic
+# and there's no node IP to know/inject. MetalLB was considered and rejected — it has no
+# concept of Tailscale and could only ever manage a real L2/BGP-announced IP, not a tailnet one.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -32,17 +34,18 @@ spec:
     deployment:
       kind: Deployment
       replicas: 1
-      # hostNetwork detaches the pod from cluster DNS (inherits the node's public resolver);
-      # ClusterFirstWithHostNet routes lookups back through CoreDNS so in-cluster Service names
-      # (e.g. a future forwardAuth backend) resolve.
-      dnsPolicy: ClusterFirstWithHostNet
-    # NOT the chart's default RollingUpdate: a single replica holding hostPort 80/443 can never
-    # roll — the surge pod deadlocks on a port the old pod still owns.
-    updateStrategy:
-      type: Recreate
-      rollingUpdate: null
+    nodeSelector:
+      kubernetes.io/hostname: kenaz
+    # Verify service.spec passthrough and the loadBalancerClass value against the traefik
+    # chart's and tailscale-operator's current docs before first apply — new territory, no
+    # prior usage in this repo to crib from.
     service:
-      enabled: false
+      enabled: true
+      type: LoadBalancer
+      spec:
+        loadBalancerClass: tailscale
+      annotations:
+        tailscale.com/hostname: internal
     ingressClass:
       enabled: true
       name: internal
@@ -58,14 +61,9 @@ spec:
         # lands in the `auth` namespace. Without this the cross-namespace ref is SILENTLY
         # rejected and the router fails.
         allowCrossNamespace: true
-    # Binds host ports directly to the mesh IP. Non-root binds 80/443 via the node sysctl
-    # net.ipv4.ip_unprivileged_port_start=80 (needs a firewall/hardening Ansible role — not
-    # ported yet); NET_BIND_SERVICE can't survive execve.
-    hostNetwork: true
     ports:
       web:
         port: 80
-        hostIP: REPLACE_WITH_MESH_IP
         http:
           redirections:
             entryPoint:
@@ -73,18 +71,11 @@ spec:
               scheme: https
       websecure:
         port: 443
-        hostIP: REPLACE_WITH_MESH_IP
         http:
           tls:
             enabled: true
-      traefik:
-        hostIP: REPLACE_WITH_MESH_IP
-      # hostNetwork reserves hostPort=containerPort, so every entrypoint needs a port distinct
-      # from the other Traefik pod's (9180 here vs 9181 on traefik-edge).
       metrics:
         port: 9180
-        hostIP: REPLACE_WITH_MESH_IP
-        exposedPort: 9180
     metrics:
       prometheus:
         entryPoint: metrics
