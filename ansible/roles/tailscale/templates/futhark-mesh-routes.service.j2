@@ -1,5 +1,5 @@
 [Unit]
-Description=Futhark: prioritize Tailscale routing for mesh peer IPs over kube-router's overlay
+Description=Futhark: route and masquerade pod traffic to Tailscale mesh peer IPs
 After=tailscaled.service
 Wants=tailscaled.service
 

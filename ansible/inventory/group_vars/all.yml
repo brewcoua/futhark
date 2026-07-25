@@ -13,6 +13,17 @@ tailnet_domain: "{{ lookup('protonpass', 'pass://futharkd/tailscale/magicdns dom
 
 ssh_port: 2222
 
+# Cluster CIDRs. These are k0s's own defaults, pinned here so they're a single source of
+# truth: k0s_cluster writes them into the ClusterConfig, and the tailscale role needs the
+# pod CIDR to scope its pod -> mesh SNAT rule (see roles/tailscale/templates). Leaving them
+# implicit would mean that SNAT rule hardcodes a value nothing else declares.
+# Private RFC1918 ranges, not identifying, so plain literals rather than pass:// lookups.
+#
+# pod_cidr is the cluster-wide /16; kube-router carves a /24 out of it per node. The SNAT
+# rule must match the /16, or a peer's pods aren't covered.
+k0s_pod_cidr: 10.244.0.0/16
+k0s_service_cidr: 10.96.0.0/12
+
 # Real Ansible connection vars, always-on: k0sctl's SSH to each host (rendered from this
 # same node.hostname + tailnet_domain, see ansible/roles/k0s_cluster) and re-runs of task
 # ans:setup both target already-bootstrapped hosts, so neither needs ssh_identity's

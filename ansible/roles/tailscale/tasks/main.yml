@@ -89,20 +89,45 @@
     state: enabled
   when: node.os == 'fedora'
 
-# kube-router installs its own high-priority `ip rule` (pref 5209: from <this node's pod
-# CIDR> lookup 77) for its pod-overlay IPIP tunnels between nodes — since kenaz/ogma aren't on
-# a shared L2, cross-node pod traffic tunnels over the mesh. That rule outranks Tailscale's own
-# (pref 5270: lookup 52), so a POD dialing a peer's mesh IP *directly* (not the peer's pod
-# CIDR) gets wrongly captured by table 77, which routes it into the very tunnel whose transport
-# endpoint IS that address — unroutable, "no route to host". Surfaced by konnectivity-agent
-# dialing the controller's konnectivity-server over the mesh, which breaks kubectl
-# exec/logs/port-forward cluster-wide.
+# The CNI bridge is in no zone, so it lands in the default "public" zone, which is
+# deliberately limited to the hardened SSH port and 80/443. Trust the cluster's own dataplane
+# explicitly instead — standard practice for firewalld-on-Kubernetes hosts, and it keeps the
+# CNI path reproducible from this tree rather than resting on ad-hoc --direct rules.
+- name: Trust the CNI bridge and cluster CIDRs in firewalld
+  ansible.posix.firewalld:
+    zone: trusted
+    permanent: true
+    immediate: true
+    state: enabled
+    interface: "{{ item.interface | default(omit) }}"
+    source: "{{ item.source | default(omit) }}"
+  loop:
+    - interface: kube-bridge
+    - source: "{{ k0s_pod_cidr }}"
+    - source: "{{ k0s_service_cidr }}"
+  loop_control:
+    label: "{{ item.interface | default(item.source) }}"
+  when: node.os == 'fedora'
+
+# A pod dialing a mesh peer's own address (as opposed to the peer's pod CIDR) is broken twice
+# over, and both halves have to be fixed. konnectivity-agent does exactly this — it dials the
+# controller's konnectivity-server over the mesh — so while it's broken, kubectl
+# exec/logs/port-forward are down cluster-wide.
 #
-# Fix: one narrow `ip rule` per mesh peer, at a priority kube-router's can't outrank, matching
-# only that peer's single mesh IP (never the pod CIDR ranges) — so it doesn't touch kube-router's
-# legitimate pod-to-pod overlay routing, only pre-empts it for this one specific destination.
-# `ip rule`/`ip route` aren't persisted by the kernel, so a systemd oneshot re-applies them
-# every boot, same reasoning as everything else here being reproducible from scratch.
+# 1. kube-router installs `from <this node's pod CIDR> lookup 77` at pref 5209 for the IPIP
+#    overlay it builds between nodes (kenaz/ogma share no L2), and puts the peer's mesh IP in
+#    table 77 pointing at the tunnel. That outranks Tailscale's own pref 5270 (lookup 52), so
+#    the packet is routed into the very tunnel whose transport endpoint IS that address.
+#
+# 2. Even with routing corrected, tailscaled drops packets whose source is not the node's own
+#    tailnet IP, as anti-spoofing — so pod-sourced packets still die on egress. They have to be
+#    masqueraded to the node's mesh IP. (Nothing else does this: kube-proxy's KUBE-POSTROUTING
+#    only masquerades service traffic carrying the 0x4000 mark.)
+#
+# Both fixes are one narrow rule per mesh peer, matching only that peer's single mesh IP and
+# never the pod CIDR ranges, so kube-router's legitimate pod-to-pod overlay routing is
+# untouched. Neither `ip rule` nor iptables state survives a reboot, hence the systemd oneshot
+# — same reasoning as everything else here being reproducible from scratch.
 - name: Resolve every other mesh peer's mesh IP
   ansible.builtin.command:
     cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ tailnet_domain }}"
@@ -125,21 +150,21 @@
     label: "{{ item.item }}"
   when: item.skipped is not defined
 
-- name: Install the mesh-route-priority script
+- name: Install the pod -> mesh routing/SNAT script
   ansible.builtin.template:
     src: futhark-mesh-routes.sh.j2
     dest: /usr/local/bin/futhark-mesh-routes.sh
     mode: "0755"
   when: node.os == 'fedora' and tailscale_peer_ips is defined
 
-- name: Install the mesh-route-priority systemd unit
+- name: Install the pod -> mesh routing/SNAT systemd unit
   ansible.builtin.template:
     src: futhark-mesh-routes.service.j2
     dest: /etc/systemd/system/futhark-mesh-routes.service
     mode: "0644"
   when: node.os == 'fedora' and tailscale_peer_ips is defined
 
-- name: Enable and (re)run the mesh-route-priority service now
+- name: Enable and (re)run the pod -> mesh routing/SNAT service now
   ansible.builtin.systemd:
     name: futhark-mesh-routes
     daemon_reload: true

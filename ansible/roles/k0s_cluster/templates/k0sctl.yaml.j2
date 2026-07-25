@@ -41,3 +41,11 @@ spec:
           sans:
             - {{ k0s_cluster_controller_host }}.{{ tailnet_domain }}
             - {{ hostvars[k0s_cluster_controller_host].node.ip }}
+{#      These are k0s's own defaults, so pinning them changes nothing about the running
+        cluster — but the tailscale role has to know the pod CIDR to scope its pod -> mesh
+        SNAT rule, and a CIDR that only exists as an upstream default is a value that can
+        shift under us. Declared once in inventory/group_vars/all.yml. #}
+        network:
+          provider: kuberouter
+          podCIDR: {{ k0s_pod_cidr }}
+          serviceCIDR: {{ k0s_service_cidr }}

@@ -49,3 +49,49 @@ see `infra/external-secrets/README.md` and `ansible/roles/openbao/`): run
 `task bao:policy-sync` to bootstrap the namespace (it loops every `nodes/*.k0s/` directory,
 see `ansible/roles/openbao/tasks/main.yml`), then add
 `infra/external-secrets/config/nodes/<hostname>.yaml` (copy `kenaz.yaml`, swap the hostname).
+
+## Pod → mesh networking
+
+Worth reading before touching `ansible/roles/tailscale` — this was diagnosed the hard way
+twice.
+
+kubelet's `--node-ip` is pinned to each node's Tailscale mesh IP, on purpose: the Kubernetes
+API, etcd and kubelet are then only ever bound to mesh addresses and are never publicly
+exposed. Everything below follows from that one decision.
+
+Because the nodes share no L2 segment, k0s's default CNI (kube-router) builds its own IPIP
+overlay between their mesh IPs to carry cross-node pod-to-pod traffic. Two consequences, both
+of which break a pod dialing a peer node's _own_ mesh address:
+
+1. **Routing.** kube-router installs `from <pod CIDR> lookup 77` at pref 5209 and puts the
+   peer's mesh IP into table 77 pointing at its tunnel. That outranks Tailscale's own
+   pref 5270 (`lookup 52`), so the packet is routed into the very tunnel whose transport
+   endpoint _is_ that address. Fixed with one `ip rule` per peer at priority 100, matching
+   only that peer's `/32` — never the pod CIDR, so pod-to-pod overlay routing is untouched.
+
+2. **Source address.** tailscaled drops packets whose source is not the node's own tailnet IP,
+   as anti-spoofing, so pod-sourced packets still die on egress even once the route is correct
+   — with `no route to host`, which reads like a routing fault and is not one. They must be
+   masqueraded to the node's mesh IP. Nothing else does this: kube-proxy's `KUBE-POSTROUTING`
+   only masquerades service traffic carrying the `0x4000` mark, and tailscaled only installs
+   its own `ts-postrouting` chain when acting as a subnet router or exit node.
+
+This is why cross-node **pod-to-pod already works**: IPIP wraps it in an outer header sourced
+from the node's own mesh IP, so it never presents a foreign source to tailscaled. Only
+_unencapsulated_ pod → mesh traffic fails. The isolating test, run on a node:
+
+```bash
+ping -c2 -I <this node's mesh IP> <peer mesh IP>   # succeeds
+ping -c2 -I <this node's pod-bridge IP> <peer mesh IP>   # fails without the SNAT rule
+```
+
+Both are locally generated (OUTPUT path, `tailscale0` is in firewalld's `trusted` zone), so
+neither traverses FORWARD — which rules out every firewall hypothesis and isolates the drop to
+tailscaled itself.
+
+The SNAT is scoped to peer `/32`s rather than the whole `100.64.0.0/10` tailnet on purpose: pods
+get to reach cluster nodes (konnectivity-agent → konnectivity-server, Prometheus → traefik on
+the mesh IP) without inheriting the node's `tag:futhark-node` reach across the entire tailnet.
+
+Both rules live in `roles/tailscale/templates/futhark-mesh-routes.sh.j2`, re-applied by a
+systemd oneshot because neither `ip rule` nor iptables state survives a reboot.
