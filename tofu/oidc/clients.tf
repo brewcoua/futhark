@@ -1,7 +1,7 @@
-# Same source of truth as infra/_components/domain/domain.env, read straight from that file
+# Same source of truth as config/domain/domain.env, read straight from that file
 # so nothing drifts — see tofu/bunny/dns.tf for the same pattern.
 locals {
-  domain_env_file = file("${path.module}/../../infra/_components/domain/domain.env")
+  domain_env_file = file("${path.module}/../../config/domain/domain.env")
   int_domain      = regex("(?m)^INT_DOMAIN=(.*)$", local.domain_env_file)[0]
 }
 

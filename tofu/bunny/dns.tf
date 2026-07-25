@@ -1,8 +1,8 @@
-# Same source of truth as infra/_components/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN,
+# Same source of truth as config/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN,
 # used across Flux-managed apps) and ansible's `domain`/`int_domain` vars — read straight from
 # that file so nothing drifts.
 locals {
-  domain_env_file = file("${path.module}/../../infra/_components/domain/domain.env")
+  domain_env_file = file("${path.module}/../../config/domain/domain.env")
   domain          = regex("(?m)^DOMAIN=(.*)$", local.domain_env_file)[0]
   int_domain      = regex("(?m)^INT_DOMAIN=(.*)$", local.domain_env_file)[0]
   # e.g. INT_DOMAIN "local.brewen.dev" against DOMAIN "brewen.dev" -> "local", the record name
