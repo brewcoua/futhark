@@ -7,24 +7,31 @@ One `<hostname>/host.yml` per node — the source of truth for that host. Symlin
 node:
   hostname: kenaz
   os: fedora
-  workflow: k0s # k0s | podman | none — branches later setup steps
+  workflow: k0s # k0s | none — branches later setup steps
   k0s_role:
     controller+worker # controller+worker | controller | worker — only when workflow: k0s;
-    # drives ansible/roles/k0s_cluster's generated k0sctl.yaml
+    # drives ansible/roles/k0s_cluster's generated k0sctl.yaml. Exactly one host should be a
+    # controller (or controller+worker) — a second controller makes etcd a 2-member cluster
+    # with quorum 2, worse for availability than a single controller, not better.
   mesh:
     true # optional, default false — joins the Tailscale mesh (see ansible/roles/tailscale).
     # Orthogonal to workflow: opt in for any node (cloud or local) that needs mesh reachability,
-    # e.g. a VPS node reaching a home node, or OpenBao staying off the public internet.
+    # e.g. a VPS node reaching a home node.
   mesh_ip:
-    100.64.0.10 # required if mesh: true — the tailnet IP, used instead of `ip` for
-    # SSH/API traffic (k0sctl, etc.) once the node has joined (see ansible/roles/k0s_cluster).
-  apps: [] # optional, default [] — app-specific roles to run, only meaningful for workflow:
-    # podman (a podman node is one process per app; see ansible/playbooks/podman.yml). A k0s
-    # node's apps live under nodes/<hostname>.k0s/ instead, not here.
-  ip: 203.0.113.10
+    100.64.0.10 # required if mesh: true — the tailnet IP, used both for SSH/API traffic
+    # (k0sctl, etc.) once the node has joined, and as the node's Kubernetes InternalIP
+    # (ansible/roles/k0s_cluster's privateInterface) — see ansible/roles/k0s_cluster.
+  ip:
+    203.0.113.10 # also becomes the node's Kubernetes ExternalIP, via the k0s cloud
+    # provider's node-ip-external annotation — see ansible/roles/k0s_cluster.
   initial_user: fedora # first-contact login (provider default, before `admin_user` exists)
   initial_port: 22
 ```
+
+A k0s node's own tenant apps live under `nodes/<hostname>.k0s/`, one directory per app — not
+every k0s node needs one (see `nodes/README.md`). Cluster-wide infra pinned to a specific node
+(OpenBao and Pocket ID, both pinned to `ogma`) is a `nodeSelector` in `infra/openbao/` /
+`infra/auth/` instead, not a per-node directory here.
 
 To add a node:
 
@@ -35,7 +42,9 @@ ln -s ../../nodes/<hostname>/host.yml ansible/inventory/host_vars/<hostname>.yml
 # add <hostname>: {} under all.hosts in ansible/inventory/hosts.yml
 ```
 
-If `workflow: k0s`, the node also needs its own OpenBao namespace (`node-<hostname>`, read-only
-via that namespace's `kubernetes` auth role — see `infra/external-secrets/README.md` and
-`ansible/roles/openbao/`): re-run `task ans:podman` against ogma to bootstrap the namespace, then
-add `infra/external-secrets/app/nodes/<hostname>.yaml` (copy `kenaz.yaml`, swap the hostname).
+If the node will run its own tenant apps (`nodes/<hostname>.k0s/`), it also needs its own
+OpenBao namespace (`node-<hostname>`, read-only via that namespace's `kubernetes` auth role —
+see `infra/external-secrets/README.md` and `ansible/roles/openbao/`): run
+`task bao:policy-sync` to bootstrap the namespace (it loops every `nodes/*.k0s/` directory,
+see `ansible/roles/openbao/tasks/main.yml`), then add
+`infra/external-secrets/config/nodes/<hostname>.yaml` (copy `kenaz.yaml`, swap the hostname).

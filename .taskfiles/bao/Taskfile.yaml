@@ -11,30 +11,15 @@ tasks:
     dir: "{{.ANSIBLE_DIR}}"
     cmd: ansible-playbook playbooks/bao.yml -e bao_task=status
 
-  unseal:
-    desc: Unseal OpenBao using the key from Proton Pass
-    dir: "{{.ANSIBLE_DIR}}"
-    cmd: ansible-playbook playbooks/bao.yml -e bao_task=unseal
-
   policy-sync:
     desc: Re-run the namespace/mount/auth/policy bootstrap idempotently
     dir: "{{.ANSIBLE_DIR}}"
-    cmd: ansible-playbook playbooks/podman.yml -l ogma --tags openbao_namespaces
-
-  reconcile-now:
-    desc: Trigger an immediate gitops-pull reconcile on ogma
-    dir: "{{.ANSIBLE_DIR}}"
-    cmd: ansible-playbook playbooks/bao.yml -e bao_task=reconcile-now
-
-  rollback:
-    desc: "Roll ogma's gitops-pull clone back to a known-good SHA [-- <sha>]"
-    dir: "{{.ANSIBLE_DIR}}"
-    cmd: ansible-playbook playbooks/bao.yml -e bao_task=rollback -e bao_sha={{.CLI_ARGS}}
+    cmd: ansible-playbook playbooks/bao.yml -e bao_task=policy-sync
 
   kv:
-    desc: "Run 'bao kv' on ogma, root token auto-injected from Proton Pass [-- put -namespace=<ns> <path> key=value ...]"
+    desc: "Run 'bao kv' in-cluster, root token auto-injected from Proton Pass [-- put -namespace=<ns> <path> key=value ...]"
     dir: "{{.ANSIBLE_DIR}}"
     cmd: >-
-      ansible ogma -b -m command -a "podman exec
-      -e BAO_TOKEN=$(pass-cli item view 'pass://futharkd/openbao/root token' --output human)
-      openbao bao kv {{.CLI_ARGS}}"
+      kubectl --kubeconfig=.generated/kubeconfig -n openbao exec openbao-0 --
+      env BAO_TOKEN=$(pass-cli item view 'pass://futharkd/openbao/root token' --output human)
+      bao kv {{.CLI_ARGS}}

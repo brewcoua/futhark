@@ -22,3 +22,18 @@
   ansible.builtin.shell:
     cmd: "k0sctl kubeconfig --config {{ generated_dir }}/k0sctl.yaml > {{ generated_dir }}/kubeconfig"
   changed_when: true
+
+# kubelet can only ever register --node-ip as InternalIP (never ExternalIP), so the public
+# IP has to arrive some other way — the k0s cloud provider (--enable-cloud-provider=true /
+# --enable-k0s-cloud-provider=true above) reads it from this annotation instead. node.ip is
+# a pass:// lookup, so the public IP is never committed.
+- name: Annotate nodes with their external IP (k0s cloud provider)
+  ansible.builtin.command:
+    cmd: >-
+      kubectl annotate node {{ hostvars[item].node.hostname }}
+      k0sproject.io/node-ip-external={{ hostvars[item].node.ip }} --overwrite
+  environment:
+    KUBECONFIG: "{{ generated_dir }}/kubeconfig"
+  loop: "{{ groups['all'] }}"
+  when: hostvars[item].node.workflow == 'k0s'
+  changed_when: true

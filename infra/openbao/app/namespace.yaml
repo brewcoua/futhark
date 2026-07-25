@@ -1,0 +1,10 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/namespace.json
+# Also pre-created by ansible/roles/openbao's prep.yml (needed before Flux exists, to hold
+# the seal Secret) — declared here too so Flux tracks/prunes it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openbao
+  labels:
+    futk.eu/tier: infra

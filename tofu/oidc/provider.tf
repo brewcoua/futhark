@@ -16,13 +16,16 @@ terraform {
 # --env-file secrets.env resolves them before tofu ever sees them. See README.md.
 provider "pocketid" {}
 
-# token/ca_cert come from VAULT_TOKEN / VAULT_CACERT, resolved the same way as the pocketid
-# provider above. address is set explicitly (not via VAULT_ADDR) because it's a required
+# token comes from VAULT_TOKEN, resolved the same way as the pocketid provider above. No
+# VAULT_CACERT: vault.INT_DOMAIN is now served through the Ingress on 443 with the same
+# publicly-trusted wildcard LE cert every other internal app uses, not OpenBao's own
+# self-signed listener cert (dropped along with nodes/ogma.podman — see infra/openbao/app/
+# configmap.yaml). address is set explicitly (not via VAULT_ADDR) because it's a required
 # argument with no built-in default — leaving it env-only breaks `tofu validate` in the
 # pre-commit tofu-validate hook, which runs without secrets.env loaded. It isn't secret anyway,
 # so deriving it from domain.env (see clients.tf's local.int_domain) is fine to commit.
 # namespace is fixed per apply of this module — see variables.tf and README.md.
 provider "vault" {
-  address   = "https://vault.${local.int_domain}:8200"
+  address   = "https://vault.${local.int_domain}"
   namespace = var.openbao_namespace
 }

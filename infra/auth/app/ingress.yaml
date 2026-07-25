@@ -1,0 +1,30 @@
+---
+# Edge-exposed: this is the fleet's public login page. TLS from cert-manager's
+# letsencrypt-bunny ClusterIssuer via a per-app Certificate, since traefik-edge (unlike
+# -internal) has no default wildcard store.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pocketid
+  namespace: auth
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-bunny
+spec:
+  ingressClassName: edge
+  tls:
+    - hosts:
+        - auth.DOMAIN
+      secretName: pocketid-tls
+  rules:
+    - host: auth.DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pocketid
+                port:
+                  number: 1411

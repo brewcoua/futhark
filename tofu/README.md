@@ -1,9 +1,9 @@
 # OpenTofu — the cloud plane
 
 Provider-API resources that Flux/Kustomize can't own, because they live outside the cluster (a DNS
-record, a registrar/CDN account). Not used for anything Flux can reconcile — Pocket ID isn't a
-Tofu-managed resource either, it's a Podman Quadlet reconciled by `ansible/roles/gitops_pull`
-(see `nodes/ogma.podman/README.md`), for exactly that reason.
+record, a registrar/CDN account). Not used for anything Flux can reconcile — Pocket ID itself is
+a Flux-managed workload (`infra/auth/`), not a Tofu resource; `oidc` only registers its OIDC
+clients, an operation against Pocket ID's own API that no Kustomization can express.
 
 ## Rules for any module here
 
@@ -33,9 +33,10 @@ Manages public DNS records against the existing zone in Bunny DNS for
 `infra/_components/domain/domain.env`'s `DOMAIN` — looked up via a data source, not created, since
 cert-manager's DNS-01 webhook already points at that same zone.
 
-- `auth.DOMAIN` — Pocket ID, ogma's public IP.
-- `vault.INT_DOMAIN` — OpenBao, ogma's Tailscale mesh IP. Resolves publicly to a CGNAT
-  (`100.64.0.0/10`) address, so it's only reachable from the tailnet.
+- `auth.DOMAIN` — kenaz's public IP (traefik-edge routes to `infra/auth`, pinned to ogma).
+- `vault.INT_DOMAIN` — kenaz's Tailscale mesh IP (traefik-internal routes to `infra/openbao`,
+  pinned to ogma). Resolves publicly to a CGNAT (`100.64.0.0/10`) address, so it's only
+  reachable from the tailnet.
 
 ```bash
 cd tofu/bunny
@@ -53,7 +54,7 @@ The pre-commit `tofu-validate` hook only runs `fmt`/`validate`, not `init` — a
 `task tofu:init` once locally before committing; CI runs init as its own step first.
 
 Before the first apply: populate the Proton Pass items `secrets.env` points at —
-`futharkd/kenaz/public-ip`, `futharkd/ogma/ip address`, and `futharkd/bunny/api-key` (same
+`futharkd/kenaz/ip address`, `futharkd/kenaz/mesh ip`, and `futharkd/bunny/api key` (same
 permissions as the key already used by `infra/cert-manager`'s DNS-01 webhook — Bunny API keys are
 account-wide, not zone-scoped).
 

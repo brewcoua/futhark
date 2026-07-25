@@ -17,23 +17,24 @@ data "bunnynet_dns_zone" "this" {
 }
 
 # One record per edge-exposed hostname — add one bunnynet_dns_record block per additional edge
-# app as they land. auth.DOMAIN points at ogma directly (Pocket ID + its own Traefik), not
-# kenaz/traefik-edge, so auth survives a k0s outage.
+# app as they land. auth.DOMAIN routes through kenaz/traefik-edge to infra/auth (Pocket ID),
+# a Flux-managed workload pinned to ogma — see CONVENTIONS.md's Startup ordering section
+# (openbao -> external-secrets -> auth -> rest).
 resource "bunnynet_dns_record" "auth" {
   zone  = data.bunnynet_dns_zone.this.id
   name  = "auth"
   type  = "A"
-  value = var.ogma_public_ip
+  value = var.kenaz_public_ip
   ttl   = 300
 }
 
-# vault.INT_DOMAIN — resolves publicly to ogma's Tailscale mesh IP (CGNAT, 100.64.0.0/10), so
-# only reachable from the tailnet. Routed by nodes/ogma.podman's Traefik (tailnet-only entryPoint,
-# TLS passthrough) to OpenBao — see nodes/ogma.podman/README.md.
+# vault.INT_DOMAIN — resolves publicly to kenaz's Tailscale mesh IP (CGNAT, 100.64.0.0/10), so
+# only reachable from the tailnet. Routed by traefik-internal to infra/openbao, a Flux-managed
+# workload pinned to ogma.
 resource "bunnynet_dns_record" "vault" {
   zone  = data.bunnynet_dns_zone.this.id
   name  = "vault.${local.int_domain_prefix}"
   type  = "A"
-  value = var.ogma_mesh_ip
+  value = var.kenaz_mesh_ip
   ttl   = 300
 }

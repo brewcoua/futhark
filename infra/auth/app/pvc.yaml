@@ -1,0 +1,16 @@
+---
+# Pocket ID's SQLite DB + app data. local-path is node-local hostPath storage — avoids the
+# locking issues a network filesystem (storagebox-crypt) can cause for SQLite, same
+# reasoning as nodes/kenaz.k0s/actual's pvc-server-files.yaml. No off-node durability yet.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pocketid-data
+  namespace: auth
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi

@@ -1,73 +1,39 @@
 ---
-# Runs only against the already-running OpenBao container deployed by gitops_pull — never
-# templates the container unit itself. apps-gated ('openbao' in node.apps), not workflow-gated,
-# so this only ever touches ogma today without hardcoding its hostname in the role.
-# TLS prep (tasks_from: prep) already ran earlier in the play, before gitops_pull — the quadlet
-# mounts /etc/openbao/tls read-only, so it must exist by the time gitops_pull starts the
-# container. openbao_ca_cert (registered there) is still available here: registered vars persist
-# for the whole play, not just the task block that set them.
+# Day-2: init (once) + idempotent namespace/mount/auth/policy bootstrap. Invoked by
+# ansible/playbooks/bao.yml (task bao:status / task bao:policy-sync), never by k0s.yml —
+# prep.yml (Namespace + seal Secret) is the only piece that has to run before Flux.
+# Assumes infra/openbao has already reconciled: the StatefulSet exists and its pod is
+# reachable via kubectl exec, no podman/SSH involved.
 
-# A plain set_fact templates its RHS on the controller before dispatch, so this needs no
-# delegate_to/register — sidesteps the delegated-register host-attachment ambiguity that
-# hostvars['localhost'] kept tripping on.
-- name: Check whether the k0s kubeconfig has been generated yet
-  ansible.builtin.set_fact:
-    openbao_kubeconfig_file_exists: "{{ (generated_dir + '/kubeconfig') is exists }}"
-  tags: [always]
-
-- name: Ensure the external-secrets namespace exists (may run before Flux creates it)
-  kubernetes.core.k8s:
-    kubeconfig: "{{ generated_dir }}/kubeconfig"
-    state: present
-    definition:
-      apiVersion: v1
-      kind: Namespace
-      metadata:
-        name: external-secrets
-  delegate_to: localhost
-  become: false
-  when: openbao_kubeconfig_file_exists
-
-- name: Publish the cert as a ConfigMap for infra/external-secrets' ClusterSecretStores
-  kubernetes.core.k8s:
-    kubeconfig: "{{ generated_dir }}/kubeconfig"
-    state: present
-    definition:
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: openbao-ca
-        namespace: external-secrets
-      data:
-        ca.crt: "{{ openbao_ca_cert.content | b64decode }}"
-  delegate_to: localhost
-  become: false
-  when: openbao_kubeconfig_file_exists
-
-- name: Wait for the OpenBao container to answer
+- name: Wait for the OpenBao pod to answer
   ansible.builtin.command:
-    cmd: podman exec openbao bao status -format=json
+    cmd: >-
+      kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao exec openbao-0 --
+      bao status -format=json
   register: openbao_status
-  until: openbao_status.rc in [0, 2] # 0 = unsealed, 2 = sealed-but-reachable
+  until: openbao_status.rc in [0, 2] # 0 = unsealed, 2 = sealed-but-reachable (shouldn't linger — seal is kmip, auto-unseals)
   retries: 30
   delay: 5
   changed_when: false
   failed_when: false
 
-- name: Initialize OpenBao (single Shamir key — single-operator homelab, no cloud KMS)
+- name: Initialize OpenBao (kmip seal — auto-unseals on every start, no Shamir key to manage)
   ansible.builtin.command:
-    cmd: podman exec openbao bao operator init -key-shares=1 -key-threshold=1 -format=json
+    cmd: >-
+      kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao exec openbao-0 --
+      bao operator init -format=json
   register: openbao_init
   when: not (openbao_status.stdout | from_json).initialized
   changed_when: true
 
-- name: Print the unseal key and root token for one-time manual copy into Proton Pass
+- name: Print the recovery keys and root token for one-time manual copy into Proton Pass
   ansible.builtin.debug:
     msg: >-
-      Save these now, they are never written to disk. Copy them into Proton Pass as
-      futharkd/openbao/unseal key and futharkd/openbao/root token before re-running
-      this role — later tasks read them back from there. unseal key =
-      {{ (openbao_init.stdout | from_json).unseal_keys_b64[0] }}, root token =
+      Save these now, they are never written to disk. Copy the root token into Proton Pass
+      as futharkd/openbao/root token before re-running this role — later tasks read it back
+      from there. Recovery keys (needed only to generate a new root token later, not for
+      day-to-day unseal — the kmip seal handles that) =
+      {{ (openbao_init.stdout | from_json).recovery_keys_b64 }}, root token =
       {{ (openbao_init.stdout | from_json).root_token }}
   when: openbao_init is not skipped
 
@@ -75,46 +41,39 @@
   ansible.builtin.meta: end_play
   when: openbao_init is not skipped
 
-- name: Unseal OpenBao
-  ansible.builtin.command:
-    cmd: >
-      podman exec openbao bao operator unseal
-      {{ lookup('protonpass', 'pass://futharkd/openbao/unseal key') }}
-  register: openbao_unseal
-  changed_when: true
-  no_log: true
-
-- name: Read the k0s API server details from the generated kubeconfig
-  ansible.builtin.set_fact:
-    openbao_kubeconfig: "{{ lookup('ansible.builtin.file', generated_dir + '/kubeconfig') | from_yaml }}"
-  delegate_to: localhost
-  become: false
-  when: openbao_kubeconfig_file_exists
-  tags: [always]
-
 - name: Resolve the OpenBao root token
   ansible.builtin.set_fact:
     openbao_root_token: "{{ lookup('protonpass', 'pass://futharkd/openbao/root token') }}"
   no_log: true
   tags: [always]
 
-- name: Skip namespace/auth bootstrap — k0s cluster isn't up yet
-  ansible.builtin.debug:
-    msg: >-
-      {{ generated_dir }}/kubeconfig not found — run ansible/playbooks/k0s.yml, then
-      re-run this role to bootstrap namespaces, mounts, auth methods, and policies.
-  when: not openbao_kubeconfig_file_exists
+- name: Read the k0s API server details from the generated kubeconfig
+  ansible.builtin.set_fact:
+    openbao_kubeconfig: "{{ lookup('ansible.builtin.file', generated_dir + '/kubeconfig') | from_yaml }}"
+  tags: [always]
+
+# node-<hostname> namespaces are for k0s nodes that run their own tenant apps
+# (nodes/<hostname>.k0s/<app>/) — not every workflow: k0s host. ogma runs no tenant apps
+# (it's the infra tier: openbao, auth), so it's deliberately excluded here rather than
+# getting a pointless empty namespace.
+- name: Find node app directories (nodes/<hostname>.k0s/)
+  ansible.builtin.find:
+    paths: "{{ repo_root }}/nodes"
+    patterns: "*.k0s"
+    file_type: directory
+  register: openbao_k0s_app_dirs
+  delegate_to: localhost
+  become: false
 
 - name: Bootstrap namespaces, mounts, auth methods, and policies
   ansible.builtin.include_tasks: namespaces.yml
   loop: >-
-    {{ ['infra'] + (groups['all']
-      | map('extract', hostvars)
-      | selectattr('node.workflow', 'equalto', 'k0s')
-      | map(attribute='node.hostname')
+    {{ ['infra'] + (openbao_k0s_app_dirs.files
+      | map(attribute='path')
+      | map('basename')
+      | map('regex_replace', '\.k0s$', '')
       | map('regex_replace', '^(.*)$', 'node-\1')
       | list) }}
   loop_control:
     loop_var: openbao_namespace
-  when: openbao_kubeconfig_file_exists
   tags: [openbao_namespaces]

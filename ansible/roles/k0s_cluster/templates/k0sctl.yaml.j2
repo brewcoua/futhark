@@ -12,9 +12,16 @@ spec:
         address: {{ hostvars[host].node.mesh_ip if hostvars[host].node.mesh | default(false) else hostvars[host].node.ip }}
         user: {{ hostvars[host].admin.user }}
         port: {{ hostvars[host].ssh_port }}
-{% if hostvars[host].node.k0s_role == 'controller+worker' %}
+{#      Mesh IP as InternalIP, not whatever interface k0s would otherwise pick — kubelet
+        registers --node-ip as InternalIP only, it can't set ExternalIP at all (that's the
+        k0s-cloud-provider annotation below instead). Interface-based, so it survives the
+        mesh IP changing. #}
+      privateInterface: tailscale0
       installFlags:
+{% if hostvars[host].node.k0s_role == 'controller+worker' %}
         - --no-taints
+        - --enable-k0s-cloud-provider=true
 {% endif %}
+        - --enable-cloud-provider=true
 {% endif %}
 {% endfor %}

@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# Opt-in bridge: only for namespaces that actually expose a publicly-routed Ingress via
+# traefik-edge. Add this template to a namespace's overlay whenever its app/ingress.yaml
+# uses ingressClassName: edge — see netpol-allow-from-ingress-internal for the mesh
+# equivalent, referenced but never written until now in CONVENTIONS.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-ingress-edge
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-edge

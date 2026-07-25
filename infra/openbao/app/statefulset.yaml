@@ -1,0 +1,87 @@
+---
+# Single replica, pinned to ogma — raft with node_id "ogma" assumes exactly one member on
+# that host's local-path volume. Not HA; matches the single-node raft this replaces.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: openbao
+  namespace: openbao
+spec:
+  serviceName: openbao
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openbao
+  template:
+    metadata:
+      labels:
+        app: openbao
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: ogma
+      containers:
+        - name: openbao
+          image: ghcr.io/openbao/openbao:2
+          args: ["server", "-config=/openbao/config"]
+          ports:
+            - name: api
+              containerPort: 8200
+            - name: cluster
+              containerPort: 8201
+          volumeMounts:
+            - name: config
+              mountPath: /openbao/config/openbao.hcl
+              subPath: openbao.hcl
+              readOnly: true
+            - name: seal
+              mountPath: /openbao/config/seal.hcl
+              subPath: seal.hcl
+              readOnly: true
+            - name: seal
+              mountPath: /openbao/config/client-cert.pem
+              subPath: client-cert.pem
+              readOnly: true
+            - name: seal
+              mountPath: /openbao/config/client-key.pem
+              subPath: client-key.pem
+              readOnly: true
+            - name: seal
+              mountPath: /openbao/config/kmip-ca.pem
+              subPath: kmip-ca.pem
+              readOnly: true
+            - name: data
+              mountPath: /openbao/data
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true
+              port: api
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: api
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: openbao-config
+        - name: seal
+          secret:
+            secretName: openbao-seal
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi

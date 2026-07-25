@@ -1,12 +1,22 @@
 ---
-# k0s cluster + Flux bootstrap. Runs after setup.yml. Fleet-wide, not per-host: one
-# k0sctl apply converges every workflow: k0s node in inventory at once.
+# k0s cluster + OpenBao prep + Flux bootstrap. Runs after setup.yml. Fleet-wide, not
+# per-host: one k0sctl apply converges every workflow: k0s node in inventory at once.
 - name: Provision k0s cluster
   hosts: localhost
   connection: local
   gather_facts: false
   roles:
     - role: k0s_cluster
+
+- name: OpenBao prep (namespace + seal Secret, before Flux reconciles infra/openbao)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Create the openbao namespace and seal Secret
+      ansible.builtin.import_role:
+        name: openbao
+        tasks_from: prep
 
 - name: Bootstrap Flux
   hosts: localhost

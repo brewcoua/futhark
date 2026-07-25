@@ -27,15 +27,10 @@ pass-cli run --env-file secrets.env -- tofu apply
   at Proton Pass `futharkd/pocketid/api key`.
 - The OpenBao root token, already in Proton Pass at `futharkd/openbao/root token` (same value
   ansible's `protonpass` lookup plugin uses).
-- OpenBao's self-signed CA cert (`/etc/openbao/tls/openbao.crt` on ogma). Materialize it locally
-  once (or again if it's ever rotated — it's a 10-year cert, see
-  `ansible/roles/openbao/tasks/prep.yml`):
 
-  ```bash
-  task tf:oidc-ca
-  ```
-
-  `openbao-ca.crt` is gitignored — fetched straight from ogma, never committed.
+No CA to fetch: `vault.INT_DOMAIN` is served through traefik-internal's Ingress with the same
+publicly-trusted wildcard LE cert every other internal app uses, not a self-signed listener cert
+— see `infra/openbao/app/configmap.yaml`.
 
 ## Verifying
 

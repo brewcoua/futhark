@@ -20,8 +20,10 @@ If you're naming a Kubernetes YAML file something else, you're naming it wrong.
 - `infra/<component>/{config-ks.yaml, config/}` — only when that component's CRs need
   CRDs the component's own `ks.yaml` can't guarantee exist yet (chicken-and-egg on first
   apply, e.g. `cert-manager`'s `ClusterIssuer`, `external-secrets`'s `ClusterSecretStore`).
-- `nodes/<hostname>.<workflow>/<app>/{ks.yaml, app/}` — one per node app. See
-  `nodes/README.md` for the per-workflow directory shape.
+- `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}` — one per node's own tenant app. See
+  `nodes/README.md`. Cluster-wide infra pinned to a specific node (OpenBao, Pocket ID —
+  both on `ogma`) is a `nodeSelector` under `infra/<component>/` instead, not a `nodes/`
+  entry — `nodes/` is for tenant workloads, not infra controllers.
 
 ## Namespaces
 
@@ -40,8 +42,8 @@ bridges, assembled per namespace from shared templates in
 
 - `netpol-default-deny` + `netpol-allow-same-namespace` — always.
 - `netpol-allow-from-monitoring` — always, except in `monitoring` itself.
-- `netpol-allow-from-ingress-internal` (or an `-edge` equivalent) — only if the namespace
-  ships an `Ingress`.
+- `netpol-allow-from-ingress-internal` or `netpol-allow-from-ingress-edge` — only if the
+  namespace ships an `Ingress`, matching whichever `ingressClassName` it uses.
 
 Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace, not
 one file. Egress is left open everywhere (ESO's call to OpenBao, cert-manager's ACME
@@ -70,6 +72,24 @@ kustomize: any `app/` needing a hostname adds `components: [../../_components/do
 plus a `replacements` block splicing a key into the target field — see
 `infra/monitoring/app/kustomization.yaml` for the pattern. Escape a literal `$` as `$$`
 in plain manifests reconciled by a Kustomization.
+
+## Startup ordering
+
+`infra/openbao` is the root of the dependency graph — it `dependsOn` nothing, because
+nothing it needs (raft storage, its KMIP seal) lives in the cluster. Everything else
+that reads secrets needs it, directly or transitively:
+
+```
+openbao -> external-secrets-config -> auth (Pocket ID) -> everything else
+                                    -> cert-manager-config -> traefik-internal -> ...
+```
+
+A new infra component that reads secrets from OpenBao (has an `ExternalSecret`) belongs
+downstream of `external-secrets-config` in its `ks.yaml`'s `dependsOn`, same as
+`cert-manager-config`/`storage`/`monitoring` already are. A component that reads no
+secrets and has no other prerequisite can be a second root next to `openbao` — but check
+first: most things eventually need a cert (`cert-manager-config`) or ingress
+(`traefik-internal`), which do have prerequisites.
 
 ## Flux `Kustomization` boilerplate
 

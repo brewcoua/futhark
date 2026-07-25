@@ -10,15 +10,10 @@ metadata:
 spec:
   provider:
     vault:
-      server: https://REPLACE_WITH_OGMA_MESH_ADDR:8200
+      server: http://openbao.openbao.svc.cluster.local:8200
       namespace: node-kenaz
       path: secret
       version: v2
-      caProvider:
-        type: ConfigMap
-        name: openbao-ca
-        namespace: external-secrets
-        key: ca.crt
       auth:
         kubernetes:
           mountPath: kubernetes

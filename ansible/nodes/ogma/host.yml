@@ -2,9 +2,9 @@
 node:
   hostname: ogma
   os: fedora
-  workflow: podman
+  workflow: k0s
+  k0s_role: worker
   mesh: true
-  apps: [openbao, pocketid, traefik]
   ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/ip address') }}"
   mesh_ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/mesh ip') }}"
   initial_user: fedora

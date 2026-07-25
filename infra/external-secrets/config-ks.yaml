@@ -11,3 +11,4 @@ spec:
   path: ./infra/external-secrets/config
   dependsOn:
     - name: external-secrets
+    - name: openbao

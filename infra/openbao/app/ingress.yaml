@@ -1,0 +1,27 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.INT_DOMAIN wildcard cert. Plain Ingress rather than an IngressRoute — a core type
+# needs no CRD, so this ships in the same root-tier Kustomization as OpenBao itself
+# without reintroducing the cert-manager/external-secrets bootstrap cycle (db081df); it
+# simply does nothing until traefik-internal comes up.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: openbao
+  namespace: openbao
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: internal
+  rules:
+    - host: vault.INT_DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: openbao
+                port:
+                  number: 8200

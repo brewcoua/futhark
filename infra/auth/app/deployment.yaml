@@ -1,0 +1,74 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pocketid
+  namespace: auth
+spec:
+  replicas: 1
+  # Single-writer SQLite on a non-shared volume: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pocketid
+  template:
+    metadata:
+      labels:
+        app: pocketid
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: ogma
+      containers:
+        - name: pocketid
+          image: ghcr.io/pocket-id/pocket-id:v2
+          ports:
+            - name: http
+              containerPort: 1411
+          envFrom:
+            - configMapRef:
+                name: pocketid-config
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: encryption-key
+              mountPath: /run/secrets/pocketid_encryption_key
+              subPath: encryption_key
+              readOnly: true
+            - name: maxmind-key
+              mountPath: /run/secrets/maxmind_license_key
+              subPath: maxmind_license_key
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: pocketid-data
+        - name: encryption-key
+          secret:
+            secretName: pocketid-secrets
+            items:
+              - key: encryption_key
+                path: encryption_key
+        - name: maxmind-key
+          secret:
+            secretName: pocketid-secrets
+            items:
+              - key: maxmind_license_key
+                path: maxmind_license_key
