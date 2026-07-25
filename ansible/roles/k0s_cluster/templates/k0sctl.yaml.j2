@@ -25,3 +25,23 @@ spec:
         - --enable-cloud-provider=true
 {% endif %}
 {% endfor %}
+{% set ns = namespace(controller=none) %}
+{% for host in groups['all'] %}
+{% if hostvars[host].node.workflow == 'k0s' and 'controller' in hostvars[host].node.k0s_role %}
+{% set ns.controller = host %}
+{% endif %}
+{% endfor %}
+{#  k0s otherwise self-detects spec.api.address from the default-route interface, which on
+    these hosts is the public IP — join tokens then carry that address, and workers can't
+    reach it (no route to host). Pin it to the controller's mesh address instead, resolved
+    live via MagicDNS like ansible_host above, so nothing here goes stale. #}
+  k0s:
+    config:
+      apiVersion: k0s.k0s.io/v1beta1
+      kind: ClusterConfig
+      spec:
+        api:
+          address: {{ lookup('community.general.dig', hostvars[ns.controller].node.hostname + '.' + tailnet_domain) }}
+          sans:
+            - {{ hostvars[ns.controller].node.hostname }}.{{ tailnet_domain }}
+            - {{ hostvars[ns.controller].node.ip }}
