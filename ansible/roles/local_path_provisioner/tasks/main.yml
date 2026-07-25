@@ -1,0 +1,14 @@
+---
+# openbao's StatefulSet (infra/openbao/app/statefulset.yaml) needs the `local-path`
+# StorageClass to bind its PVC on its very first reconcile, same chicken-and-egg reason
+# openbao's own namespace/seal Secret are ansible-bridged in before Flux exists (see
+# roles/openbao's prep.yml) — nothing in the Flux-managed tree can provision this for
+# itself, since openbao is the root of that dependency graph.
+#
+# Pinned to v0.0.36 (fixes a high-severity HelperPod template-injection CVE) for
+# reproducibility — never track master.
+- name: Install local-path-provisioner
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    src: https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.36/deploy/local-path-storage.yaml

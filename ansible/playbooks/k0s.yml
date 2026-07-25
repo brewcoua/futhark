@@ -8,10 +8,12 @@
   roles:
     - role: k0s_cluster
 
-- name: OpenBao prep (namespace + seal Secret, before Flux reconciles infra/openbao)
+- name: OpenBao prep (namespace + seal Secret + storage, before Flux reconciles infra/openbao)
   hosts: localhost
   connection: local
   gather_facts: false
+  roles:
+    - local_path_provisioner
   tasks:
     - name: Create the openbao namespace and seal Secret
       ansible.builtin.import_role:
