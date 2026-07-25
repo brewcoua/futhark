@@ -7,6 +7,30 @@
     state: directory
     mode: "0700"
 
+# Used by the template to identify which host is the k0s controller.
+- name: Determine the k0s controller host
+  ansible.builtin.set_fact:
+    k0s_cluster_controller_host: >-
+      {{ groups['all'] | map('extract', hostvars) |
+      selectattr('node.workflow', 'equalto', 'k0s') |
+      selectattr('node.k0s_role', 'search', 'controller') |
+      map(attribute='node.hostname') | first }}
+
+# k0s otherwise self-detects spec.api.address from the default-route interface, which on
+# these hosts is the public IP — join tokens then carry that address, and workers can't
+# reach it (no route to host). Resolve the controller's mesh address the same way
+# ansible_host does (via MagicDNS), using getent instead of a dig lookup so no extra
+# python dependency (dnspython) is required.
+- name: Resolve the controller's mesh IP
+  ansible.builtin.command:
+    cmd: "getent hosts {{ k0s_cluster_controller_host }}.{{ tailnet_domain }}"
+  register: k0s_cluster_controller_getent
+  changed_when: false
+
+- name: Set the controller's mesh IP fact
+  ansible.builtin.set_fact:
+    k0s_cluster_controller_mesh_ip: "{{ k0s_cluster_controller_getent.stdout_lines[0].split()[0] }}"
+
 - name: Render k0sctl.yaml from inventory
   ansible.builtin.template:
     src: k0sctl.yaml.j2
