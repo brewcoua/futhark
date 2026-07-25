@@ -1,0 +1,12 @@
+[Unit]
+Description=Futhark: prioritize Tailscale routing for mesh peer IPs over kube-router's overlay
+After=tailscaled.service
+Wants=tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/futhark-mesh-routes.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

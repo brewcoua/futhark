@@ -89,34 +89,60 @@
     state: enabled
   when: node.os == 'fedora'
 
-# kube-router's own FORWARD rules only ACCEPT forwarded traffic out via the node's public
-# interface (ens3) — nothing permits pod-originated traffic out via tailscale0. That silently
-# breaks anything dialing a peer's mesh IP from inside a pod (konnectivity-agent -> the
-# controller's konnectivity-server, port 8132, is what surfaced this: every dial failed with
-# "no route to host", which cascades into kubectl exec/logs/port-forward cluster-wide). Added
-# as firewalld direct rules (not raw iptables) so they persist across reboots/firewalld
-# reloads the same way kube-router's own FORWARD entries persist across pod restarts.
-- name: "Allow forwarding: pods -> mesh (kube-router only permits pods -> public interface)"
+# kube-router installs its own high-priority `ip rule` (pref 5209: from <this node's pod
+# CIDR> lookup 77) for its pod-overlay IPIP tunnels between nodes — since kenaz/ogma aren't on
+# a shared L2, cross-node pod traffic tunnels over the mesh. That rule outranks Tailscale's own
+# (pref 5270: lookup 52), so a POD dialing a peer's mesh IP *directly* (not the peer's pod
+# CIDR) gets wrongly captured by table 77, which routes it into the very tunnel whose transport
+# endpoint IS that address — unroutable, "no route to host". Surfaced by konnectivity-agent
+# dialing the controller's konnectivity-server over the mesh, which breaks kubectl
+# exec/logs/port-forward cluster-wide.
+#
+# Fix: one narrow `ip rule` per mesh peer, at a priority kube-router's can't outrank, matching
+# only that peer's single mesh IP (never the pod CIDR ranges) — so it doesn't touch kube-router's
+# legitimate pod-to-pod overlay routing, only pre-empts it for this one specific destination.
+# `ip rule`/`ip route` aren't persisted by the kernel, so a systemd oneshot re-applies them
+# every boot, same reasoning as everything else here being reproducible from scratch.
+- name: Resolve every other mesh peer's mesh IP
   ansible.builtin.command:
-    cmd: >-
-      firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0
-      -i kube-bridge -o tailscale0 -j ACCEPT
-  register: tailscale_fwd_pod_to_mesh
-  changed_when: "'ALREADY_ENABLED' not in (tailscale_fwd_pod_to_mesh.stdout | default(''))"
-  when: node.os == 'fedora'
+    cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ tailnet_domain }}"
+  register: tailscale_peer_getent
+  loop: "{{ groups['all'] }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - item != inventory_hostname
+    - hostvars[item].node.mesh | default(false)
+  changed_when: false
 
-- name: "Allow forwarding: mesh -> pods (return traffic)"
-  ansible.builtin.command:
-    cmd: >-
-      firewall-cmd --permanent --direct --add-rule ipv4 filter FORWARD 0
-      -i tailscale0 -o kube-bridge -j ACCEPT
-  register: tailscale_fwd_mesh_to_pod
-  changed_when: "'ALREADY_ENABLED' not in (tailscale_fwd_mesh_to_pod.stdout | default(''))"
-  when: node.os == 'fedora'
+- name: Build a hostname -> peer mesh IP map
+  ansible.builtin.set_fact:
+    tailscale_peer_ips: >-
+      {{ tailscale_peer_ips | default({}) |
+         combine({item.item: item.stdout_lines[0].split()[0]}) }}
+  loop: "{{ tailscale_peer_getent.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.skipped is not defined
 
-- name: Reload firewalld to apply the new direct rules
-  ansible.builtin.command: firewall-cmd --reload
-  when: >-
-    node.os == 'fedora' and
-    (tailscale_fwd_pod_to_mesh.changed or tailscale_fwd_mesh_to_pod.changed)
-  changed_when: true
+- name: Install the mesh-route-priority script
+  ansible.builtin.template:
+    src: futhark-mesh-routes.sh.j2
+    dest: /usr/local/bin/futhark-mesh-routes.sh
+    mode: "0755"
+  when: node.os == 'fedora' and tailscale_peer_ips is defined
+
+- name: Install the mesh-route-priority systemd unit
+  ansible.builtin.template:
+    src: futhark-mesh-routes.service.j2
+    dest: /etc/systemd/system/futhark-mesh-routes.service
+    mode: "0644"
+  when: node.os == 'fedora' and tailscale_peer_ips is defined
+
+- name: Enable and (re)run the mesh-route-priority service now
+  ansible.builtin.systemd:
+    name: futhark-mesh-routes
+    daemon_reload: true
+    enabled: true
+    state: restarted
+  when: node.os == 'fedora' and tailscale_peer_ips is defined
