@@ -17,9 +17,10 @@
 # 2. SNAT. Routing alone is not enough: tailscaled drops packets whose source address is not
 #    the node's own tailnet IP, as anti-spoofing. Pod-sourced packets (<pod CIDR>) therefore
 #    die on egress even though the route is correct and FORWARD accepts them. Masquerading to
-#    the node's tailnet IP is what actually makes the dial succeed. This is why cross-node
-#    pod-to-pod already worked: IPIP wraps it in an outer header sourced from the node's own
-#    mesh IP, so it never presents a foreign source to tailscaled.
+#    the node's tailnet IP is what actually makes the dial succeed. Cross-node pod-to-pod does
+#    not need this half — IPIP wraps it in an outer header sourced from the node's own mesh IP,
+#    so it never presents a foreign source — but it does need the tailnet ACL to allow
+#    `ip-in-ip`, or the overlay blackholes. See ansible/nodes/README.md.
 #
 #    Scoped to peer /32s, not the whole 100.64.0.0/10 tailnet, deliberately: pods get to reach
 #    cluster nodes (konnectivity-agent -> konnectivity-server, Prometheus -> traefik on the

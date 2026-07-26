@@ -81,9 +81,10 @@ of which break a pod dialing a peer node's _own_ mesh address:
    only masquerades service traffic carrying the `0x4000` mark, and tailscaled only installs
    its own `ts-postrouting` chain when acting as a subnet router or exit node.
 
-This is why cross-node **pod-to-pod already works**: IPIP wraps it in an outer header sourced
-from the node's own mesh IP, so it never presents a foreign source to tailscaled. Only
-_unencapsulated_ pod → mesh traffic fails. The isolating test, run on a node:
+IPIP solves the _source address_ half for cross-node **pod-to-pod** traffic: the outer header is
+sourced from the node's own mesh IP, so it never presents a foreign source to tailscaled. That
+is only half of what pod-to-pod needs — see the ACL prerequisite below. The isolating test for
+the pod → mesh case, run on a node:
 
 ```bash
 ping -c2 -I <this node's mesh IP> <peer mesh IP>   # succeeds
@@ -100,3 +101,60 @@ the mesh IP) without inheriting the node's `tag:futhark-node` reach across the e
 
 Both rules live in `roles/tailscale/templates/futhark-mesh-routes.sh.j2`, re-applied by a
 systemd oneshot because neither `ip rule` nor iptables state survives a reboot.
+
+### Tailnet ACL prerequisite: `ip-in-ip`
+
+The overlay above only carries traffic if the tailnet ACL permits it. A Tailscale rule that
+does not name a protocol matches TCP, UDP, ICMP and SCTP **only** — IPIP is IP protocol 4 and
+is silently dropped. Cross-node pod-to-pod then blackholes: the route is correct, the tunnel is
+`UP`, nothing is logged, and every packet vanishes.
+
+In the legacy `acls` syntax, `proto` is a single string, so this is its own rule rather than an
+extra entry on an existing one. Protocol 4 is named `ip-in-ip` (`ipv4` is an accepted alias),
+and only TCP/UDP/SCTP may name ports, so the destination port must be `*`:
+
+```json
+{
+  "acls": [
+    {
+      "action": "accept",
+      "src": ["tag:futhark-node"],
+      "proto": "ip-in-ip",
+      "dst": ["tag:futhark-node:*"]
+    }
+  ]
+}
+```
+
+If the policy file uses the newer `grants` syntax, there is no `action` field — pasting the
+rule above yields `json: unknown field "action"`. The equivalent grant expresses the protocol
+in `ip`:
+
+```json
+{
+  "grants": [
+    {
+      "src": ["tag:futhark-node"],
+      "dst": ["tag:futhark-node"],
+      "ip": ["ip-in-ip:*"]
+    }
+  ]
+}
+```
+
+`acls` and `grants` may coexist in one policy file, so adding an `acls` block to a
+grants-based file is a valid way to do this.
+
+This is the one piece of the mesh that is **not** reproducible from this repo — the tailnet
+policy file lives in the Tailscale admin console, and `tofu/` manages only Bunny DNS. Re-check
+it before believing a cross-node networking bug is a node-local fault.
+
+The failure is worth recognising by shape, because it does not look like an ACL problem. Half
+of all ClusterIP DNS answers time out while direct-to-pod-IP works, because CoreDNS runs one
+pod per node and kube-proxy load-balances 50/50 — only the remote endpoint is unreachable.
+Anything that resolves DNS at startup then fails intermittently or crashloops. The test:
+
+```bash
+# from a pod, against a pod on the *other* node
+ping -c2 <remote pod IP>   # fails => overlay is dropping, check ip-in-ip in the ACL
+```
