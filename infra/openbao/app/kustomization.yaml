@@ -10,7 +10,7 @@ resources:
   - ingress.yaml
 
 # Splices INT_DOMAIN into the ingress host — see infra/monitoring/app/kustomization.yaml and
-# flux/README.md.
+# docs/src/conventions/domains.md.
 components:
   - ../../../config/domain
 

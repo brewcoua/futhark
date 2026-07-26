@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/namespace.json
 # One Namespace per tenant/node app (nodes/<hostname>.k0s/<app>/), not per infra controller —
 # each infra controller keeps declaring its own app/namespace.yaml next to itself instead. See
-# CONVENTIONS.md.
+# docs/src/conventions/layout.md.
 apiVersion: v1
 kind: Namespace
 metadata:

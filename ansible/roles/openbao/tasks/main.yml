@@ -1,9 +1,7 @@
 ---
-# Day-2: init (once) + idempotent namespace/mount/auth/policy bootstrap. Invoked by
-# ansible/playbooks/bao.yml (task bao:status / task bao:policy-sync), never by k0s.yml —
-# prep.yml (Namespace + seal Secret) is the only piece that has to run before Flux.
-# Assumes infra/openbao has already reconciled: the StatefulSet exists and its pod is
-# reachable via kubectl exec, no podman/SSH involved.
+# Day-2: init (once) + idempotent namespace/mount/auth/policy bootstrap, invoked by
+# ansible/playbooks/bao.yml. Never by k0s.yml — prep.yml is the only piece that has to run
+# before Flux. Assumes infra/openbao has already reconciled and openbao-0 answers kubectl exec.
 
 - name: Wait for the OpenBao pod to answer
   ansible.builtin.command:
@@ -73,10 +71,9 @@
     openbao_kubeconfig: "{{ lookup('ansible.builtin.file', generated_dir + '/kubeconfig') | from_yaml }}"
   tags: [always]
 
-# node-<hostname> namespaces are for k0s nodes that run their own tenant apps
-# (nodes/<hostname>.k0s/<app>/) — not every workflow: k0s host. ogma runs no tenant apps
-# (it's the infra tier: openbao, auth), so it's deliberately excluded here rather than
-# getting a pointless empty namespace.
+# node-<hostname> namespaces are for k0s nodes that run their own tenant apps, not every
+# workflow: k0s host — so a node with no nodes/<hostname>.k0s/ directory is deliberately
+# skipped rather than getting a pointless empty namespace. See docs/src/gitops/nodes.md.
 - name: Find node app directories (nodes/<hostname>.k0s/)
   ansible.builtin.find:
     paths: "{{ repo_root }}/nodes"

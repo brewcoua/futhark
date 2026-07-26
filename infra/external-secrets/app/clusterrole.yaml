@@ -1,11 +1,10 @@
 ---
-# Replaces the external-secrets chart's own cluster-wide RBAC (disabled via values.rbac.create:
-# false in helmrelease.yaml) with a slim ClusterRole covering only what's genuinely
-# cluster-scoped and can't be a namespaced Role: ClusterSecretStore (referenced by every
-# namespace's ExternalSecret) and core Namespace objects. No `secrets` access here — that's
-# granted per namespace by infra/configs/rbac-eso.yaml instead. No `namespaces update/patch`
-# either — that's only needed for ClusterExternalSecret, which this repo doesn't use. No
-# generators.external-secrets.io rule — also unused here.
+# Replaces the chart's own cluster-wide RBAC (disabled via values.rbac.create: false in
+# helmrelease.yaml) with a slim ClusterRole covering only what's genuinely cluster-scoped:
+# ClusterSecretStore and core Namespace objects. No `secrets` access here — that's granted per
+# namespace by the rbac-eso-writer template. No `namespaces update/patch` (only needed for
+# ClusterExternalSecret) and no generators rule; neither is used in this repo. See
+# docs/src/conventions/secrets.md#eso-rbac.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:

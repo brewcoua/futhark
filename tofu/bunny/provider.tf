@@ -11,5 +11,5 @@ terraform {
 }
 
 # api_key comes from BUNNYNET_API_KEY — pass-cli run --env-file secrets.env resolves it before
-# tofu ever sees it. See README.md.
+# tofu ever sees it. See docs/src/tofu/bunny.md.
 provider "bunnynet" {}

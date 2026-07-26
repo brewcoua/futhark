@@ -17,12 +17,13 @@ tasks:
   deps:
     desc: >-
       Install required packages (ansible-core, ansible-lint, yamllint, pass-cli,
-      pre-commit, kubectl, helm, kustomize, k0sctl, flux, tofu)
+      pre-commit, kubectl, helm, kustomize, k0sctl, flux, tofu, mdbook)
     vars:
       # Bump these deliberately, not implicitly via `master`/`latest` — see the kustomize and
       # k0sctl lines below, both of which used to track a moving target.
       KUSTOMIZE_VERSION: v5.5.0
       K0SCTL_VERSION: v0.20.0
+      MDBOOK_VERSION: v0.5.4
     cmds:
       # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
       # ships a same-path conflicting package literally named `tofu`, don't use it here.
@@ -50,6 +51,13 @@ tasks:
       - curl -fsSL https://github.com/k0sproject/k0sctl/releases/download/{{.K0SCTL_VERSION}}/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
       # Every fx:* task and k0s:status (via flux get) needs this; nothing else here installed it.
       - command -v flux > /dev/null || curl -fsSL https://fluxcd.io/install.sh | sudo bash
+      # Pinned to match .github/workflows/docs.yml, so a local `task docs:build` renders what CI publishes.
+      - >-
+        command -v mdbook > /dev/null ||
+        (curl -fsSL -o /tmp/mdbook.tar.gz
+        https://github.com/rust-lang/mdBook/releases/download/{{.MDBOOK_VERSION}}/mdbook-{{.MDBOOK_VERSION}}-x86_64-unknown-linux-gnu.tar.gz &&
+        tar -xzf /tmp/mdbook.tar.gz -C /tmp &&
+        sudo install -m 755 /tmp/mdbook /usr/local/bin/mdbook)
     preconditions:
       - which dnf
       - which uv

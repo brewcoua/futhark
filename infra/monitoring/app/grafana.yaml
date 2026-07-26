@@ -1,7 +1,7 @@
 ---
 # Primary dashboard + alerting UI. Datasource, contact points, and alert rules are provisioned
 # as code (editable: false) — Grafana 11.3 has no UI import for alert rules, so this file is the
-# only way in. Dashboards stay UI-managed (backups deferred — see infra/monitoring/README notes).
+# only way in. Dashboards stay UI-managed; backups deferred.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

@@ -6,7 +6,7 @@ namespace: flux-system
 resources:
   - kenaz.k0s
 # Every Flux Kustomization CR under nodes/ shares interval/prune/sourceRef/wait — patched in
-# here so each ks.yaml only states name, path, dependsOn. See CONVENTIONS.md and
+# here so each ks.yaml only states name, path, dependsOn. See docs/src/conventions/layout.md and
 # infra/kustomization.yaml for why wait: true is explicit here rather than assumed.
 patches:
   - target:

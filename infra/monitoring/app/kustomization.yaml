@@ -16,7 +16,7 @@ resources:
 
 # Splices INT_DOMAIN into each ingress hostname below — Flux's postBuild.substituteFrom can't
 # reach HelmRelease.spec.values, so this has to happen here at kustomize-build time instead.
-# See flux/README.md.
+# See docs/src/conventions/domains.md.
 components:
   - ../../../config/domain
 

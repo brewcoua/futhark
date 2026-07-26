@@ -4,7 +4,7 @@
 # Opt-in bridge: only for namespaces that actually expose a publicly-routed Ingress via
 # traefik-edge. Add this template to a namespace's overlay whenever its app/ingress.yaml
 # uses ingressClassName: edge — see netpol-allow-from-ingress-internal for the mesh
-# equivalent, referenced but never written until now in CONVENTIONS.md.
+# equivalent, referenced but never written until now in docs/src/conventions/network-policy.md.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -1,11 +1,8 @@
 ---
-# Internal ingress: reachable ONLY over the Tailscale mesh. Serves the *.in.futk.eu wildcard
-# cert, so internal Ingresses never carry their own tls: block.
-#
-# Exposed via the Tailscale operator (infra/tailscale-operator), not hostNetwork/hostIP: this
-# Service gets its own tailnet identity, so ordinary NetworkPolicy still governs its traffic
-# and there's no node IP to know/inject. MetalLB was considered and rejected — it has no
-# concept of Tailscale and could only ever manage a real L2/BGP-announced IP, not a tailnet one.
+# Internal ingress: reachable ONLY over the Tailscale mesh. Serves the wildcard cert for
+# INT_DOMAIN (config/domain/domain.env), so internal Ingresses never carry their own tls:
+# block. Exposed via the Tailscale operator rather than hostNetwork/hostIP — see
+# docs/src/gitops/infra.md#the-two-ingresses.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -90,7 +87,7 @@ spec:
     accessLog:
       enabled: true
       format: json
-    # Default cert served on websecure for any *.in.futk.eu host.
+    # Default cert served on websecure for any host under INT_DOMAIN.
     tlsStore:
       default:
         defaultCertificate:

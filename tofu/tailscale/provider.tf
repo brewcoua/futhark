@@ -14,5 +14,5 @@ terraform {
 # oauth_client_id/oauth_client_secret/tailnet come from TAILSCALE_OAUTH_CLIENT_ID,
 # TAILSCALE_OAUTH_CLIENT_SECRET and TAILSCALE_TAILNET — pass-cli run --env-file secrets.env
 # resolves them before tofu ever sees them. The tailnet name is identifying, hence a pointer
-# rather than a literal. See README.md.
+# rather than a literal. See docs/src/tofu/tailscale.md.
 provider "tailscale" {}

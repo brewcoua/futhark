@@ -5,7 +5,7 @@
 # rather than under infra/ because ansible reads the same file too (see
 # ansible/inventory/group_vars/all.yml). Any app/ that needs a hostname adds
 # `components: [../../../config/domain]` plus its own `replacements` block to splice a key
-# into the right field — see flux/README.md and infra/monitoring/app/kustomization.yaml.
+# into the right field — see docs/src/conventions/domains.md and infra/monitoring/app/kustomization.yaml.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 configMapGenerator:

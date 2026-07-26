@@ -166,7 +166,7 @@
 # (tofu/oidc/secrets.env) purely because no narrower credential existed. Mint one with:
 #   bao token create -namespace=<ns> -policy=oidc-writer -period=768h
 # and store it at futharkd/openbao/oidc writer token (<ns>), replacing VAULT_TOKEN in
-# tofu/oidc/secrets.env for that namespace — see tofu/oidc/README.md.
+# tofu/oidc/secrets.env for that namespace — see docs/src/tofu/oidc.md.
 - name: "Upload the oidc-writer policy in {{ openbao_namespace }}"
   ansible.builtin.command:
     argv:

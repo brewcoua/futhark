@@ -63,7 +63,7 @@
       selectattr('node.public_ingress') |
       map(attribute='node.hostname') | first }}
 
-# These IPs are identifying values (see tofu/README.md's rule, extended to every file type) —
+# These IPs are identifying values (see docs/src/tofu/index.md's rule, extended to every file type) —
 # never committed to git. Pushed straight into the cluster instead; Flux Kustomizations pick
 # them up via postBuild.substituteFrom (see infra/traefik-edge/ks.yaml, infra/monitoring/ks.yaml).
 # k0s_cluster_mesh_ips is set by roles/k0s_cluster (facts persist across plays in one playbook

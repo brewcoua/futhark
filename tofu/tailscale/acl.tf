@@ -17,7 +17,7 @@ resource "tailscale_acl" "this" {
 
   # overwrite_existing_content above only guards the FIRST apply. Nothing else stops a later
   # `tofu destroy` or a dropped/corrupted state from wiping the policy that also grants the
-  # operator's own access — see README.md's lockout note.
+  # operator's own access — see docs/src/tofu/tailscale.md's lockout note.
   lifecycle {
     prevent_destroy = true
   }

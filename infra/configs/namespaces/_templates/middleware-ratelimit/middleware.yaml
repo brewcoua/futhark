@@ -2,7 +2,7 @@
 # Basic DoS protection: 100 req/s average, burst 200, keyed by source IP (Traefik's default
 # sourceCriterion). Generous enough not to affect normal use, low enough to blunt a flood.
 # Referenced by an Ingress via traefik.ingress.kubernetes.io/router.middlewares:
-# <namespace>-ratelimit@kubernetescrd — see CONVENTIONS.md.
+# <namespace>-ratelimit@kubernetescrd — see docs/src/conventions/network-policy.md.
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:

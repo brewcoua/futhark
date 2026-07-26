@@ -9,7 +9,7 @@ resources:
   - certificate.yaml
 
 # Splices INT_DOMAIN into the wildcard cert below — see infra/monitoring/app/kustomization.yaml
-# and flux/README.md for why this happens here.
+# and docs/src/conventions/domains.md for why this happens here.
 components:
   - ../../../config/domain
 

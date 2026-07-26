@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/external-secrets/external-secrets/main/deploy/crds/bundle.yaml
 #
 # kenaz's own namespace: read-only on OpenBao namespace node-kenaz only (see
-# infra/external-secrets/README.md). Add one nodes/<hostname>.yaml like this per k0s node.
+# docs/src/gitops/infra.md). Add one nodes/<hostname>.yaml like this per k0s node.
 apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:

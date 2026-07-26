@@ -1,12 +1,9 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
-# Shared config other Kustomizations depend on: tenant/node namespaces, the default-deny
-# NetworkPolicy baseline, and the per-namespace ESO RBAC bridge (see
-# infra/configs/kustomization.yaml). Every overlay here sets kustomize's top-level
-# `namespace:` field, so its Namespace CR must already exist or the whole overlay fails to
-# apply — dependsOn every infra controller whose own app/namespace.yaml an overlay here
-# targets (cert-manager, monitoring, storage, openbao, auth, external-secrets,
-# tailscale-operator, traefik-internal, traefik-edge).
+# Tenant/node namespaces, the default-deny NetworkPolicy baseline, and the per-namespace ESO
+# RBAC bridge. Every overlay here sets kustomize's top-level `namespace:` field, so its
+# Namespace CR must already exist or the whole overlay fails to apply — hence a dependsOn on
+# every infra controller that declares one. See docs/src/conventions/ordering.md.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

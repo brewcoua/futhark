@@ -1,0 +1,12 @@
+[book]
+title = "futhark"
+description = "GitOps-driven homelab: Ansible host provisioning, a k0s cluster reconciled by Flux, OpenTofu for the cloud plane."
+authors = ["Brewen Couaran"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/brewcoua/futhark"
+edit-url-template = "https://github.com/brewcoua/futhark/edit/master/docs/{path}"
+site-url = "/futhark/"
+default-theme = "rust"

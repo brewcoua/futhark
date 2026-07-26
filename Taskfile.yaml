@@ -9,6 +9,7 @@ includes:
   tf: .taskfiles/tofu/Taskfile.yaml
   k0s: .taskfiles/k0s/Taskfile.yaml
   fx: .taskfiles/flux/Taskfile.yaml
+  docs: .taskfiles/docs/Taskfile.yaml
 
 tasks:
   default:

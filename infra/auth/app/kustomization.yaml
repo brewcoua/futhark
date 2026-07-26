@@ -12,7 +12,7 @@ resources:
   - ingress.yaml
 
 # Splices DOMAIN (Pocket ID is edge-exposed, not internal) into APP_URL and the ingress
-# host/tls — see infra/monitoring/app/kustomization.yaml and flux/README.md.
+# host/tls — see infra/monitoring/app/kustomization.yaml and docs/src/conventions/domains.md.
 components:
   - ../../../config/domain
 

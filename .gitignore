@@ -16,5 +16,8 @@ tofu/oidc/openbao-ca.crt
 __pycache__/
 *.pyc
 
+# mdbook build output
+docs/book/
+
 # Local configs
 .claude

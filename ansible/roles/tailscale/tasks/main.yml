@@ -76,10 +76,9 @@
   changed_when: true
   no_log: true
 
-# Bind tailscale0 to firewalld's built-in "trusted" zone: the tailnet is the mesh's own
-# trust boundary (see ansible/nodes/README.md's mesh note), so anything a node binds to its
-# tailscale0 address (k0s's API server, OpenBao, ...) is reachable over it without punching
-# per-port holes in the public zone (ens3), which stays limited to the hardened SSH port.
+# The tailnet is the mesh's own trust boundary, so anything a node binds to tailscale0 (k0s's
+# API server, OpenBao) is reachable over it without punching per-port holes in the public zone,
+# which stays limited to the hardened SSH port. See docs/src/ansible/index.md.
 - name: Put tailscale0 in firewalld's trusted zone
   ansible.posix.firewalld:
     zone: trusted
@@ -89,10 +88,8 @@
     state: enabled
   when: node.os == 'fedora'
 
-# The CNI bridge is in no zone, so it lands in the default "public" zone, which is
-# deliberately limited to the hardened SSH port and 80/443. Trust the cluster's own dataplane
-# explicitly instead — standard practice for firewalld-on-Kubernetes hosts, and it keeps the
-# CNI path reproducible from this tree rather than resting on ad-hoc --direct rules.
+# The CNI bridge is in no zone, so it would land in the default "public" zone, which is
+# limited to the hardened SSH port and 80/443. Trust the cluster's own dataplane explicitly.
 - name: Trust the CNI bridge and cluster CIDRs in firewalld
   ansible.posix.firewalld:
     zone: trusted
@@ -109,25 +106,11 @@
     label: "{{ item.interface | default(item.source) }}"
   when: node.os == 'fedora'
 
-# A pod dialing a mesh peer's own address (as opposed to the peer's pod CIDR) is broken twice
-# over, and both halves have to be fixed. konnectivity-agent does exactly this — it dials the
-# controller's konnectivity-server over the mesh — so while it's broken, kubectl
-# exec/logs/port-forward are down cluster-wide.
-#
-# 1. kube-router installs `from <this node's pod CIDR> lookup 77` at pref 5209 for the IPIP
-#    overlay it builds between nodes (kenaz/ogma share no L2), and puts the peer's mesh IP in
-#    table 77 pointing at the tunnel. That outranks Tailscale's own pref 5270 (lookup 52), so
-#    the packet is routed into the very tunnel whose transport endpoint IS that address.
-#
-# 2. Even with routing corrected, tailscaled drops packets whose source is not the node's own
-#    tailnet IP, as anti-spoofing — so pod-sourced packets still die on egress. They have to be
-#    masqueraded to the node's mesh IP. (Nothing else does this: kube-proxy's KUBE-POSTROUTING
-#    only masquerades service traffic carrying the 0x4000 mark.)
-#
-# Both fixes are one narrow rule per mesh peer, matching only that peer's single mesh IP and
-# never the pod CIDR ranges, so kube-router's legitimate pod-to-pod overlay routing is
-# untouched. Neither `ip rule` nor iptables state survives a reboot, hence the systemd oneshot
-# — same reasoning as everything else here being reproducible from scratch.
+# A pod dialing a mesh peer's own address is broken twice over — routing and source address —
+# and the fix is one narrow rule per peer. konnectivity-agent does exactly this, so while it's
+# broken, kubectl exec/logs/port-forward are down cluster-wide. Full write-up:
+# docs/src/ansible/networking.md. The systemd oneshot exists because neither `ip rule` nor
+# iptables state survives a reboot.
 - name: Resolve every other mesh peer's mesh IP
   ansible.builtin.command:
     cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ tailnet_domain }}"

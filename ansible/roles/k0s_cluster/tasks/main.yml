@@ -16,11 +16,9 @@
       selectattr('node.k0s_role', 'search', 'controller') |
       map(attribute='node.hostname') | first }}
 
-# k0s otherwise self-detects spec.api.address from the default-route interface, which on
-# these hosts is the public IP — join tokens then carry that address, and workers can't
-# reach it (no route to host). Resolve the controller's mesh address the same way
-# ansible_host does (via MagicDNS), using getent instead of a dig lookup so no extra
-# python dependency (dnspython) is required.
+# k0s would otherwise self-detect spec.api.address from the default-route interface — the
+# public IP — and join tokens would carry an address workers can't reach. getent rather than a
+# dig lookup so no dnspython dependency. See docs/src/ansible/index.md#k0s_cluster.
 - name: Resolve the controller's mesh IP
   ansible.builtin.command:
     cmd: "getent hosts {{ k0s_cluster_controller_host }}.{{ tailnet_domain }}"
@@ -48,10 +46,9 @@
       {{ k0s_cluster_controller_mesh_ip }}, which isn't a 100.64.0.0/10 tailnet address —
       stale MagicDNS entry?
 
-# privateInterface only feeds spec.api.address/etcd peerAddress above, never kubelet — under
-# --enable-cloud-provider=true (kubelet --cloud-provider=external) kubelet won't self-assign
-# InternalIP at all without an explicit --node-ip, so every k0s host needs its own mesh IP
-# resolved the same way, passed straight to kubelet via installFlags in the template.
+# privateInterface only feeds spec.api.address/etcd peerAddress, never kubelet — under
+# --cloud-provider=external kubelet won't self-assign InternalIP without an explicit --node-ip,
+# so every k0s host needs its own mesh IP passed via installFlags in the template.
 - name: Resolve every k0s host's mesh IP (for kubelet --node-ip)
   ansible.builtin.command:
     cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ tailnet_domain }}"
@@ -102,10 +99,8 @@
     mode: "0600"
   no_log: true
 
-# kubelet can only ever register --node-ip as InternalIP (never ExternalIP), so the public
-# IP has to arrive some other way — the k0s cloud provider (--enable-cloud-provider=true /
-# --enable-k0s-cloud-provider=true above) reads it from this annotation instead. node.ip is
-# a pass:// lookup, so the public IP is never committed.
+# kubelet can only ever register --node-ip as InternalIP, so the public IP arrives via this
+# annotation, which the k0s cloud provider reads. node.ip is a pass:// lookup — never committed.
 - name: Annotate nodes with their external IP (k0s cloud provider)
   ansible.builtin.command:
     cmd: >-
