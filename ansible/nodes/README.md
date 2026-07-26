@@ -146,8 +146,9 @@ in `ip`:
 grants-based file is a valid way to do this.
 
 The policy file is managed in `tofu/tailscale/` (`policy.hujson`), which also carries a `tests`
-entry asserting this rule — the provider validates tests at plan time, so a regression fails the
-plan instead of the mesh. Re-check it before believing a cross-node networking bug is a
+entry asserting this rule — tests are evaluated when the policy is written, so a regression
+aborts `tofu apply` and the tailnet keeps its previous policy rather than losing the overlay.
+Re-check it before believing a cross-node networking bug is a
 node-local fault; if the tailnet was edited in the admin console rather than through tofu, the
 two can still have drifted.
 

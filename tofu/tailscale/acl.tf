@@ -9,8 +9,9 @@
 #
 #   pass-cli run --env-file secrets.env -- tofu import tailscale_acl.this acl
 #
-# The provider validates the policy against the Tailscale API at *plan* time, so the tests block
-# in policy.hujson fails the plan rather than the tailnet.
+# The tests block in policy.hujson is evaluated server-side when the document is written, so a
+# failing test aborts the apply and the tailnet keeps its previous policy. Plan does not submit
+# the document and so does not catch it — a green plan is not evidence the tests pass.
 resource "tailscale_acl" "this" {
   acl = file("${path.module}/policy.hujson")
 }

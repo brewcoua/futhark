@@ -82,14 +82,18 @@
     },
   ],
 
-  // Validated by the provider at plan time, so a regression fails `tofu plan` rather than the
-  // mesh. The ip-in-ip case is not hypothetical: its absence took the cluster down once, and
-  // presented as an OpenBao seal fault three layers away.
+  // Evaluated server-side when the policy is written, so a failing test aborts `tofu apply` and
+  // the tailnet keeps its previous policy — the regression never lands. Not caught at plan
+  // time; plan does not submit the document. The ip-in-ip case is not hypothetical: its absence
+  // took the cluster down once, and presented as an OpenBao seal fault three layers away.
+  //
+  // The port must be 0, not "*". Protocols without ports are tested against port 0 (the same
+  // rule the docs give for icmp); "*" is rejected with `invalid port "*"`.
   "tests": [
     {
       "src": "tag:futhark-node",
       "proto": "ip-in-ip",
-      "accept": ["tag:futhark-node:*"],
+      "accept": ["tag:futhark-node:0"],
     },
   ],
 }

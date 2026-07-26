@@ -47,10 +47,28 @@ also locks you out of fixing it.
 
 ## Tests
 
-The provider validates the policy against the Tailscale API at **plan** time, so the `tests`
-block fails the plan rather than the tailnet. That is the main reason this module exists: the
-missing `ip-in-ip` rule took the cluster down and presented as an OpenBao seal fault three
-layers away. Add a test whenever a rule turns out to be load-bearing.
+The `tests` block is evaluated server-side when the policy document is written, so a failing
+test aborts `tofu apply` and the tailnet keeps its previous policy — the regression never lands.
+It is **not** caught at plan time; plan does not submit the document, so a green plan says
+nothing about the tests. Expect a failure to surface as `Error: Failed to update ACL —
+test(s) failed (400)`.
+
+That is the main reason this module exists: the missing `ip-in-ip` rule took the cluster down
+and presented as an OpenBao seal fault three layers away. Add a test whenever a rule turns out
+to be load-bearing.
+
+Protocols that do not use ports are tested against port **0**, not `*` — the same rule the
+Tailscale docs give for `icmp`. A test written `tag:futhark-node:*` is rejected with
+`invalid port "*"`. To check a policy without writing it:
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  --data @policy.json \
+  "https://api.tailscale.com/api/v2/tailnet/$TAILSCALE_TAILNET/acl/validate"
+```
+
+`{}` means valid; a failing test returns `{"message":"test(s) failed", ...}`. The endpoint takes
+strict JSON, so strip the comments and trailing commas from `policy.hujson` first.
 
 ## Before the first apply
 
