@@ -22,6 +22,24 @@
 # `okms keys` and `okms kmip` are separate namespaces, and OpenBao never creates key material
 # itself. Feeding it a service key id fails at startup with a KMIP ItemNotFound on
 # GetAttributes, which reads as "the key was deleted" and is not.
+#
+# The other seal failure is `Operation is not authorized` on GetAttributes. That one is not
+# about the key id at all — it means the OVH credential is missing the IAM action, so fix the
+# policy rather than the key. The seal wrapper only ever issues three KMIP operations
+# (go-kms-wrapping/wrappers/kmip/kmip.go: GetAttributes at startup to verify the object,
+# then Encrypt/Decrypt to wrap the root key), so the credential needs exactly three actions:
+#   okms:kmip:getAttributes   (READ)
+#   okms:kmip:encrypt         (OPERATE)
+#   okms:kmip:decrypt         (OPERATE)
+# Deliberately NOT granted: okms:kmip:get returns the raw key material, which defeats the
+# point of a seal whose wrapping key never leaves the HSM; okms:kmip:destroy and
+# okms:kmip:rekey can render every existing ciphertext — i.e. the whole OpenBao store —
+# permanently unreadable, and the recovery keys do not help (they only mint a new root
+# token). `activate` is only needed when creating the key, so do that with an admin
+# credential, not this one.
+#
+# Note `okms kmip locate` is not a valid check here: OVH exposes no IAM action for Locate, so
+# it returns "not authorized" even for a correctly permissioned credential.
 - name: Write the seal Secret (KMIP endpoint/key id/mTLS material, all identifying)
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"
