@@ -9,6 +9,13 @@ env:
   KUBECONFIG: "{{.KUBECONFIG}}"
 
 tasks:
+  status:
+    desc: One-screen health report — nodes, unhealthy pods, Flux sync state
+    cmds:
+      - kubectl get nodes -o wide
+      - task: failing
+      - task: ":fx:get"
+
   nodes:
     desc: List cluster nodes
     cmd: kubectl get nodes -o wide
@@ -17,9 +24,88 @@ tasks:
     desc: "List pods [-- <namespace>, default all]"
     cmd: "kubectl get pods {{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}}"
 
+  failing:
+    desc: "List only pods that aren't Running/Completed with all containers ready"
+    # READY is "n/m". A finished pod always reads 0/m, so judge it by STATUS alone;
+    # everything else has to be Running with every container ready.
+    cmd: |
+      kubectl get pods -A -o wide --no-headers | awk '
+        $4 == "Completed" { next }
+        { split($3, r, "/") }
+        r[1] != r[2] || $4 != "Running"
+      ' | grep . || echo "all pods healthy"
+
   events:
     desc: "Show recent events [-- <namespace>, default all]"
     cmd: "kubectl get events --sort-by=.lastTimestamp {{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}}"
+
+  warnings:
+    desc: "Show recent Warning events only [-- <namespace>, default all]"
+    cmd: >-
+      kubectl get events --field-selector=type=Warning --sort-by=.lastTimestamp
+      {{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}}
+
+  logs:
+    desc: "Follow a workload's logs -- <ns>/<name> (name may be deploy/x, job/x, or a pod)"
+    cmd: |
+      ns="{{.CLI_ARGS}}"; name="${ns#*/}"; ns="${ns%%/*}"
+      [ -n "$ns" ] && [ "$ns" != "$name" ] || { echo 'usage: task k0s:logs -- <ns>/<name>' >&2; exit 1; }
+      kubectl -n "$ns" logs "$name" --tail=200 --all-containers --follow
+
+  previous:
+    desc: "Show a crashed pod's logs from before its last restart -- <ns>/<pod>"
+    cmd: |
+      ns="{{.CLI_ARGS}}"; name="${ns#*/}"; ns="${ns%%/*}"
+      [ -n "$ns" ] && [ "$ns" != "$name" ] || { echo 'usage: task k0s:previous -- <ns>/<pod>' >&2; exit 1; }
+      kubectl -n "$ns" logs "$name" --previous --tail=200 --all-containers
+
+  describe:
+    desc: "Describe a pod, with its events -- <ns>/<pod>"
+    cmd: |
+      ns="{{.CLI_ARGS}}"; name="${ns#*/}"; ns="${ns%%/*}"
+      [ -n "$ns" ] && [ "$ns" != "$name" ] || { echo 'usage: task k0s:describe -- <ns>/<pod>' >&2; exit 1; }
+      kubectl -n "$ns" describe pod "$name"
+
+  restart:
+    desc: "Roll a Deployment and wait for it -- <ns>/<deploy>"
+    cmd: |
+      ns="{{.CLI_ARGS}}"; name="${ns#*/}"; ns="${ns%%/*}"
+      [ -n "$ns" ] && [ "$ns" != "$name" ] || { echo 'usage: task k0s:restart -- <ns>/<deploy>' >&2; exit 1; }
+      kubectl -n "$ns" rollout restart "deploy/$name"
+      kubectl -n "$ns" rollout status "deploy/$name"
+
+  jobs:
+    desc: "List Jobs and CronJobs [-- <namespace>, default all]"
+    vars:
+      SCOPE: "{{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}}"
+    cmds:
+      - "kubectl get jobs {{.SCOPE}}"
+      - "kubectl get cronjobs {{.SCOPE}}"
+
+  jobs-clean:
+    desc: "Delete finished (Complete or Failed) Jobs [-- <namespace>, default all]; running Jobs are left alone"
+    cmd: |
+      kubectl get jobs {{if .CLI_ARGS}}-n {{.CLI_ARGS}}{{else}}-A{{end}} \
+        -o 'jsonpath={range .items[*]}{.metadata.namespace} {.metadata.name} {.status.active}{"\n"}{end}' \
+      | awk '$3 == "" || $3 == "0" { print $1, $2 }' \
+      | while read -r ns job; do
+          kubectl -n "$ns" delete job "$job"
+        done
+      echo "no finished Jobs left."
+
+  top:
+    desc: "Show real CPU/memory usage per node, and the 15 hungriest pods"
+    cmds:
+      - kubectl top nodes
+      - kubectl top pods -A --sort-by=memory | head -16
+
+  ingress:
+    desc: List Ingresses across all namespaces
+    cmd: kubectl get ingress -A
+
+  certs:
+    desc: List Certificates and pending CertificateRequests
+    cmd: kubectl get certificate,certificaterequest -A
 
   apply:
     desc: Re-converge the cluster with k0sctl and re-bootstrap Flux
