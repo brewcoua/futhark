@@ -17,6 +17,27 @@
   changed_when: false
   failed_when: false
 
+# Without this, a pod that never comes up (almost always the kmip seal refusing to
+# configure) just burns the 30 retries and then dies on a from_json of empty stdout, which
+# reads as "policy-sync is stuck" rather than "openbao-0 is crashlooping". Surface the
+# container's own last words instead.
+- name: Show why the pod never answered
+  ansible.builtin.command:
+    cmd: >-
+      kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao logs openbao-0
+      --previous --tail=30
+  register: openbao_crash_logs
+  changed_when: false
+  failed_when: false
+  when: openbao_status.rc not in [0, 2]
+
+- name: Fail with the pod's crash output
+  ansible.builtin.fail:
+    msg: >-
+      openbao-0 never answered `bao status`. Last container logs:
+      {{ openbao_crash_logs.stdout_lines | default(['<none>']) }}
+  when: openbao_status.rc not in [0, 2]
+
 - name: Initialize OpenBao (kmip seal — auto-unseals on every start, no Shamir key to manage)
   ansible.builtin.command:
     cmd: >-

@@ -22,6 +22,15 @@
 # `okms keys` and `okms kmip` are separate namespaces, and OpenBao never creates key material
 # itself. Feeding it a service key id fails at startup with a KMIP ItemNotFound on
 # GetAttributes, which reads as "the key was deleted" and is not.
+#
+# The other seal failure is `Operation is not authorized` on GetAttributes. That one is not
+# about the key id at all — it means the mTLS credential has no KMIP rights on the OKMS, so
+# *every* operation is refused. Tell the two apart before touching the key id:
+#   okms kmip locate --endpoint <kmip endpoint> --auth-method mtls \
+#     --cert client-cert.pem --key client-key.pem --ca kmip-ca.pem
+# A bare Locate that also returns "not authorized" is the credential, not the object; fix it
+# in the OVH manager (grant the credential KMIP access, or issue one that has it) and only
+# then re-create/activate the key.
 - name: Write the seal Secret (KMIP endpoint/key id/mTLS material, all identifying)
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"
