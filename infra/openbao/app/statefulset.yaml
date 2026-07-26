@@ -19,10 +19,24 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: ogma
+      # UID 100 / GID 1000 matches the upstream Vault-derived image's built-in "vault" user,
+      # same convention HashiCorp's own Helm chart sets. Not readOnlyRootFilesystem: OpenBao's
+      # plugin/temp-file behavior under it hasn't been verified against this image.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: openbao
           image: ghcr.io/openbao/openbao:2
           args: ["server", "-config=/openbao/config"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: api
               containerPort: 8200

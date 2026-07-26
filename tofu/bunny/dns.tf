@@ -26,6 +26,10 @@ resource "bunnynet_dns_record" "auth" {
   type  = "A"
   value = var.kenaz_public_ip
   ttl   = 300
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # vault.INT_DOMAIN — resolves publicly to kenaz's Tailscale mesh IP (CGNAT, 100.64.0.0/10), so
@@ -37,4 +41,8 @@ resource "bunnynet_dns_record" "vault" {
   type  = "A"
   value = var.kenaz_mesh_ip
   ttl   = 300
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

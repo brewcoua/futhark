@@ -45,6 +45,7 @@ spec:
         annotations:
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
+          traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
         hosts:
           - name: logs.INT_DOMAIN
             path:

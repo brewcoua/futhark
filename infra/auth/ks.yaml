@@ -8,3 +8,8 @@ spec:
   path: ./infra/auth/app
   dependsOn:
     - name: external-secrets-config
+    # app/ingress.yaml needs cert-manager's ClusterIssuer (letsencrypt-bunny) and the
+    # ingressClassName: edge controller — the only edge-exposed component, previously the
+    # weakest dependsOn in the tree.
+    - name: cert-manager-config
+    - name: traefik-edge

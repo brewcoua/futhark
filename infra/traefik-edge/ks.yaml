@@ -8,9 +8,10 @@ spec:
   path: ./infra/traefik-edge/app
   dependsOn:
     - name: traefik-internal
-  # kenaz's public/mesh IPs, ansible-pushed straight into the cluster (never git) — see
-  # ansible/roles/flux_bootstrap. Consumed as ${PUBLIC_IP}/${MESH_IP} in app/helmrelease.yaml.
+  # The public-ingress host's public/mesh IPs, ansible-pushed straight into the cluster (never
+  # git) — see ansible/roles/flux_bootstrap. Consumed as ${PUBLIC_IP}/${MESH_IP} in
+  # app/helmrelease.yaml.
   postBuild:
     substituteFrom:
       - kind: ConfigMap
-        name: kenaz-ips
+        name: edge-ips

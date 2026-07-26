@@ -4,11 +4,28 @@
 # ('node-<hostname>') by tasks/main.yml. Isolation is the namespace boundary itself — every
 # namespace binds the same ESO ServiceAccount, since what differs per namespace is which
 # secret/ mount and reader policy that binding can reach, not the identity doing the binding.
+#
+# BAO_TOKEN never appears as a kubectl/bao argv element in any of these tasks — that would put
+# the root token in `ps`/`/proc/*/cmdline` inside the openbao-0 container and in the k8s API
+# audit log for the exec request. It's fed over the exec'd process's stdin instead, one `read`
+# per line consumed before the shell hands the remaining stdin to `bao` via `exec`.
 - name: "Create namespace {{ openbao_namespace }}"
   ansible.builtin.command:
-    cmd: >-
-      kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao exec openbao-0 --
-      env BAO_TOKEN={{ openbao_root_token }} bao namespace create {{ openbao_namespace }}
+    argv:
+      - kubectl
+      - --kubeconfig={{ generated_dir }}/kubeconfig
+      - -n
+      - openbao
+      - exec
+      - -i
+      - openbao-0
+      - --
+      - sh
+      - -c
+      - 'IFS= read -r BAO_TOKEN; export BAO_TOKEN; exec bao namespace create "$1"'
+      - _
+      - "{{ openbao_namespace }}"
+    stdin: "{{ openbao_root_token }}\n"
   register: openbao_ns_create
   changed_when: "'already exists' not in (openbao_ns_create.stderr | default(''))"
   failed_when: >-
@@ -18,10 +35,21 @@
 
 - name: "Enable the secret/ kv-v2 mount in {{ openbao_namespace }}"
   ansible.builtin.command:
-    cmd: >-
-      kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao exec openbao-0 --
-      env BAO_TOKEN={{ openbao_root_token }} BAO_NAMESPACE={{ openbao_namespace }}
-      bao secrets enable -path=secret kv-v2
+    argv:
+      - kubectl
+      - --kubeconfig={{ generated_dir }}/kubeconfig
+      - -n
+      - openbao
+      - exec
+      - -i
+      - openbao-0
+      - --
+      - sh
+      - -c
+      - 'IFS= read -r BAO_TOKEN; export BAO_TOKEN; export BAO_NAMESPACE="$1"; exec bao secrets enable -path=secret kv-v2'
+      - _
+      - "{{ openbao_namespace }}"
+    stdin: "{{ openbao_root_token }}\n"
   register: openbao_kv_enable
   changed_when: "'path is already in use' not in (openbao_kv_enable.stderr | default(''))"
   failed_when: >-
@@ -31,10 +59,21 @@
 
 - name: "Enable the kubernetes auth method in {{ openbao_namespace }}"
   ansible.builtin.command:
-    cmd: >-
-      kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao exec openbao-0 --
-      env BAO_TOKEN={{ openbao_root_token }} BAO_NAMESPACE={{ openbao_namespace }}
-      bao auth enable kubernetes
+    argv:
+      - kubectl
+      - --kubeconfig={{ generated_dir }}/kubeconfig
+      - -n
+      - openbao
+      - exec
+      - -i
+      - openbao-0
+      - --
+      - sh
+      - -c
+      - 'IFS= read -r BAO_TOKEN; export BAO_TOKEN; export BAO_NAMESPACE="$1"; exec bao auth enable kubernetes'
+      - _
+      - "{{ openbao_namespace }}"
+    stdin: "{{ openbao_root_token }}\n"
   register: openbao_k8s_auth_enable
   changed_when: "'path is already in use' not in (openbao_k8s_auth_enable.stderr | default(''))"
   failed_when: >-
@@ -50,16 +89,19 @@
       - -n
       - openbao
       - exec
+      - -i
       - openbao-0
       - --
-      - env
-      - BAO_TOKEN={{ openbao_root_token }}
-      - BAO_NAMESPACE={{ openbao_namespace }}
-      - bao
-      - write
-      - auth/kubernetes/config
-      - kubernetes_host={{ openbao_kubeconfig.clusters[0].cluster.server }}
-      - kubernetes_ca_cert={{ openbao_kubeconfig.clusters[0].cluster['certificate-authority-data'] | b64decode }}
+      - sh
+      - -c
+      - >-
+        IFS= read -r BAO_TOKEN; export BAO_TOKEN; export BAO_NAMESPACE="$1";
+        exec bao write auth/kubernetes/config kubernetes_host="$2" kubernetes_ca_cert="$3"
+      - _
+      - "{{ openbao_namespace }}"
+      - "{{ openbao_kubeconfig.clusters[0].cluster.server }}"
+      - "{{ openbao_kubeconfig.clusters[0].cluster['certificate-authority-data'] | b64decode }}"
+    stdin: "{{ openbao_root_token }}\n"
   changed_when: true
   no_log: true
 
@@ -86,10 +128,63 @@
   become: false
 
 - name: "Upload the reader policy in {{ openbao_namespace }}"
-  ansible.builtin.shell: >-
-    kubectl --kubeconfig={{ generated_dir }}/kubeconfig -n openbao exec -i openbao-0 --
-    env BAO_TOKEN={{ openbao_root_token }} BAO_NAMESPACE={{ openbao_namespace }}
-    bao policy write reader - < {{ generated_dir }}/openbao-policies/{{ openbao_namespace }}-reader.hcl
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ generated_dir }}/kubeconfig
+      - -n
+      - openbao
+      - exec
+      - -i
+      - openbao-0
+      - --
+      - sh
+      - -c
+      - "IFS= read -r BAO_TOKEN; IFS= read -r BAO_NAMESPACE; export BAO_TOKEN BAO_NAMESPACE; exec bao policy write reader -"
+    stdin: |-
+      {{ openbao_root_token }}
+      {{ openbao_namespace }}
+      {{ lookup('ansible.builtin.file', generated_dir + '/openbao-policies/' + openbao_namespace + '-reader.hcl') }}
+  changed_when: true
+  no_log: true
+
+- name: "Write the oidc-writer policy in {{ openbao_namespace }}"
+  ansible.builtin.copy:
+    dest: "{{ generated_dir }}/openbao-policies/{{ openbao_namespace }}-oidc-writer.hcl"
+    content: |
+      path "secret/data/*" {
+        capabilities = ["create", "read", "update"]
+      }
+      path "secret/metadata/*" {
+        capabilities = ["list", "read"]
+      }
+    mode: "0644"
+  delegate_to: localhost
+  become: false
+
+# Scoped for tofu/oidc, which currently runs against OpenBao as the root token
+# (tofu/oidc/secrets.env) purely because no narrower credential existed. Mint one with:
+#   bao token create -namespace=<ns> -policy=oidc-writer -period=768h
+# and store it at futharkd/openbao/oidc writer token (<ns>), replacing VAULT_TOKEN in
+# tofu/oidc/secrets.env for that namespace — see tofu/oidc/README.md.
+- name: "Upload the oidc-writer policy in {{ openbao_namespace }}"
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig={{ generated_dir }}/kubeconfig
+      - -n
+      - openbao
+      - exec
+      - -i
+      - openbao-0
+      - --
+      - sh
+      - -c
+      - "IFS= read -r BAO_TOKEN; IFS= read -r BAO_NAMESPACE; export BAO_TOKEN BAO_NAMESPACE; exec bao policy write oidc-writer -"
+    stdin: |-
+      {{ openbao_root_token }}
+      {{ openbao_namespace }}
+      {{ lookup('ansible.builtin.file', generated_dir + '/openbao-policies/' + openbao_namespace + '-oidc-writer.hcl') }}
   changed_when: true
   no_log: true
 
@@ -101,17 +196,17 @@
       - -n
       - openbao
       - exec
+      - -i
       - openbao-0
       - --
-      - env
-      - BAO_TOKEN={{ openbao_root_token }}
-      - BAO_NAMESPACE={{ openbao_namespace }}
-      - bao
-      - write
-      - auth/kubernetes/role/eso
-      - bound_service_account_names=external-secrets
-      - bound_service_account_namespaces=external-secrets
-      - policies=reader
-      - ttl=15m
+      - sh
+      - -c
+      - >-
+        IFS= read -r BAO_TOKEN; IFS= read -r BAO_NAMESPACE; export BAO_TOKEN BAO_NAMESPACE;
+        exec bao write auth/kubernetes/role/eso
+        bound_service_account_names=external-secrets
+        bound_service_account_namespaces=external-secrets
+        policies=reader ttl=15m
+    stdin: "{{ openbao_root_token }}\n{{ openbao_namespace }}\n"
   changed_when: true
   no_log: true

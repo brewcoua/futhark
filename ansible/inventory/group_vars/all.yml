@@ -2,7 +2,7 @@
 # ansible/nodes/<host>/host.yml under the `node:` key.
 
 # Resolved from the Proton Pass vault `futharkd`, item `ssh-ops`, fields
-# `username`/`public-key` — see ansible/plugins/lookup/protonpass.py.
+# `username`/`public key` — see ansible/plugins/lookup/protonpass.py.
 admin:
   user: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/username') }}"
   ssh_pubkey: "{{ lookup('protonpass', 'pass://futharkd/ssh-ops/public key') }}"
@@ -46,10 +46,3 @@ ansible_port: "{{ ssh_port }}"
 # inventory), which has no inventory_dir; playbook_dir is play-scoped, not host-scoped.
 repo_root: "{{ playbook_dir }}/../.."
 generated_dir: "{{ repo_root }}/ansible/.generated"
-
-# Same source of truth as config/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN, used
-# across Flux-managed apps, see config/domain) — read straight from that file so ansible
-# and k8s never drift.
-domain_env_file: "{{ lookup('ansible.builtin.file', repo_root + '/config/domain/domain.env') }}"
-domain: "{{ (domain_env_file | regex_findall('^DOMAIN=(.*)$', multiline=True))[0] }}"
-int_domain: "{{ (domain_env_file | regex_findall('^INT_DOMAIN=(.*)$', multiline=True))[0] }}"

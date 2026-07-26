@@ -19,9 +19,22 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: ogma
+      # Same UID/GID convention as nodes/kenaz.k0s/actual's deployment. Not
+      # readOnlyRootFilesystem: Pocket ID's cache/tmp write behavior under it is unverified.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: pocketid
           image: ghcr.io/pocket-id/pocket-id:v2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: http
               containerPort: 1411

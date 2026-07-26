@@ -2,8 +2,11 @@ terraform {
   required_version = ">= 1.7.0"
   required_providers {
     tailscale = {
-      source  = "tailscale/tailscale"
-      version = "~> 0.17"
+      source = "tailscale/tailscale"
+      # Patch-level only — a 2-component "~> 0.17" allows any 0.x release (Terraform's ~>
+      # only fixes components to the left of the last one given), which is not what a 0.x
+      # provider's own semver convention promises: minor bumps there are breaking.
+      version = "~> 0.29.2"
     }
   }
 }

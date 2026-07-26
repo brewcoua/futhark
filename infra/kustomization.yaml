@@ -17,8 +17,8 @@ resources:
   - traefik-edge/ks.yaml
   - storage/ks.yaml
   - monitoring/ks.yaml
-# Every Flux Kustomization CR under infra/ shares interval/prune/sourceRef — patched in here so
-# each ks.yaml only states name, path, dependsOn. See CONVENTIONS.md.
+# Every Flux Kustomization CR under infra/ shares interval/prune/sourceRef/wait — patched in
+# here so each ks.yaml only states name, path, dependsOn. See CONVENTIONS.md.
 patches:
   - target:
       group: kustomize.toolkit.fluxcd.io
@@ -34,3 +34,8 @@ patches:
         sourceRef:
           kind: GitRepository
           name: flux-system
+        # Explicit rather than relying on the API's default: a dependsOn edge is only a
+        # readiness guarantee (not just an apply-ordering one) if the upstream Kustomization
+        # actually health-checks what it reconciled — e.g. traefik-internal's HelmRelease
+        # reporting Ready before infra-configs (which needs its Middleware CRD) reconciles.
+        wait: true

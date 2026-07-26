@@ -48,10 +48,13 @@ spec:
         enabled: true
         ingressClassName: internal
         annotations:
-          # No Authelia middleware yet — infra/auth (SSO) hasn't landed. Add
-          # traefik.ingress.kubernetes.io/router.middlewares: auth-authelia@kubernetescrd once it does.
+          # infra/auth (Pocket ID) has landed, but unlike Authelia it's a plain OIDC provider
+          # with no forwardAuth/verify endpoint of its own — fronting this with SSO needs an
+          # oauth2-proxy (or similar) bridge wired to Pocket ID first. Unauthenticated on the
+          # tailnet until that lands; see the same note on grafana.yaml/headlamp.yaml.
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
+          traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
         hosts:
           - name: metrics.INT_DOMAIN
             path:

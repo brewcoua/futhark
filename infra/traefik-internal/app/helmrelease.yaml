@@ -57,9 +57,11 @@ spec:
       kubernetesCRD:
         enabled: true
         ingressClass: internal
-        # Lets ingresses in any namespace reference a forwardAuth Middleware once infra/auth
-        # lands in the `auth` namespace. Without this the cross-namespace ref is SILENTLY
-        # rejected and the router fails.
+        # Lets ingresses in any namespace reference a forwardAuth Middleware in the `auth`
+        # namespace once one exists there. Without this the cross-namespace ref is SILENTLY
+        # rejected and the router fails. Nothing references one yet — infra/auth (Pocket ID)
+        # is a plain OIDC provider, not a forwardAuth backend; see infra/monitoring/app/
+        # vmsingle.yaml for what's actually still missing.
         allowCrossNamespace: true
     ports:
       web:

@@ -77,13 +77,17 @@ spec:
         installOptions:
           parallel: true
           maxConcurrent: 2
-    # No Authelia middleware yet — infra/auth (SSO) hasn't landed.
+    # infra/auth (Pocket ID) has landed, but it's a plain OIDC provider with no
+    # forwardAuth/verify endpoint of its own — see the same note on vmsingle.yaml.
+    # unsafeUseServiceAccountToken below grants cluster-wide view; unauthenticated on the
+    # tailnet until an SSO bridge lands.
     ingress:
       enabled: true
       ingressClassName: internal
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
+        traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
       hosts:
         - host: headlamp.INT_DOMAIN
           paths:

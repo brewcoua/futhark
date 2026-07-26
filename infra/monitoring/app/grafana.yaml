@@ -293,13 +293,17 @@ spec:
                 annotations:
                   summary: '{{ "{{" }} $labels.namespace {{ "}}" }}/{{ "{{" }} $labels.job_name {{ "}}" }} failed'
     # No dashboardProviders/dashboards block: dashboards stay UI-managed, not git.
-    # No Authelia middleware yet — infra/auth (SSO) hasn't landed.
+    # infra/auth (Pocket ID) has landed, but it's a plain OIDC provider with no
+    # forwardAuth/verify endpoint of its own — see the same note on vmsingle.yaml. Grafana can
+    # do OIDC login directly (auth.generic_oauth), which is the more natural fit here anyway;
+    # unauthenticated on the tailnet until that's configured.
     ingress:
       enabled: true
       ingressClassName: internal
       annotations:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.tls: "true"
+        traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
       hosts:
         - dash.INT_DOMAIN
       path: /

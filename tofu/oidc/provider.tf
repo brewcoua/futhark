@@ -2,8 +2,11 @@ terraform {
   required_version = ">= 1.7.0"
   required_providers {
     pocketid = {
-      source  = "Trozz/pocketid"
-      version = "~> 0.1"
+      source = "Trozz/pocketid"
+      # Patch-level only — see tofu/tailscale/provider.tf for why a 2-component "~>" is
+      # looser than it looks on a 0.x provider. Doubly so for a third-party provider that
+      # mints credentials.
+      version = "~> 0.1.8"
     }
     vault = {
       source  = "hashicorp/vault"

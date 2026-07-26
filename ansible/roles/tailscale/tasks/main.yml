@@ -139,6 +139,12 @@
     - item != inventory_hostname
     - hostvars[item].node.mesh | default(false)
   changed_when: false
+  # A from-scratch multi-node run, or setup.yml limited to one host at a time, can hit this
+  # before every peer has finished its own "Join the tailnet" task above and MagicDNS has
+  # propagated the new peer. Retry instead of aborting the whole play on the first race.
+  retries: 6
+  delay: 5
+  until: tailscale_peer_getent.rc == 0
 
 - name: Build a hostname -> peer mesh IP map
   ansible.builtin.set_fact:

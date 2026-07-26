@@ -7,26 +7,31 @@ on:
     - cron: "0 4 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   codeberg:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GIT_MIRROR_CODEBERG: ${{ vars.GIT_MIRROR_CODEBERG }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.GIT_MIRROR_CODEBERG_KEY }}
 
+      # No pinned-fingerprint alternative to ssh-keyscan here (unlike GitHub's api.github.com/meta
+      # — see ansible/roles/flux_bootstrap): Codeberg doesn't publish a comparable endpoint.
+      # TOFU risk on this one connection remains; the blast radius is this disaster-recovery
+      # mirror push only, not the live Flux deploy-key channel.
       - name: Push mirror to Codeberg
-        id: mirror
-        continue-on-error: true
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
-          git push --mirror ${{ vars.GIT_MIRROR_CODEBERG }}
-
-      - name: Report mirror status
-        if: steps.mirror.outcome == 'failure'
-        run: echo "::warning::Codeberg mirror push failed, continuing anyway"
+          git push --mirror "$GIT_MIRROR_CODEBERG"

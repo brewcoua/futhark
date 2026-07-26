@@ -25,8 +25,16 @@ pass-cli run --env-file secrets.env -- tofu apply
 
 - A Pocket ID admin API key (Settings > Admin > API Keys at `https://auth.brewen.dev`), stored
   at Proton Pass `futharkd/pocketid/api key`.
-- The OpenBao root token, already in Proton Pass at `futharkd/openbao/root token` (same value
-  ansible's `protonpass` lookup plugin uses).
+- A namespace-scoped OpenBao token bound to the `oidc-writer` policy (write-only on
+  `secret/data/*` and list/read on `secret/metadata/*` in that namespace — see
+  `ansible/roles/openbao/tasks/namespaces.yml`, which creates this policy in every namespace
+  it bootstraps). Mint one per target namespace with the root token:
+  ```bash
+  bao token create -namespace=<namespace> -policy=oidc-writer -period=768h
+  ```
+  and store it at Proton Pass `futharkd/openbao/oidc writer token (<namespace>)`, referenced by
+  `VAULT_TOKEN` in `secrets.env`. Not the root token — this module only ever needs to write one
+  app's client secret into one namespace.
 
 No CA to fetch: `vault.INT_DOMAIN` is served through traefik-internal's Ingress with the same
 publicly-trusted wildcard LE cert every other internal app uses, not a self-signed listener cert
@@ -35,6 +43,7 @@ publicly-trusted wildcard LE cert every other internal app uses, not a self-sign
 ## Verifying
 
 - Pocket ID admin UI shows the new client under Applications.
-- `bao kv get -namespace=<namespace> secret/<name>` (root token) confirms the secret landed.
+- `bao kv get -namespace=<namespace> secret/<name>` (the `oidc-writer` token also has read)
+  confirms the secret landed.
 - The app's ExternalSecret syncs on its next poll interval — `kubectl get externalsecret -n
 <app>` shows `SecretSynced`.

@@ -1,6 +1,8 @@
 ---
 # ESO's own namespace: read access to the ServiceAccounts it token-reviews for the
-# kubernetes auth method.
+# kubernetes auth method, plus token minting — its ClusterSecretStores use
+# auth.kubernetes.serviceAccountRef, which authenticates to OpenBao via a token ESO
+# requests through the TokenRequest API, not a static SA secret.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -10,6 +12,9 @@ rules:
   - apiGroups: [""]
     resources: [serviceaccounts]
     verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    verbs: [create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -12,3 +12,4 @@ resources:
   - namespaces/csi-rclone
   - namespaces/ingress-internal
   - namespaces/ingress-edge
+  - namespaces/tailscale

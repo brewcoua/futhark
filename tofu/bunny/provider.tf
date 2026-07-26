@@ -2,8 +2,10 @@ terraform {
   required_version = ">= 1.7.0"
   required_providers {
     bunnynet = {
-      source  = "BunnyWay/bunnynet"
-      version = "~> 0.15"
+      source = "BunnyWay/bunnynet"
+      # Patch-level only — see tofu/tailscale/provider.tf for why a 2-component "~>" is
+      # looser than it looks on a 0.x provider.
+      version = "~> 0.15.1"
     }
   }
 }

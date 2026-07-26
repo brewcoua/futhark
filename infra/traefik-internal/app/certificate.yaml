@@ -1,11 +1,12 @@
 ---
-# One wildcard cert for all internal services. Issued into kube-system so traefik-internal can
-# use it as its default TLS certificate.
+# One wildcard cert for all internal services. Issued into ingress-internal — Traefik
+# resolves secretName references in its own namespace, and this HelmRelease's
+# targetNamespace is ingress-internal (see app/helmrelease.yaml).
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: wildcard-int-tls
-  namespace: kube-system
+  namespace: ingress-internal
 spec:
   secretName: wildcard-int-tls
   issuerRef:

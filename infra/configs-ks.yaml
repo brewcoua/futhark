@@ -5,7 +5,8 @@
 # infra/configs/kustomization.yaml). Every overlay here sets kustomize's top-level
 # `namespace:` field, so its Namespace CR must already exist or the whole overlay fails to
 # apply — dependsOn every infra controller whose own app/namespace.yaml an overlay here
-# targets (cert-manager, monitoring, storage, openbao, auth).
+# targets (cert-manager, monitoring, storage, openbao, auth, external-secrets,
+# tailscale-operator, traefik-internal, traefik-edge).
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -18,3 +19,7 @@ spec:
     - name: storage
     - name: openbao
     - name: auth
+    - name: external-secrets
+    - name: tailscale-operator
+    - name: traefik-internal
+    - name: traefik-edge

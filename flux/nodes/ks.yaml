@@ -8,6 +8,7 @@ metadata:
 spec:
   interval: 10m
   prune: true
+  wait: true
   dependsOn:
     - name: infra-configs
   sourceRef:

@@ -1,9 +1,17 @@
 ---
-# Public edge ingress: binds 80/443 on kenaz's public IP. Scaffolded now with no backends yet —
-# give a public Ingress the class "edge" to route through here.
+# Public edge ingress: binds 80/443 on kenaz's public IP. Give a public Ingress the class
+# "edge" to route through here. ${PUBLIC_IP}/${MESH_IP} below are substituted by
+# postBuild.substituteFrom in ks.yaml, from the kenaz-ips ConfigMap ansible-pushed straight
+# into the cluster (never git) — see ansible/roles/flux_bootstrap.
 #
-# PLACEHOLDER: REPLACE_WITH_PUBLIC_IP below must become kenaz's real public IP — see
-# infra/traefik-internal/app/helmrelease.yaml for the same gap on the mesh side.
+# hostNetwork: true is required — this is the only node with a public IP, there's no
+# LoadBalancer/MetalLB to hand it a Service address (deliberately dropped in favor of the
+# Tailscale operator for everything internal, see infra/traefik-internal), so it binds
+# directly to kenaz's own interface. That means it shares kenaz's network namespace: the
+# ingress-edge NetworkPolicy baseline (infra/configs/namespaces/ingress-edge) does not and
+# cannot govern its traffic — CNI NetworkPolicy enforcement never sees hostNetwork sockets.
+# The actual controls here are firewalld (ansible/roles/firewall_ingress, public zone limited
+# to 80/443 + the hardened SSH port) and this chart's own rate limiting.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

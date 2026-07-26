@@ -6,13 +6,36 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v9.0.0
       - uses: opentofu/setup-opentofu@v2.0.2
+      # kustomize-build (in .pre-commit-config.yaml) shells out to both binaries with
+      # language: system — neither ships on the runner image, and neither was previously
+      # installed here, so the hook only ever passed if the image happened to carry them.
+      - name: Install kustomize
+        run: |
+          curl -fsSL -o /tmp/kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz
+          tar -xzf /tmp/kustomize.tar.gz -C /tmp
+          sudo install -m 755 /tmp/kustomize /usr/local/bin/kustomize
+      - name: Install helm
+        run: |
+          curl -fsSL -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.16.2-linux-amd64.tar.gz
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
       - uses: actions/cache@v6
         with:
           path: ~/.cache/pre-commit
@@ -22,11 +45,22 @@ jobs:
       # touch .terraform.lock.hcl, and pre-commit fails a hook that modifies tracked files.
       - run: for d in $(find tofu -name "*.tf" -exec dirname {} \; | sort -u); do tofu -chdir="$d" init -backend=false -input=false; done
       - run: pre-commit run --all-files
+      # gitleaks' own pre-commit hook only diffs the staged index (`--staged`), which is empty
+      # under `run --all-files` — it silently scans nothing above. Run a real full-tree scan.
+      - name: gitleaks (full tree, not just the staged index)
+        run: |
+          curl -fsSL -o /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          sudo install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks dir . --config .gitleaks.toml
 
   ansible-syntax:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@v9.0.0
       - run: uv tool install ansible-core
       - uses: actions/cache@v6

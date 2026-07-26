@@ -14,4 +14,11 @@
 # the document and so does not catch it — a green plan is not evidence the tests pass.
 resource "tailscale_acl" "this" {
   acl = file("${path.module}/policy.hujson")
+
+  # overwrite_existing_content above only guards the FIRST apply. Nothing else stops a later
+  # `tofu destroy` or a dropped/corrupted state from wiping the policy that also grants the
+  # operator's own access — see README.md's lockout note.
+  lifecycle {
+    prevent_destroy = true
+  }
 }

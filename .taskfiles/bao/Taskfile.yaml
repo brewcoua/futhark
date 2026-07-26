@@ -17,9 +17,9 @@ tasks:
     cmd: ansible-playbook playbooks/bao.yml -e bao_task=policy-sync
 
   kv:
-    desc: "Run 'bao kv' in-cluster, root token auto-injected from Proton Pass [-- put -namespace=<ns> <path> key=value ...]"
+    desc: "Run 'bao kv' in-cluster, root token piped over stdin (never argv) [-- put -namespace=<ns> <path> key=value ...]"
     dir: "{{.ANSIBLE_DIR}}"
     cmd: >-
-      kubectl --kubeconfig=.generated/kubeconfig -n openbao exec openbao-0 --
-      env BAO_TOKEN=$(pass-cli item view 'pass://futharkd/openbao/root token' --output human)
-      bao kv {{.CLI_ARGS}}
+      pass-cli item view 'pass://futharkd/openbao/root token' --output human |
+      kubectl --kubeconfig=.generated/kubeconfig -n openbao exec -i openbao-0 --
+      sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN; exec bao kv {{.CLI_ARGS}}'

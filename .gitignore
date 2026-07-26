@@ -5,8 +5,16 @@ ansible/.generated/
 # Tofu state can hold minted credentials in plaintext even when marked `sensitive`.
 # .terraform.lock.hcl is NOT here — that's the provider version lockfile, meant to be committed.
 tofu/**/.terraform/
-tofu/**/terraform.tfstate*
+# Wider than just the default filename — also catches `tofu state pull > x.tfstate` and
+# `-state=foo.tfstate` snapshots, not only terraform.tfstate itself.
+tofu/**/*.tfstate*
+# OpenTofu dumps provider state into this on a crash — can carry the same secrets state does.
+tofu/**/crash.log
 tofu/oidc/openbao-ca.crt
+
+# Python bytecode cache (ansible/plugins/lookup/protonpass.py)
+__pycache__/
+*.pyc
 
 # Local configs
 .claude

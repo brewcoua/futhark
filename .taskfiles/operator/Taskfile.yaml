@@ -17,7 +17,12 @@ tasks:
   deps:
     desc: >-
       Install required packages (ansible-core, ansible-lint, yamllint, pass-cli,
-      pre-commit, kubectl, helm, kustomize, k0sctl, tofu)
+      pre-commit, kubectl, helm, kustomize, k0sctl, flux, tofu)
+    vars:
+      # Bump these deliberately, not implicitly via `master`/`latest` — see the kustomize and
+      # k0sctl lines below, both of which used to track a moving target.
+      KUSTOMIZE_VERSION: v5.5.0
+      K0SCTL_VERSION: v0.20.0
     cmds:
       # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
       # ships a same-path conflicting package literally named `tofu`, don't use it here.
@@ -31,10 +36,20 @@ tasks:
       # site-packages since that's the interpreter ansible-core actually runs modules with,
       # not a uv tool's isolated venv.
       - sudo uv pip install --python /usr/bin/python3 kubernetes
+      # No known way to pin/checksum-verify Proton's own installer script — it's their only
+      # documented install path for pass-cli, the tool every secret in this repo resolves
+      # through. Worth revisiting if Proton ever publishes a pinned release artifact.
       - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
-      # The installer script refuses to run if the binary already exists, so ops:setup can be rerun.
-      - command -v kustomize > /dev/null || curl -fsSL https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | sudo bash -s -- /usr/local/bin
-      - curl -fsSL https://github.com/k0sproject/k0sctl/releases/latest/download/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
+      # Pinned release binary, not curl-to-sudo-bash of the installer script tracking master.
+      - >-
+        command -v kustomize > /dev/null ||
+        (curl -fsSL -o /tmp/kustomize.tar.gz
+        https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F{{.KUSTOMIZE_VERSION}}/kustomize_{{.KUSTOMIZE_VERSION}}_linux_amd64.tar.gz &&
+        tar -xzf /tmp/kustomize.tar.gz -C /tmp &&
+        sudo install -m 755 /tmp/kustomize /usr/local/bin/kustomize)
+      - curl -fsSL https://github.com/k0sproject/k0sctl/releases/download/{{.K0SCTL_VERSION}}/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
+      # Every fx:* task and k0s:status (via flux get) needs this; nothing else here installed it.
+      - command -v flux > /dev/null || curl -fsSL https://fluxcd.io/install.sh | sudo bash
     preconditions:
       - which dnf
       - which uv

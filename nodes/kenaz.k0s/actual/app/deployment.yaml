@@ -21,6 +21,7 @@ spec:
       # convict's ACTUAL_* env prefix and breaking Actual's port validation.
       enableServiceLinks: false
       securityContext:
+        runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
@@ -40,6 +41,8 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: server-files
               mountPath: /data/server-files

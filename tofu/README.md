@@ -11,18 +11,19 @@ clients, an operation against Pocket ID's own API that no Kustomization can expr
   write to OpenBao — anything a module _mints_ becomes a `sensitive` output, pasted into OpenBao
   by hand. **Exception: `oidc`.** It mints OIDC client secrets in Pocket ID and the whole point
   is removing that hand-paste step for this one round trip, so it's allowed to write those
-  secrets straight to OpenBao via the `vault` provider, using the same root-token auth ansible
-  already uses for namespace bootstrap (Proton Pass `futharkd/openbao/root token`, no narrower
-  policy). Every other module stays read-only.
+  secrets straight to OpenBao via the `vault` provider — but scoped to the `oidc-writer` policy
+  (write-only on `secret/data/*` in one namespace, see `ansible/roles/openbao/tasks/namespaces.yml`
+  and `tofu/oidc/README.md`), not the root token. Every other module stays read-only.
 - Provider tokens are never committed. A module's `secrets.env` holds only Proton Pass `pass://`
   **pointers** (safe to commit) resolved at runtime by `pass-cli run --env-file`. This also covers
   _identifying_ values that aren't credentials but still shouldn't sit in git in plaintext (a real
-  public IP — the same thing `REPLACE_WITH_PUBLIC_IP` guards against in
-  `infra/traefik-edge/app/helmrelease.yaml`) — set those as `TF_VAR_<name>=pass://...`. A
+  public IP — the same thing `${PUBLIC_IP}` in `infra/traefik-edge/app/helmrelease.yaml` avoids
+  committing, substituted in from the cluster instead) — set those as `TF_VAR_<name>=pass://...`. A
   genuinely non-identifying constant that's also shared with other parts of the repo (the domain
   name) is read straight from its committed source (`config/domain/domain.env`) as a
   `local`, rather than duplicated into `terraform.tfvars`.
-- State stays local and gitignored (`tofu/**/.terraform/`, `tofu/**/*.tfstate*`) — a module's minted
+- State stays local and gitignored (`tofu/**/.terraform/`, `tofu/**/*.tfstate*`,
+  `tofu/**/crash.log`) — a module's minted
   credentials can sit in it in plaintext even when marked `sensitive` (that only suppresses
   console/plan output). Keep it on the operator machine.
 - Verify provider resource/attribute names against current provider docs before the first apply.

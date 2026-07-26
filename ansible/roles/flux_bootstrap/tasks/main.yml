@@ -9,11 +9,19 @@
     create_namespace: true
     kubeconfig: "{{ generated_dir }}/kubeconfig"
 
-- name: Fetch GitHub's SSH host key
-  ansible.builtin.command:
-    cmd: ssh-keyscan github.com
-  register: flux_bootstrap_known_hosts
-  changed_when: false
+# A blind ssh-keyscan trusts whatever answers on first contact (TOFU, no verification at all).
+# GitHub publishes its own host keys over HTTPS instead — authenticated by the system's CA
+# trust store, not by hoping nothing intercepted this specific TCP connection.
+- name: Fetch GitHub's published SSH host keys
+  ansible.builtin.uri:
+    url: https://api.github.com/meta
+    return_content: true
+  register: flux_bootstrap_github_meta
+
+- name: Build known_hosts from GitHub's published keys
+  ansible.builtin.set_fact:
+    flux_bootstrap_known_hosts_content: >-
+      {{ flux_bootstrap_github_meta.json.ssh_keys | map('regex_replace', '^', 'github.com ') | join('\n') }}
 
 - name: Bridge the Flux git deploy key
   kubernetes.core.k8s:
@@ -28,7 +36,8 @@
       type: Opaque
       stringData:
         identity: "{{ lookup('protonpass', 'pass://futharkd/kenaz/deploy key') }}"
-        known_hosts: "{{ flux_bootstrap_known_hosts.stdout }}"
+        known_hosts: "{{ flux_bootstrap_known_hosts_content }}"
+  no_log: true
 
 - name: Wait for the Flux Operator to be ready
   kubernetes.core.k8s_info:
@@ -42,12 +51,24 @@
   retries: 30
   delay: 10
 
-# kenaz's mesh/public IPs are identifying values (see tofu/README.md's rule, extended to every
-# file type) — never committed to git. Pushed straight into the cluster instead; Flux
-# Kustomizations pick them up via postBuild.substituteFrom (see infra/traefik-edge/ks.yaml,
-# infra/monitoring/ks.yaml). k0s_cluster_mesh_ips is set by roles/k0s_cluster (facts persist
-# across plays in one playbook run), node.ip is the pass://-sourced public IP.
-- name: Push kenaz's mesh/public IPs into the cluster
+# Nothing here branches on hostname — same convention as roles/tailscale and
+# roles/firewall_ingress. Whichever host currently opts in via node.public_ingress: true is
+# the one whose mesh/public IPs get pushed, so adding or moving the edge node needs no edit
+# here.
+- name: Determine the public-ingress host
+  ansible.builtin.set_fact:
+    flux_bootstrap_edge_host: >-
+      {{ groups['all'] | map('extract', hostvars) |
+      selectattr('node.public_ingress', 'defined') |
+      selectattr('node.public_ingress') |
+      map(attribute='node.hostname') | first }}
+
+# These IPs are identifying values (see tofu/README.md's rule, extended to every file type) —
+# never committed to git. Pushed straight into the cluster instead; Flux Kustomizations pick
+# them up via postBuild.substituteFrom (see infra/traefik-edge/ks.yaml, infra/monitoring/ks.yaml).
+# k0s_cluster_mesh_ips is set by roles/k0s_cluster (facts persist across plays in one playbook
+# run), node.ip is the pass://-sourced public IP.
+- name: Push the public-ingress host's mesh/public IPs into the cluster
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"
     state: present
@@ -55,11 +76,11 @@
       apiVersion: v1
       kind: ConfigMap
       metadata:
-        name: kenaz-ips
+        name: edge-ips
         namespace: flux-system
       data:
-        MESH_IP: "{{ k0s_cluster_mesh_ips['kenaz'] }}"
-        PUBLIC_IP: "{{ hostvars['kenaz'].node.ip }}"
+        MESH_IP: "{{ k0s_cluster_mesh_ips[flux_bootstrap_edge_host] }}"
+        PUBLIC_IP: "{{ hostvars[flux_bootstrap_edge_host].node.ip }}"
 
 - name: Apply the FluxInstance
   kubernetes.core.k8s:
