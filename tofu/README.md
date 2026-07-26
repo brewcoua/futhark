@@ -45,13 +45,13 @@ pass-cli run --env-file secrets.env -- tofu plan
 pass-cli run --env-file secrets.env -- tofu apply
 ```
 
-(`task tofu:init [-- bunny]` / `task tofu:plan -- bunny` / `task tofu:apply -- bunny` wrap this —
-see `.taskfiles/tofu/Taskfile.yaml`. `task tofu:init` with no module inits every module under
+(`task tf:init [-- bunny]` / `task tf:plan -- bunny` / `task tf:apply -- bunny` wrap this —
+see `.taskfiles/tofu/Taskfile.yaml`. `task tf:init` with no module inits every module under
 `tofu/`, and runs as part of `task ops:setup`.)
 
 The pre-commit `tofu-validate` hook only runs `fmt`/`validate`, not `init` — a hook that touches
 `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
-`task tofu:init` once locally before committing; CI runs init as its own step first.
+`task tf:init` once locally before committing; CI runs init as its own step first.
 
 Before the first apply: populate the Proton Pass items `secrets.env` points at —
 `futharkd/kenaz/ip address`, `futharkd/kenaz/mesh ip`, and `futharkd/bunny/api key` (same
@@ -61,3 +61,10 @@ account-wide, not zone-scoped).
 ## oidc
 
 See `tofu/oidc/README.md`.
+
+## tailscale
+
+See `tofu/tailscale/README.md`. Manages the tailnet policy file, including the `ip-in-ip` rule
+kube-router's cross-node pod overlay depends on (`ansible/nodes/README.md`). Note the
+import-first workflow: the resource owns the whole policy document, so an unreconciled first
+apply would delete every live rule the committed file omits.

@@ -1,0 +1,95 @@
+// Tailnet policy file. HuJSON — comments and trailing commas are preserved through apply.
+//
+// tailscale_acl owns this whole document: anything deleted here is deleted from the tailnet on
+// the next apply, including the rules granting your own access. Import before the first apply
+// (README.md, "First apply").
+//
+// Keep this file free of identifying values — it is committed to a public repo. Tags,
+// autogroups and CGNAT pool ranges are architecture and fine; user emails and individual node
+// addresses are not. If a rule ever needs a literal user, switch acl.tf to templatefile() and
+// pass it as a TF_VAR pass:// pointer (see tofu/bunny).
+{
+  "grants": [
+    // Unrestricted baseline, as shipped by Tailscale. Narrow this before it matters.
+    {
+      "src": ["*"],
+      "dst": ["*"],
+      "ip": ["*"],
+    },
+
+    // Cross-node pod traffic. k0s's CNI (kube-router) carries pod-to-pod between nodes in an
+    // IPIP tunnel whose endpoints are the nodes' mesh IPs. The "ip": ["*"] grant above does
+    // NOT cover this: an unqualified grant matches TCP/UDP/ICMP/SCTP only, so IP protocol 4 is
+    // dropped and every cross-node pod packet blackholes — route correct, tunnel UP, nothing
+    // logged. It surfaces as half of all ClusterIP DNS timing out, because CoreDNS runs one
+    // pod per node behind a 50/50 balance. See ansible/nodes/README.md, "Tailnet ACL
+    // prerequisite". Asserted by the tests block below; do not remove one without the other.
+    {
+      "src": ["tag:futhark-node"],
+      "dst": ["tag:futhark-node"],
+      "ip": ["ip-in-ip:*"],
+    },
+  ],
+
+  // Define users and devices that can use Tailscale SSH.
+  "ssh": [
+    // Allow all users to SSH into their own devices in check mode.
+    // Comment this section out if you want to define specific restrictions.
+    {
+      "action": "check",
+      "src": ["autogroup:member"],
+      "dst": ["autogroup:self"],
+      "users": ["autogroup:nonroot", "root"],
+    },
+    // Matches `tailscale up --ssh` in ansible/roles/tailscale.
+    {
+      "src": ["autogroup:owner"],
+      "dst": ["tag:futhark-node"],
+      "users": ["autogroup:nonroot"],
+      "action": "check",
+    },
+  ],
+
+  // tag:futhark-node — the k0s nodes themselves (ansible/roles/tailscale).
+  // tag:k8s-operator / tag:k8s — the Tailscale Kubernetes operator and the devices it creates.
+  "tagOwners": {
+    "tag:futhark-node": ["autogroup:admin"],
+    "tag:k8s-operator": ["autogroup:admin"],
+    "tag:k8s": ["tag:k8s-operator"],
+  },
+
+  // Lets the Kubernetes operator register services under tag:k8s without manual approval.
+  "autoApprovers": {
+    "services": {
+      "tag:k8s": ["tag:k8s"],
+    },
+  },
+
+  // Segregated CGNAT pools per class of device, so a mesh address says what it belongs to.
+  "nodeAttrs": [
+    {
+      "target": ["tag:k8s", "tag:k8s-operator"],
+      "ipPool": ["100.80.0.0/24"],
+      "attr": ["funnel"],
+    },
+    {
+      "target": ["tag:futhark-node"],
+      "ipPool": ["100.90.0.0/24"],
+    },
+    {
+      "target": ["autogroup:member"],
+      "ipPool": ["100.91.0.0/24"],
+    },
+  ],
+
+  // Validated by the provider at plan time, so a regression fails `tofu plan` rather than the
+  // mesh. The ip-in-ip case is not hypothetical: its absence took the cluster down once, and
+  // presented as an OpenBao seal fault three layers away.
+  "tests": [
+    {
+      "src": "tag:futhark-node",
+      "proto": "ip-in-ip",
+      "accept": ["tag:futhark-node:*"],
+    },
+  ],
+}

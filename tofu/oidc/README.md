@@ -18,7 +18,7 @@ pass-cli run --env-file secrets.env -- tofu plan
 pass-cli run --env-file secrets.env -- tofu apply
 ```
 
-(`task tofu:plan -- oidc` / `task tofu:apply -- oidc` wrap this — see
+(`task tf:plan -- oidc` / `task tf:apply -- oidc` wrap this — see
 `.taskfiles/tofu/Taskfile.yaml`.)
 
 ## Prerequisites

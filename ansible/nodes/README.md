@@ -145,9 +145,11 @@ in `ip`:
 `acls` and `grants` may coexist in one policy file, so adding an `acls` block to a
 grants-based file is a valid way to do this.
 
-This is the one piece of the mesh that is **not** reproducible from this repo — the tailnet
-policy file lives in the Tailscale admin console, and `tofu/` manages only Bunny DNS. Re-check
-it before believing a cross-node networking bug is a node-local fault.
+The policy file is managed in `tofu/tailscale/` (`policy.hujson`), which also carries a `tests`
+entry asserting this rule — the provider validates tests at plan time, so a regression fails the
+plan instead of the mesh. Re-check it before believing a cross-node networking bug is a
+node-local fault; if the tailnet was edited in the admin console rather than through tofu, the
+two can still have drifted.
 
 The failure is worth recognising by shape, because it does not look like an ACL problem. Half
 of all ClusterIP DNS answers time out while direct-to-pod-IP works, because CoreDNS runs one
