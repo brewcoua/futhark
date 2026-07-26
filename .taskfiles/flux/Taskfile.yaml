@@ -17,6 +17,25 @@ tasks:
     desc: List GitRepository sources and their sync status
     cmd: flux get sources git -A
 
+  hr:
+    desc: List HelmReleases and their sync status
+    cmd: flux get helmreleases -A
+
+  failing:
+    desc: List only Kustomizations and HelmReleases that aren't Ready
+    cmd: |
+      flux get kustomizations -A --status-selector ready=false
+      flux get helmreleases -A --status-selector ready=false
+
+  redeploy:
+    desc: "Force a HelmRelease to reinstall/upgrade even if its chart is unchanged -- <name>"
+    cmd: |
+      [ -n "{{.CLI_ARGS}}" ] || { echo 'usage: task fx:redeploy -- <name>' >&2; exit 1; }
+      # `flux reconcile` has no -A, and most (not all) HelmReleases live in flux-system.
+      ns=$(kubectl get helmrelease -A -o "jsonpath={.items[?(@.metadata.name=='{{.CLI_ARGS}}')].metadata.namespace}")
+      [ -n "$ns" ] || { echo "no HelmRelease named '{{.CLI_ARGS}}' (see: task fx:hr)" >&2; exit 1; }
+      flux reconcile helmrelease {{.CLI_ARGS}} -n "$ns" --force
+
   reconcile:
     desc: "Force-reconcile a Kustomization, or all of them [-- <name>]"
     cmd: |
