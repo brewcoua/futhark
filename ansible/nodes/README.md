@@ -63,11 +63,16 @@ Because the nodes share no L2 segment, k0s's default CNI (kube-router) builds it
 overlay between their mesh IPs to carry cross-node pod-to-pod traffic. Two consequences, both
 of which break a pod dialing a peer node's _own_ mesh address:
 
-1. **Routing.** kube-router installs `from <pod CIDR> lookup 77` at pref 5209 and puts the
-   peer's mesh IP into table 77 pointing at its tunnel. That outranks Tailscale's own
-   pref 5270 (`lookup 52`), so the packet is routed into the very tunnel whose transport
-   endpoint _is_ that address. Fixed with one `ip rule` per peer at priority 100, matching
-   only that peer's `/32` — never the pod CIDR, so pod-to-pod overlay routing is untouched.
+1. **Routing.** kube-router installs `from <node's pod /24> lookup 77` and puts the peer's mesh
+   IP into table 77 pointing at its tunnel. That outranks Tailscale's own pref 5270
+   (`lookup 52`), so the packet is routed into the very tunnel whose transport endpoint _is_
+   that address. Fixed with one `ip rule` per peer at priority 10, matching only that peer's
+   `/32` — never the pod CIDR, so pod-to-pod overlay routing is untouched.
+
+   The priority is load-bearing. kube-router currently installs its rule at pref 99; an earlier
+   release used 5209. Anything numerically above kube-router's is silently shadowed and the
+   whole script becomes a no-op with no error anywhere — check `ip rule` on the node rather
+   than assuming, and re-check after a kube-router bump.
 
 2. **Source address.** tailscaled drops packets whose source is not the node's own tailnet IP,
    as anti-spoofing, so pod-sourced packets still die on egress even once the route is correct

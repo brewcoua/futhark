@@ -16,6 +16,12 @@
   delegate_to: localhost
   become: false
 
+# `seal key id` must hold the *KMIP object* UID — `okms kmip create symmetric --alg AES
+# --size 256 --usage encrypt,decrypt`, then `okms kmip activate <id>`, since OpenBao rejects a
+# key that is not in the active state. It is NOT the OVH service/domain key id or its URN:
+# `okms keys` and `okms kmip` are separate namespaces, and OpenBao never creates key material
+# itself. Feeding it a service key id fails at startup with a KMIP ItemNotFound on
+# GetAttributes, which reads as "the key was deleted" and is not.
 - name: Write the seal Secret (KMIP endpoint/key id/mTLS material, all identifying)
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"

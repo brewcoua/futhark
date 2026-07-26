@@ -5,10 +5,14 @@
 # needed, and both are per-peer. See ansible/nodes/README.md for the full write-up.
 #
 # 1. Routing. kube-router sees that the nodes share no L2 segment and builds an IPIP overlay
-#    between their mesh IPs. As part of that it installs `from <pod CIDR> lookup 77` at
-#    pref 5209, and puts the peer's *mesh IP* into table 77 pointing at the tunnel — which
-#    shadows Tailscale's own table 52 (pref 5270). The priority-100 rule below puts the peer's
-#    mesh IP itself back on tailscale0, while leaving the peer's pod CIDR on the overlay.
+#    between their mesh IPs. As part of that it installs `from <node's pod /24> lookup 77` and
+#    puts the peer's *mesh IP* into table 77 pointing at the tunnel — which shadows Tailscale's
+#    own table 52 (pref 5270). The rule below puts the peer's mesh IP itself back on tailscale0,
+#    while leaving the peer's pod CIDR on the overlay.
+#
+#    Priority 10 is deliberate and load-bearing: kube-router installs its rule at pref 99, so
+#    anything numerically above that is silently shadowed and this whole script becomes a no-op.
+#    It used pref 5209 in an earlier release — do not assume a value, check `ip rule` on the node.
 #
 # 2. SNAT. Routing alone is not enough: tailscaled drops packets whose source address is not
 #    the node's own tailnet IP, as anti-spoofing. Pod-sourced packets (<pod CIDR>) therefore
@@ -24,9 +28,10 @@
 
 # {{ host }}
 # `ip rule add` does *not* dedupe — identical rules stack, and this unit re-runs on every
-# play — so delete first.
-ip rule del to {{ ip }}/32 lookup 52 priority 100 2>/dev/null || true
-ip rule add to {{ ip }}/32 lookup 52 priority 100
+# play — so drain every copy first. Draining without matching on priority also clears rules
+# left at a priority this script used previously.
+while ip rule del to {{ ip }}/32 lookup 52 2>/dev/null; do :; done
+ip rule add to {{ ip }}/32 lookup 52 priority 10
 
 iptables -t nat -C POSTROUTING -s {{ k0s_pod_cidr }} -d {{ ip }}/32 -o tailscale0 -j MASQUERADE 2>/dev/null \
   || iptables -t nat -A POSTROUTING -s {{ k0s_pod_cidr }} -d {{ ip }}/32 -o tailscale0 -j MASQUERADE
