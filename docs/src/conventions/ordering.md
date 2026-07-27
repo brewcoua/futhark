@@ -1,35 +1,36 @@
 # Startup ordering
 
 Two Kustomizations `dependsOn` nothing: `namespaces`, which is every `Namespace` CR and no
-controller, and `edge-ips`, which is one encrypted Secret and no controller either. The four
+controller, and `edge-ips`, which is one encrypted Secret and no controller either. The three
 controllers that need nothing else from the cluster — `infisical-operator`, `external-secrets`,
-`cert-manager`, `tailscale-operator` — sit directly behind `namespaces`.
+`cert-manager` — sit directly behind `namespaces`.
 
 The real graph, as declared in each `ks.yaml`:
 
 ```text
-namespaces ─┬─> infisical-operator ─> infisical-operator-config ─┬─> cert-manager-config ──┐
-            ├─> cert-manager ────────────────────────────────────┘                         │
-            │                                                    │                         ├─> traefik-internal ─> traefik-edge ─> auth
-            ├─> tailscale-operator ─> tailscale-operator-config ─┘                         │
-            │                                                    ├─> storage               │
+namespaces ─┬─> cert-manager ───────────────────────────────────────────┐
+            │                                                           ├─> cert-manager-config ─┐
+            ├─> infisical-operator ─> infisical-operator-config ─┬──────┘                        │
+            │                                                    │                               ├─> traefik-internal ─> traefik-edge ─> auth
+            │                                                    ├─> tailscale-operator-config   │
+            │                                                    │      └─> tailscale-operator ──┘
+            │                                                    ├─> storage
             │                                                    └─> monitoring (also needs traefik-internal, edge-ips)
-            └─> external-secrets ─┬─> external-secrets-config
-                cert-manager ─────┘
+            └─> external-secrets ─> external-secrets-config (also needs cert-manager)
 
-edge-ips ─────────────────────────────────────────────────────> traefik-edge
+edge-ips ────────────────────────────────────> traefik-edge, monitoring
 
 everything above ──> infra-configs ──> nodes
 ```
 
-Only those four name `namespaces` in their `dependsOn`; everything else reaches it
+Only those three name `namespaces` in their `dependsOn`; everything else reaches it
 transitively.
 
-Those four controllers need nothing from the cluster but a namespace to land in. Their
-`config-ks.yaml` siblings are where the ordering actually bites, because those apply CRs the
-controller must already have registered CRDs for.
+They need nothing from the cluster but a namespace to land in. Their `config-ks.yaml` siblings
+are where the ordering actually bites, because those apply CRs the controller must already have
+registered CRDs for — except `tailscale-operator-config`, which runs the other way round.
 
-Three edges are less obvious than they look:
+Four edges are less obvious than they look:
 
 - `namespaces` is a root of its own rather than a file next to each component, because
   `infisical-operator` installs its chart with `scopedRBAC: true` — Helm emits a Role and
@@ -37,6 +38,12 @@ Three edges are less obvious than they look:
   belong to components that are downstream of `infisical-operator-config`. With the
   `Namespace` CRs held by their consumers the install failed outright on
   `namespaces "auth" not found`.
+- `tailscale-operator-config` runs _before_ `tailscale-operator`, inverting the pattern every
+  other `config-ks.yaml` follows. The operator chart takes its OAuth credentials from a
+  pre-created `operator-oauth` Secret, which the Deployment mounts — so with the usual edge the
+  Helm install hangs on `secret "operator-oauth" not found` while the Secret waits on the
+  install to finish. Downstream Kustomizations that need the operator _running_, rather than
+  just its credentials present, must name `tailscale-operator` — `traefik-internal` does.
 - `external-secrets-config` depends on `cert-manager`, not on anything secret-related. The
   Bitwarden store talks to `bitwarden-sdk-server` over HTTPS, and that certificate comes from a
   `SelfSigned` issuer — deliberately not the ACME path, which would need the Bunny token that a

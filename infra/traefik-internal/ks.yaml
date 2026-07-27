@@ -8,4 +8,7 @@ spec:
   path: ./infra/traefik-internal/app
   dependsOn:
     - name: cert-manager-config
-    - name: tailscale-operator-config
+    # The operator itself, not its config: app/service.yaml wants loadBalancerClass: tailscale
+    # honoured, which needs the controller running. Since tailscale-operator-config now runs
+    # ahead of the operator, naming it here would no longer guarantee that.
+    - name: tailscale-operator

@@ -4,6 +4,11 @@
 # the infra tier's InfisicalAuth to already exist, which the operator's own Kustomization can't
 # guarantee for itself (chicken-and-egg on first apply) — same pattern as
 # cert-manager/config-ks.yaml.
+#
+# Unlike every other config-ks.yaml this one runs *before* its operator rather than after. The
+# Secret it produces is mounted by the operator Deployment, so with the usual edge the chart's
+# install hangs on `secret "operator-oauth" not found` while the Secret waits on the install —
+# neither side can go first. See docs/src/conventions/ordering.md.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -11,5 +16,4 @@ metadata:
 spec:
   path: ./infra/tailscale-operator/config
   dependsOn:
-    - name: tailscale-operator
     - name: infisical-operator-config

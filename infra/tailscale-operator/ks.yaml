@@ -6,5 +6,8 @@ metadata:
   name: tailscale-operator
 spec:
   path: ./infra/tailscale-operator/app
+  # config-ks.yaml, not namespaces: the operator Deployment mounts the Secret that produces —
+  # this is the one operator whose config is a prerequisite rather than a follow-on. It reaches
+  # namespaces transitively, through infisical-operator-config.
   dependsOn:
-    - name: namespaces
+    - name: tailscale-operator-config
