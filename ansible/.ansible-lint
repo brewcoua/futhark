@@ -6,6 +6,11 @@
 # Excluded rather than skipped: these files are opaque ciphertext, not Ansible content, so there
 # is nothing in them worth linting. Skipping the rule globally would also stop catching genuine
 # long lines in the roles.
+# Both entry points — the pre-commit hook and `task ans:lint` — install the collections from the
+# pinned requirements.yml first, so there is nothing left for ansible-lint to resolve over the
+# network. Set here rather than as a --offline flag on one of them, so they cannot drift.
+offline: true
+
 exclude_paths:
   - "**/*.sops.yml"
   - "**/*.sops.yaml"
