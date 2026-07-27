@@ -119,8 +119,9 @@ and reports a connection error, not a Bitwarden error, when it is not.
 
 Check for a namespace that does not exist yet. Every overlay under `infra/configs/` sets
 kustomize's top-level `namespace:` field, so the whole overlay fails to apply if the target
-`Namespace` is missing. A new component that declares its own namespace has to be added to
-`infra/configs-ks.yaml`'s `dependsOn`. See
+`Namespace` is missing — as does any chart that writes into a namespace it does not create,
+which is how `infisical-operator` fails when `scopedNamespaces` names one. Add it to
+`infra/namespaces/app/namespaces.yaml`; nothing else declares namespaces. See
 [Startup ordering](../conventions/ordering.md).
 
 ## A HelmRelease is Ready but running the old thing

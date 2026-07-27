@@ -6,3 +6,5 @@ metadata:
   name: infisical-operator
 spec:
   path: ./infra/infisical-operator/app
+  dependsOn:
+    - name: namespaces

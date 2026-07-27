@@ -6,3 +6,5 @@ metadata:
   name: tailscale-operator
 spec:
   path: ./infra/tailscale-operator/app
+  dependsOn:
+    - name: namespaces

@@ -16,7 +16,8 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 | `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                               |
 | `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                       |
 | `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters                                                                               |
-| `configs`            | Not a controller: the namespaces, network policy, RBAC and rate-limit overlays every other namespace composes                             |
+| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                       |
+| `configs`            | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                               |
 
 ## The two ingresses
 
@@ -76,12 +77,15 @@ defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-iso
 
 ### Adding a node tier
 
-1. Add `infra/infisical-operator/app/helmrelease-node-<hostname>.yaml` (copy the kenaz one, swap
-   the hostname, list that node's app namespaces in `scopedNamespaces`) and register it in the
+1. Add `infra/namespaces/app/namespaces.yaml` entries for the tier's own namespace and that
+   node's app namespaces — the chart's scoped `Role`s are written into namespaces it does not
+   create, so the install fails outright if any of them is missing.
+2. Add `infra/infisical-operator/app/helmrelease-node-<hostname>.yaml` (copy the kenaz one, swap
+   the hostname, list those app namespaces in `scopedNamespaces`) and register it in the
    sibling `kustomization.yaml`.
-2. Add `infra/infisical-operator/config/nodes/<hostname>.yaml` for the tier's
+3. Add `infra/infisical-operator/config/nodes/<hostname>.yaml` for the tier's
    `InfisicalConnection` + `InfisicalAuth`, and list it in that `kustomization.yaml`.
-3. Add the new namespace to `flux_bootstrap_infisical_namespaces` in
+4. Add the new namespace to `flux_bootstrap_infisical_namespaces` in
    `ansible/roles/flux_bootstrap/defaults/main.yml`, so the credential gets seeded there.
 
 ## External Secrets Operator

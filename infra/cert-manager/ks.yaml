@@ -6,3 +6,5 @@ metadata:
   name: cert-manager
 spec:
   path: ./infra/cert-manager/app
+  dependsOn:
+    - name: namespaces

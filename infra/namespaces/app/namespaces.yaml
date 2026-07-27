@@ -1,0 +1,99 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/namespace.json
+# Every Namespace in the cluster, owned by one Kustomization that dependsOn nothing.
+#
+# They used to live next to the component that filled them, which deadlocks: infisical-operator
+# runs the chart with scopedRBAC: true, so Helm emits a Role/RoleBinding *inside* each
+# scopedNamespaces entry at install time — but those namespaces belong to components that
+# dependsOn infisical-operator-config. The install failed with `namespaces "auth" not found`.
+# See docs/src/conventions/ordering.md.
+#
+# One infisical-* namespace per tier, each holding that tier's operator, its InfisicalAuth and
+# its copy of the universal-auth credential. The split is what makes the isolation real: with
+# scopedRBAC: true the chart emits a Role/RoleBinding *per scoped namespace* and no cluster-wide
+# secrets ClusterRole, so the node tier's ServiceAccount has no permissions at all in
+# infisical-infra — it cannot read the infra tier's InfisicalAuth, let alone write a Secret into
+# an infra namespace. See docs/src/conventions/secrets.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infisical-infra
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infisical-node-kenaz
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    futk.eu/tier: infra
+---
+# cert-manager and csi-rclone are also created implicitly by their HelmRelease's
+# install.createNamespace: true (a harmless no-op once these exist) — declared here so Flux
+# tracks/prunes them and they can carry labels.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cert-manager
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: csi-rclone
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tailscale
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: auth
+  labels:
+    futk.eu/tier: infra
+---
+# The ingress controllers get their own namespaces instead of kube-system — a reserved namespace
+# for cluster system components, not a place for a workload's HelmRelease to land.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-internal
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-edge
+  labels:
+    futk.eu/tier: infra
+---
+# Node/tenant namespaces (nodes/<hostname>.k0s/<app>/), one per app.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: actual
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz

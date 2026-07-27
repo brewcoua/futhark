@@ -1,11 +1,12 @@
 # Namespaces
 
-Infra controllers declare their own namespace, in `infra/<component>/app/namespace.yaml`.
+Every `Namespace` CR lives in `infra/namespaces/app/namespaces.yaml`, owned by the `namespaces`
+Kustomization, which depends on nothing. Components do not declare their own — a controller
+whose chart writes into a namespace it does not own would otherwise deadlock against the
+component that does. See [Startup ordering](ordering.md).
 
-Node and tenant namespaces are centralized instead, under
-`infra/configs/namespaces/<namespace>/`, alongside that namespace's
-[NetworkPolicy and RBAC](network-policy.md). The split exists because a tenant namespace
-needs policy attached to it that the app itself should not own.
+What stays per-namespace is the policy attached to it: `infra/configs/namespaces/<namespace>/`
+holds that namespace's [NetworkPolicy and RBAC](network-policy.md), not its `Namespace`.
 
 Every non-control-plane namespace carries `futk.eu/tier: infra` or `futk.eu/tier: node`, and
 node namespaces add `futk.eu/node: <hostname>`.

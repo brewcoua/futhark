@@ -6,3 +6,5 @@ metadata:
   name: external-secrets
 spec:
   path: ./infra/external-secrets/app
+  dependsOn:
+    - name: namespaces

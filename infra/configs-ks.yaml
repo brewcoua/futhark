@@ -1,9 +1,9 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
-# Tenant/node namespaces, the default-deny NetworkPolicy baseline, and the per-namespace ESO
-# RBAC bridge. Every overlay here sets kustomize's top-level `namespace:` field, so its
-# Namespace CR must already exist or the whole overlay fails to apply — hence a dependsOn on
-# every infra controller that declares one. See docs/src/conventions/ordering.md.
+# The default-deny NetworkPolicy baseline and the per-namespace ESO RBAC bridge. The Namespace
+# CRs themselves belong to infra/namespaces; what these edges buy is that a namespace's policy
+# lands with its workload rather than ahead of it, plus the Middleware CRD that
+# middleware-ratelimit needs. See docs/src/conventions/ordering.md.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:

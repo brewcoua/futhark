@@ -1,32 +1,42 @@
 # Startup ordering
 
-There is no single root any more. Four Kustomizations `dependsOn` nothing, because nothing they
-need lives in the cluster: `infisical-operator`, `external-secrets`, `cert-manager`,
-`tailscale-operator` — plus `edge-ips`, which is one encrypted Secret and no controller at all.
+Two Kustomizations `dependsOn` nothing: `namespaces`, which is every `Namespace` CR and no
+controller, and `edge-ips`, which is one encrypted Secret and no controller either. The four
+controllers that need nothing else from the cluster — `infisical-operator`, `external-secrets`,
+`cert-manager`, `tailscale-operator` — sit directly behind `namespaces`.
 
 The real graph, as declared in each `ks.yaml`:
 
 ```text
-infisical-operator ─> infisical-operator-config ─┬─> cert-manager-config ──┐
-cert-manager ────────────────────────────────────┘                         │
-                                                 │                         ├─> traefik-internal ─> traefik-edge ─> auth
-tailscale-operator ─> tailscale-operator-config ─┘                         │
-                                                 ├─> storage               │
-                                                 └─> monitoring (also needs traefik-internal, edge-ips)
-edge-ips ─────────────────────────────────────────────────────> traefik-edge
+namespaces ─┬─> infisical-operator ─> infisical-operator-config ─┬─> cert-manager-config ──┐
+            ├─> cert-manager ────────────────────────────────────┘                         │
+            │                                                    │                         ├─> traefik-internal ─> traefik-edge ─> auth
+            ├─> tailscale-operator ─> tailscale-operator-config ─┘                         │
+            │                                                    ├─> storage               │
+            │                                                    └─> monitoring (also needs traefik-internal, edge-ips)
+            └─> external-secrets ─┬─> external-secrets-config
+                cert-manager ─────┘
 
-external-secrets ─┬─> external-secrets-config
-cert-manager ─────┘
+edge-ips ─────────────────────────────────────────────────────> traefik-edge
 
 everything above ──> infra-configs ──> nodes
 ```
 
-Each root installs a controller that needs nothing from the cluster. Their `config-ks.yaml`
-siblings are where the ordering actually bites, because those apply CRs the controller must
-already have registered CRDs for.
+Only those four name `namespaces` in their `dependsOn`; everything else reaches it
+transitively.
 
-Two edges are less obvious than they look:
+Those four controllers need nothing from the cluster but a namespace to land in. Their
+`config-ks.yaml` siblings are where the ordering actually bites, because those apply CRs the
+controller must already have registered CRDs for.
 
+Three edges are less obvious than they look:
+
+- `namespaces` is a root of its own rather than a file next to each component, because
+  `infisical-operator` installs its chart with `scopedRBAC: true` — Helm emits a Role and
+  RoleBinding _inside_ every `scopedNamespaces` entry at install time, and those namespaces
+  belong to components that are downstream of `infisical-operator-config`. With the
+  `Namespace` CRs held by their consumers the install failed outright on
+  `namespaces "auth" not found`.
 - `external-secrets-config` depends on `cert-manager`, not on anything secret-related. The
   Bitwarden store talks to `bitwarden-sdk-server` over HTTPS, and that certificate comes from a
   `SelfSigned` issuer — deliberately not the ACME path, which would need the Bunny token that a
@@ -36,11 +46,11 @@ Two edges are less obvious than they look:
   reconciles, and the obvious home — `infra-configs` — is downstream of `traefik-edge`, one of
   those consumers.
 
-`infra-configs` sits behind every infra controller, not for secrets but for namespaces: each
-overlay under `infra/configs/` sets kustomize's top-level `namespace:` field, so the target
-`Namespace` must already exist or the entire overlay fails to apply. `nodes` then depends on
-`infra-configs`, which is what guarantees a node app's namespace and its default-deny policy
-land before the app does.
+`infra-configs` sits behind every infra controller. Its overlays attach policy to namespaces
+that are already there, so the ordering it needs is the controllers': `middleware-ratelimit`
+wants Traefik's `Middleware` CRD registered, and the point of the edges as a whole is that a
+namespace's default-deny policy lands before anything worth denying. `nodes` then depends on
+`infra-configs`.
 
 `local-path` is the one piece that cannot come from Flux at all: monitoring, `auth` and
 `nodes/kenaz.k0s/actual` bind PVCs on their first reconcile, and nothing in the Flux-managed
@@ -57,5 +67,7 @@ during [Cold bootstrap](../operations/setup.md) step 6.
 - Needs none of the above: it can be another root. Check first — most things eventually need a
   cert or an ingress, and both have prerequisites.
 
-Whatever you pick, if the component declares its own namespace and anything under
-`infra/configs/namespaces/` targets it, add it to `infra/configs-ks.yaml`'s `dependsOn` too.
+Whatever you pick, add the component's namespace to `infra/namespaces/app/namespaces.yaml` —
+nothing else declares it. If anything under `infra/configs/namespaces/` targets that namespace,
+add the component to `infra/configs-ks.yaml`'s `dependsOn` too, so the policy lands with the
+workload rather than ahead of it.
