@@ -16,61 +16,48 @@
       selectattr('node.k0s_role', 'search', 'controller') |
       map(attribute='node.hostname') | first }}
 
-# k0s would otherwise self-detect spec.api.address from the default-route interface — the
-# public IP — and join tokens would carry an address workers can't reach. getent rather than a
-# dig lookup so no dnspython dependency. See docs/src/ansible/index.md#k0s_cluster.
-- name: Resolve the controller's mesh IP
-  ansible.builtin.command:
-    cmd: "getent hosts {{ k0s_cluster_controller_host }}.{{ tailnet_domain }}"
-  register: k0s_cluster_controller_getent
-  changed_when: false
-  # MagicDNS can lag a few seconds behind a peer's tailnet join, and this runs on the
-  # operator's own machine — requires it to be on the tailnet itself.
-  retries: 6
-  delay: 5
-  until: k0s_cluster_controller_getent.rc == 0
-
-- name: Set the controller's mesh IP fact
-  ansible.builtin.set_fact:
-    k0s_cluster_controller_mesh_ip: "{{ k0s_cluster_controller_getent.stdout_lines[0].split()[0] }}"
-
-# A stale MagicDNS entry (deleted node, re-keyed host) resolving to a non-tailnet address
-# would otherwise get baked silently into spec.api.address and every kubelet's --node-ip.
-# Tailscale's CGNAT pool is 100.64.0.0/10 — second octet 64-127.
-- name: Assert the controller's mesh IP is actually inside the tailnet's CGNAT range
+# Mesh IPs come from each node's own `tailscale ip -4`, recorded into
+# ansible/nodes/<host>/host.sops.yml by the tailscale role at join time and surfaced here as
+# node.mesh_ip (host_vars/<host>/host.sops.yml symlinks to it). Read from inventory rather
+# than resolved per-run: this play is `hosts: localhost` in a separate run from setup.yml, so
+# a MagicDNS lookup here would require the operator's own workstation to be on the tailnet and
+# would lag a node's join by seconds. See docs/src/ansible/index.md#k0s_cluster.
+- name: Assert every k0s host has a recorded mesh IP
   ansible.builtin.assert:
-    that: >-
-      k0s_cluster_controller_mesh_ip is regex('^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')
+    that: hostvars[item].node.mesh_ip | default('') | length > 0
     fail_msg: >-
-      {{ k0s_cluster_controller_host }}.{{ tailnet_domain }} resolved to
-      {{ k0s_cluster_controller_mesh_ip }}, which isn't a 100.64.0.0/10 tailnet address —
-      stale MagicDNS entry?
-
-# privateInterface only feeds spec.api.address/etcd peerAddress, never kubelet — under
-# --cloud-provider=external kubelet won't self-assign InternalIP without an explicit --node-ip,
-# so every k0s host needs its own mesh IP passed via installFlags in the template.
-- name: Resolve every k0s host's mesh IP (for kubelet --node-ip)
-  ansible.builtin.command:
-    cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ tailnet_domain }}"
-  register: k0s_cluster_mesh_ip_getent
-  changed_when: false
-  retries: 6
-  delay: 5
-  until: k0s_cluster_mesh_ip_getent.rc == 0
+      {{ item }} has no node.mesh_ip recorded — run playbooks/setup.yml against it first, which
+      joins the tailnet and writes the address into ansible/nodes/{{ item }}/host.sops.yml.
   loop: "{{ groups['all'] }}"
   loop_control:
     label: "{{ item }}"
   when: hostvars[item].node.workflow == 'k0s'
 
-- name: Build a hostname -> mesh IP map
+# k0s would otherwise self-detect spec.api.address from the default-route interface — the
+# public IP — and join tokens would carry an address workers can't reach.
+- name: Set the controller's mesh IP fact
   ansible.builtin.set_fact:
-    k0s_cluster_mesh_ips: >-
-      {{ k0s_cluster_mesh_ips | default({}) |
-      combine({hostvars[item.item].node.hostname: item.stdout_lines[0].split()[0]}) }}
-  loop: "{{ k0s_cluster_mesh_ip_getent.results }}"
+    k0s_cluster_controller_mesh_ip: "{{ hostvars[k0s_cluster_controller_host].node.mesh_ip }}"
+
+# A recorded address that is no longer a tailnet address (node deleted and re-registered into
+# a different pool, value hand-edited) would otherwise get baked silently into
+# spec.api.address and every kubelet's --node-ip. Tailscale's CGNAT pool is 100.64.0.0/10 —
+# second octet 64-127. privateInterface only feeds spec.api.address/etcd peerAddress, never
+# kubelet: under --cloud-provider=external kubelet won't self-assign InternalIP without an
+# explicit --node-ip, so every k0s host's own mesh IP is checked here, not just the
+# controller's.
+- name: Assert every recorded mesh IP is inside the tailnet's CGNAT range
+  ansible.builtin.assert:
+    that: >-
+      hostvars[item].node.mesh_ip is
+      regex('^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')
+    fail_msg: >-
+      {{ item }} has node.mesh_ip {{ hostvars[item].node.mesh_ip }}, which isn't a
+      100.64.0.0/10 tailnet address — stale value in ansible/nodes/{{ item }}/host.sops.yml?
+  loop: "{{ groups['all'] }}"
   loop_control:
-    label: "{{ item.item }}"
-  when: not (item.skipped | default(false))
+    label: "{{ item }}"
+  when: hostvars[item].node.workflow == 'k0s'
 
 - name: Render k0sctl.yaml from inventory
   ansible.builtin.template:

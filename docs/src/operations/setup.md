@@ -166,13 +166,17 @@ What goes in each:
 
 - `ansible/inventory/group_vars/all/secrets.sops.yml` — `admin.user`, `admin.ssh_pubkey`,
   `tailnet_domain`, and the seven `bws_ids` UUIDs from step 1.
-- `ansible/nodes/<hostname>/host.sops.yml` — that node's public address.
+- `ansible/nodes/<hostname>/host.sops.yml` — that node's public address. Leave `node_mesh_ip`
+  out: the node has not joined the tailnet yet, and `roles/tailscale` writes it in at step 7.
 - `infra/edge-ips/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put a
   placeholder in `MESH_IP` for now**; the node has not joined the tailnet yet. Step 7 fills it.
 - `infra/external-secrets/config/clustersecretstore-bitwarden.sops.yaml` — the Bitwarden
   organisation and project UUIDs.
 - `tofu/tailscale/secrets.sops.env` — the tailnet name.
-- `tofu/bunny/secrets.sops.env` — the edge node's public and mesh addresses.
+- `tofu/bunny/secrets.sops.env` — nothing, currently. The edge node's public address is
+  declared in `tofu/bunny/node-refs.env` and read from `ansible/nodes/<hostname>/host.sops.yml`
+  at plan/apply time, rather than kept as a second encrypted copy here. Create the file empty;
+  `sops exec-env` still reads it.
 - `tofu/oidc/secrets.sops.env` — the Pocket ID base URL and the Infisical project ID.
 
 Nothing builds until the two under `infra/` exist: both are referenced by a
@@ -203,7 +207,13 @@ machine. Safe to re-run; `ssh_identity` picks whichever login currently answers.
 run each host answers only as the admin user on the hardened port. Provisioning nodes one at a
 time is fine — the mesh-peer resolution in `roles/tailscale` retries while MagicDNS catches up.
 
-The edge node is now on the tailnet, so fill in the address you deferred at step 5:
+Each host's mesh address is read back with `tailscale ip -4` and written into
+`ansible/nodes/<hostname>/host.sops.yml` as `node_mesh_ip` by the same run, so `task ans:setup`
+leaves those files modified. Commit them — `playbooks/k0s.yml` reads the value from there, and
+`tofu/bunny` gets the public address from the same file.
+
+`infra/edge-ips` is sealed to the cluster age key as well as yours, so it cannot share that
+file and still needs filling by hand:
 
 ```bash
 ssh <edge host> tailscale ip -4

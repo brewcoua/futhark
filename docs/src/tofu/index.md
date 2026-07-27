@@ -51,6 +51,26 @@ task tf:apply -- <module>
 `bws run -- 'sops exec-env secrets.sops.env "tofu <cmd>"'`. That needs `BWS_ACCESS_TOKEN`
 exported and the GPG smartcard present; neither ever writes a value to disk.
 
+### Node addresses
+
+A module that needs a node's address does not keep its own copy. It declares one in
+`node-refs.env`, which `plan` and `apply` resolve before running:
+
+```
+# <tofu variable>=<node>:<key in ansible/nodes/<node>/host.sops.yml>
+TF_VAR_kenaz_public_ip=kenaz:node_ip
+```
+
+`ansible/nodes/<node>/host.sops.yml` is canonical — `roles/tailscale` writes `node_mesh_ip`
+back into it after each tailnet join, so an address is recorded once, where it is discovered.
+`node-refs.env` holds only references, so it is committed in the clear even though its target
+is encrypted; both paths seal to the same operator key, so resolving one costs no extra card
+touch. A module without the file is unaffected.
+
+`infra/edge-ips/app/edge-ips.sops.yaml` cannot use this and keeps its own copy: Flux decrypts
+it in-cluster, so it is sealed to the cluster age key as well, and `.sops.yaml` deliberately
+keeps that key away from everything under `ansible/` and `tofu/`.
+
 The pre-commit `tofu-validate` hook only runs `fmt` and `validate`, never `init` — a hook that
 touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
 `task tf:init` once locally before committing. CI runs init as its own step first; see

@@ -14,7 +14,7 @@ spec:
         port: {{ hostvars[host].ssh_port }}
 {#      privateInterface only feeds spec.api.address/etcd peerAddress below, not kubelet —
         under --enable-cloud-provider=true kubelet won't self-assign InternalIP at all, so
-        --node-ip is passed explicitly (mesh IP, resolved in tasks/main.yml via MagicDNS).
+        --node-ip is passed explicitly (node.mesh_ip, recorded by the tailscale role at join).
         It can't set ExternalIP at all (that's the k0s-cloud-provider annotation instead). #}
       privateInterface: tailscale0
       installFlags:
@@ -23,14 +23,13 @@ spec:
         - --enable-k0s-cloud-provider=true
 {% endif %}
         - --enable-cloud-provider=true
-        - --kubelet-extra-args="--node-ip={{ k0s_cluster_mesh_ips[hostvars[host].node.hostname] }}"
+        - --kubelet-extra-args="--node-ip={{ hostvars[host].node.mesh_ip }}"
 {% endif %}
 {% endfor %}
 {#  k0s otherwise self-detects spec.api.address from the default-route interface, which on
     these hosts is the public IP — join tokens then carry that address, and workers can't
     reach it (no route to host). Pin it to the controller's mesh address instead
-    (resolved in tasks/main.yml via MagicDNS, same as ansible_host), so nothing here goes
-    stale. #}
+    (node.mesh_ip, asserted in tasks/main.yml to still be inside the CGNAT pool). #}
   k0s:
     config:
       apiVersion: k0s.k0s.io/v1beta1

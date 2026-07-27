@@ -96,11 +96,21 @@ consequences follow.
 
 k0s would otherwise self-detect `spec.api.address` from the default-route interface, which on
 these hosts is the public IP — join tokens would carry an address workers cannot reach. So the
-role resolves the controller's mesh address through MagicDNS with `getent` (not a `dig`
-lookup, which would pull in dnspython), and asserts the result is inside Tailscale's CGNAT
-range `100.64.0.0/10`. That assertion is not paranoia: a stale MagicDNS entry from a deleted
-or re-keyed node resolves to something else, and would otherwise be baked silently into
-`spec.api.address` and every kubelet's `--node-ip`.
+role pins it to the controller's mesh address, read from inventory as `node.mesh_ip`.
+
+That value is not resolved at converge time. The tailnet assigns a mesh address at
+registration — it cannot be chosen in advance, and an ACL cannot target a hostname — so
+`roles/tailscale` reads it back with `tailscale ip -4` after the join and records it into
+`ansible/nodes/<host>/host.sops.yml`, which `inventory/host_vars/<host>/` symlinks to. Writing
+it down rather than looking it up each run is what lets `playbooks/k0s.yml` stay
+`hosts: localhost` in a separate invocation from `setup.yml`, without requiring the operator's
+own workstation to be on the tailnet. The write is guarded by a compare, because SOPS
+re-encryption changes the ciphertext even when the plaintext has not.
+
+The role then asserts every recorded address is non-empty and inside Tailscale's CGNAT range
+`100.64.0.0/10`. That assertion is not paranoia: a node deleted and re-registered picks up a
+different address, and a stale value would otherwise be baked silently into `spec.api.address`
+and every kubelet's `--node-ip`.
 
 The public IP still has to reach Kubernetes somehow, since kubelet can only ever register
 `--node-ip` as `InternalIP`. It arrives as the `k0sproject.io/node-ip-external` annotation,

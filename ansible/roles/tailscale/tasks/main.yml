@@ -76,6 +76,44 @@
   changed_when: true
   no_log: true
 
+# The tailnet assigns the mesh address at registration — it can't be chosen (nodeAttrs ipPool
+# constrains the pool, and ACL rules can't target a hostname at all), so it can only be read
+# back from the node itself. Recorded into the node's SOPS file rather than resolved per-run
+# because the consumers are all outside this run: playbooks/k0s.yml is a separate invocation
+# on localhost, and tofu/bunny needs the same value from outside Ansible entirely.
+# Unconditional — `tailscale up` above is skipped on an already-joined node, but the address
+# still has to be readable on every run.
+- name: Read the node's mesh IP
+  ansible.builtin.command:
+    cmd: tailscale ip -4
+  register: tailscale_mesh_ip
+  changed_when: false
+  # Registration completes a moment after `tailscale up` returns.
+  retries: 6
+  delay: 5
+  until: tailscale_mesh_ip.rc == 0 and tailscale_mesh_ip.stdout | trim | length > 0
+
+# sops re-encrypts on every write and the ciphertext changes even when the plaintext doesn't,
+# so writing unconditionally would leave a spurious diff after every converge. Compare first.
+- name: Read the mesh IP currently recorded for this node
+  ansible.builtin.command:
+    cmd: sops -d --extract '["node_mesh_ip"]' {{ tailscale_node_sops_file }}
+  register: tailscale_recorded_mesh_ip
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  become: false
+
+- name: Record the mesh IP in the node's SOPS file
+  ansible.builtin.command:
+    cmd: >-
+      sops set {{ tailscale_node_sops_file }}
+      '["node_mesh_ip"]' '"{{ tailscale_mesh_ip.stdout | trim }}"'
+  when: tailscale_recorded_mesh_ip.stdout | trim != tailscale_mesh_ip.stdout | trim
+  changed_when: true
+  delegate_to: localhost
+  become: false
+
 # The tailnet is the mesh's own trust boundary, so anything a node binds to tailscale0 (k0s's
 # API server) is reachable over it without punching per-port holes in the public zone,
 # which stays limited to the hardened SSH port. See docs/src/ansible/index.md.

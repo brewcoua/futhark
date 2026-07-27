@@ -5,6 +5,27 @@ version: "3"
 vars:
   TOFU_DIR: "{{.ROOT_DIR}}/tofu"
 
+  # Resolves a module's node-refs.env, if it has one. Each line maps a tofu variable to a value
+  # in a node's SOPS file — `TF_VAR_kenaz_public_ip=kenaz:node_ip` reads the `node_ip` key from
+  # ansible/nodes/kenaz/host.sops.yml. The file holds only references, never values, so it is
+  # committed in the clear; a module opts in by creating one, and this Taskfile never needs to
+  # know which modules or which variables exist.
+  #
+  # `< "$f"` rather than a pipe on purpose: a pipeline would run the loop in a subshell and the
+  # exports would not survive it.
+  NODE_REFS: |
+    f=node-refs.env
+    if [ -f "$f" ]; then
+      while IFS='=' read -r var ref; do
+        case "$var" in ''|\#*) continue ;; esac
+        host=${ref%%:*}; key=${ref##*:}
+        src="{{.ROOT_DIR}}/ansible/nodes/$host/host.sops.yml"
+        val=$(sops -d --extract "[\"$key\"]" "$src") || {
+          echo "node-refs.env: cannot read $key from $src" >&2; exit 1; }
+        export "$var=$val"
+      done < "$f"
+    fi
+
 env:
   # The organisation is on Bitwarden's EU cloud; bws defaults to the US one and rejects an
   # EU access token with a bare `400 invalid_client`. Set here rather than via
@@ -25,15 +46,25 @@ tasks:
   # variables named after the secrets themselves, so credentials need no committed pointer at
   # all; `sops exec-env` then layers on the module's identifying values. Neither ever writes a
   # value to disk. Needs BWS_ACCESS_TOKEN in the environment and the GPG card for sops.
+  #
+  # A third source, for node addresses only: ansible/nodes/<host>/host.sops.yml is canonical
+  # (the tailscale role writes node_mesh_ip back into it after each join), so a module that
+  # needs one declares it in node-refs.env instead of keeping a second encrypted copy in its
+  # own secrets.sops.env. Two copies of an address drift silently; both paths seal to the same
+  # operator key, so this costs no extra card touch.
   plan:
     desc: "Plan a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
-    cmd: bws run -- 'sops exec-env secrets.sops.env "tofu plan"'
+    cmd: |
+      {{.NODE_REFS}}
+      bws run -- 'sops exec-env secrets.sops.env "tofu plan"'
 
   apply:
     desc: "Apply a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
-    cmd: bws run -- 'sops exec-env secrets.sops.env "tofu apply"'
+    cmd: |
+      {{.NODE_REFS}}
+      bws run -- 'sops exec-env secrets.sops.env "tofu apply"'
 
   validate:
     desc: "Validate a tofu module -- <module>"
