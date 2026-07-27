@@ -18,6 +18,7 @@ resources:
 # See docs/src/conventions/domains.md.
 components:
   - ../../../config/domain
+  - ../../../config/infisical
 
 replacements:
   - source:

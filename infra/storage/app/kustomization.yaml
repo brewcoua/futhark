@@ -7,3 +7,7 @@ resources:
   - helmrelease.yaml
   - storageclass.yaml
   - secret.yaml
+
+# Stamps the Infisical project/environment onto secret.yaml — see config/infisical.
+components:
+  - ../../../config/infisical

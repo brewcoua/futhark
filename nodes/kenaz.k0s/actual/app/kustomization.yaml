@@ -15,6 +15,7 @@ resources:
 # infra/monitoring/app/kustomization.yaml and docs/src/conventions/domains.md.
 components:
   - ../../../../config/domain
+  - ../../../../config/infisical
 
 replacements:
   - source:

@@ -97,7 +97,9 @@ metadata:
 spec:
   infisicalAuthRef: {name: infisical, namespace: infisical-node-kenaz}
   sources:
-    - projectSlug: futhark
+    # Spelled out because this bypasses kustomize; a committed manifest gets both
+    # from config/infisical instead.
+    - projectSlug: futharkd
       environmentSlug: prod
       secretPath: /infra/cert-manager
   targets:

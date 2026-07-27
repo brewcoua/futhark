@@ -82,6 +82,28 @@ operator](https://github.com/Infisical/kubernetes-operator) — `InfisicalConnec
 `InfisicalAuth` per tier, one `InfisicalStaticSecret` per app. The project is laid out as
 `/infra/<component>` and `/nodes/<hostname>/<app>`.
 
+An `InfisicalStaticSecret` names only its `secretPath`. The project and environment slugs are
+global, so they come from the `config/infisical` Kustomize Component — `components:
+[../../../config/infisical]` in the overlay, and the slugs are written once. Change the project
+there and nowhere else.
+
+### What only exists in the Infisical console
+
+Three things the repo cannot express, in the order they bite:
+
+1. **The identity's project membership.** An identity can exist org-wide, authenticate fine, and
+   still be refused every read. That surfaces as `Unauthorized access: status 403` from the
+   operator, and as `ProjectMembershipNotFound` from the API — a membership problem wearing a
+   permissions error's clothes. Granting an org-level role does not fix it; the identity has to
+   be assigned to the project.
+2. **Its role and paths.** Read on `/infra/*` and `/nodes/*` in the `prod` environment.
+3. **`accessTokenTrustedIps`**, the third isolation layer below. Scoped to the cluster's egress
+   address, so it fails whenever that changes — after a node rebuild, or when a pod is
+   rescheduled onto a node whose address was never listed.
+
+None of this is reconciled. Nothing drifts back. When secrets stop resolving and the manifests
+look right, check these before reading any more YAML.
+
 Infisical's free tier caps identities at five, humans included, so the whole cluster shares one
 machine identity. Kubernetes auth is not an option either: Infisical would have to reach the k0s
 API server for a `TokenReview`, and that API server is tailnet-only. So a single credential can,
@@ -175,7 +197,9 @@ task ans:k0s
    → Bitwarden. One app's operational secret → Infisical. Name it `SCREAMING_SNAKE_CASE` — see
    [Naming](#naming).
 2. For Infisical, put it under `/infra/<component>` or `/nodes/<hostname>/<app>` and add an
-   `InfisicalStaticSecret` in the app's namespace. If that namespace is new, declare it in
+   `InfisicalStaticSecret` in the app's namespace, with `secretPath` only — add
+   `components: [<relative>/config/infisical]` to the overlay for the project and environment.
+   If that namespace is new, declare it in
    `infra/namespaces/app/namespaces.yaml` and add it to the right tier's `scopedNamespaces` in
    `infra/infisical-operator/app/` — the operator cannot write there otherwise, and the chart's
    install fails outright if a scoped namespace does not exist.

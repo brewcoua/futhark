@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# Reusable Kustomize Component: stamps the Infisical project and environment onto every
+# InfisicalStaticSecret in the consuming overlay. Both values are global — one project, one
+# environment, for the whole cluster — so they live here once instead of being retyped in each
+# of the six manifests that pull a secret. Only `secretPath` stays per-app, because only it
+# actually varies.
+#
+# Consumers add `components: [../../../config/infisical]` and declare `sources` with a
+# `secretPath` alone. See docs/src/conventions/secrets.md.
+#
+# Deliberately a patch and not a configMapGenerator + replacements, the way config/domain works:
+# a generated ConfigMap would be applied by all six consuming Kustomizations at once, and one
+# object owned by six Flux Kustomizations is a prune fight waiting to happen. A patch emits
+# nothing of its own.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - target:
+      group: secrets.infisical.com
+      kind: InfisicalStaticSecret
+    # sources/0 rather than a wildcard: JSON6902 cannot address a list slice, and every
+    # manifest here has exactly one source. A second source needs its own op.
+    patch: |
+      - op: add
+        path: /spec/sources/0/projectSlug
+        value: futharkd
+      - op: add
+        path: /spec/sources/0/environmentSlug
+        value: prod
