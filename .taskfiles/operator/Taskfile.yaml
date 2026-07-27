@@ -39,11 +39,13 @@ tasks:
       - helm plugin list | grep -q ^diff || helm plugin install --verify=false https://github.com/databus23/helm-diff
       - uv tool install --upgrade ansible-lint
       - uv tool install --upgrade pre-commit
-      # kubernetes.core's modules (flux_bootstrap) import this
-      # library directly, not the kubectl binary above — installed into /usr/bin/python3's
-      # site-packages since that's the interpreter ansible-core actually runs modules with,
-      # not a uv tool's isolated venv.
-      - sudo uv pip install --python /usr/bin/python3 kubernetes
+      # kubernetes.core's modules (flux_bootstrap) import `kubernetes` directly, not the kubectl
+      # binary above. bitwarden-sdk backs the bitwarden.secrets.lookup plugin, which — like every
+      # lookup — runs on the controller, not the target host, so it belongs here and not in a
+      # host-side role. Both go into /usr/bin/python3's site-packages, since that is the
+      # interpreter ansible-core actually runs plugins and modules with, not a uv tool's
+      # isolated venv.
+      - sudo uv pip install --python /usr/bin/python3 kubernetes bitwarden-sdk
       # Pinned release binaries. sops decrypts everything committed here; bws resolves the
       # crown-jewel secrets that are deliberately not committed at all.
       - >-
