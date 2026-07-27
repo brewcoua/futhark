@@ -20,8 +20,11 @@
 
 - name: Build known_hosts from GitHub's published keys
   ansible.builtin.set_fact:
-    flux_bootstrap_known_hosts_content: >-
-      {{ flux_bootstrap_github_meta.json.ssh_keys | map('regex_replace', '^', 'github.com ') | join('\n') }}
+    # Double-quoted so YAML turns \n into a real newline before Jinja sees it; a folded (>-)
+    # scalar would hand Jinja a literal backslash-n and Flux rejects the one-line known_hosts.
+    flux_bootstrap_known_hosts_content:
+      "{{ flux_bootstrap_github_meta.json.ssh_keys
+      | map('regex_replace', '^', 'github.com ') | join('\n') }}"
 
 - name: Bridge the Flux git deploy key
   kubernetes.core.k8s:
