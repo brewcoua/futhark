@@ -61,6 +61,12 @@ Ansible resolves these with `bitwarden.secrets.lookup` against secret IDs held i
 injects a project's secrets as environment variables named after the secrets themselves — so no
 committed pointer is needed at all.
 
+`bws run` warns `secret '<name>' does not have a POSIX-compliant name` for each of the seven
+lowercase-with-spaces entries. That is the design working, not a defect: a name with spaces
+cannot become an environment variable, so `bws run` skips it, and the Ansible-facing crown
+jewels stay out of OpenTofu's environment. Renaming them to silence the warning would inject all
+seven into every `tofu` process. See [Naming](#naming).
+
 In-cluster, ESO reads Bitwarden through a `ClusterSecretStore` whose `conditions` list starts
 empty, which makes it unusable from every namespace. Add one only when something genuinely needs
 a crown-jewel secret, and say why in the same commit. Reading Bitwarden from a cluster requires

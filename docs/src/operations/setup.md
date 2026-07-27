@@ -53,6 +53,10 @@ lowercase-with-spaces so they cannot collide with the injected set above — see
 | `tailscale authkey client id`            | A **second** OAuth client, scoped to auth-key creation. Not the policy-file one above |
 | `tailscale authkey client secret`        | Secret half of that same client                                                       |
 
+Every `bws run` from here on warns `secret '<name>' does not have a POSIX-compliant name` once
+per row of this second table. Expected — that warning is `bws` declining to turn a name with
+spaces into an environment variable, which is the whole reason these seven are named this way.
+
 Two Tailscale OAuth clients, not one: `ansible/roles/tailscale` mints single-use node auth keys,
 `tofu/tailscale` rewrites the policy file. Neither needs the other's scope.
 
