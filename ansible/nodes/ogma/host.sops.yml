@@ -1,7 +1,8 @@
 node_ip: ENC[AES256_GCM,data:+deZpHufxHfww9zZ,iv:fPxKdEuKEOxb/h0Mm6kki1FXMdKngG3w2uF7Nl6nzgM=,tag:DS4O8dgBiLTvrzrgx/bGLw==,type:str]
+node_mesh_ip: ENC[AES256_GCM,data:cU8stKIYNb8NfQ6+,iv:doL56ESJYPZrq1iAvGLmfZSYfnIOpmR6VSME0Uh0Gks=,tag:+gDt8ptoQ+cMGletMpbccw==,type:str]
 sops:
-    lastmodified: "2026-07-27T14:02:15Z"
-    mac: ENC[AES256_GCM,data:qokA4uyZfjHej/01mXG+mqknvIqcOv+UwGj08s2EoHs17hVFHZauCCS7lVxnMA8NdqWPb5sxEpXwC+ZxpluHPK6eSHeKWgScc8byQTq2/84Zt174HczFc0miOaEg48hgwq/xYIzXFNprdAUDJsHDhVY0JMyer9uapsGb2u1lOPQ=,iv:DD0EqqeTL2FnoTU2pXLAWZEn5lPAsBGN9lnN6bPw83Q=,tag:QRi1huky6QHQ//qpEssM1g==,type:str]
+    lastmodified: "2026-07-27T16:29:01Z"
+    mac: ENC[AES256_GCM,data:cMZhfnXq/eh3cM3jutLVe6qwKlmaH3Hxjq7mgBJ6cO8LQ43H2memXJzp46FPzn1+MgnsXk+JkQqxG/1aGP4LjxwjFmdhPcVjSPoQ7SWAKdbncc9WuZLNaQgWMWyOBZS2vEzitF9Y/FfRB9VcYQD1/eZUCc/cvCQqxtW2q8t51IQ=,iv:Wqty1O8n65/fPlLZPTM3AbdTUqtVuTaCGdhnSTGRThs=,tag:OYLGxEnlhePcdmyf8fEByw==,type:str]
     pgp:
         - created_at: "2026-07-27T14:02:15Z"
           enc: |-
