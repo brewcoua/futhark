@@ -6,7 +6,7 @@ metadata:
 type: ENC[AES256_GCM,data:E7YU043L,iv:Kh4VinIwIhUU/PqIHGmtqh7Taji68KKOTTNasz3x7YI=,tag:F4+R7oo+85q9rewMwkseaw==,type:str]
 stringData:
     PUBLIC_IP: ENC[AES256_GCM,data:z2QVCdbbZ9TSUSc0sA==,iv:tK2gzmrUZzdNr8X8cup/T7FXAa/bGbHPqMWifelZpfg=,tag:tJCan6M2k8iWqjCqLrJwng==,type:str]
-    MESH_IP: ENC[AES256_GCM,data:wOr3AOFix+vdccs0,iv:8A2CH3aAmvYUTwIeNILzbCismByJk4F+hFwdB7dcysc=,tag:fQAa/dBk6A3IOWSHgxAaiQ==,type:str]
+    MESH_IP: ENC[AES256_GCM,data:06gm1zbLwFH7SEW9,iv:nfbqQ1POgo5KqU0r+bKtuaIsRkAfJJ/M/uxH+R6SkcI=,tag:a2aqYVoLLRpcbIcXOYRDzA==,type:str]
 sops:
     age:
         - enc: |
@@ -18,8 +18,8 @@ sops:
             cKF+wuUjjAo5B/I4XXJ8O1uyzHjuzpjmrL6JVmZvByqGfjJHMRHogA==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1hxdu4pkrvy9k7u5wcpsa75cxls7p5q0plnsw6mscymwwflezda4qh9xvsw
-    lastmodified: "2026-07-27T15:04:41Z"
-    mac: ENC[AES256_GCM,data:Fgj84qb3fBLOarp4svBaBswavAFEXs0HCmk5OXdT3Uz8jrPcz65KI8ANsztAVz/sTblwPuXErgKaNutOPpXqrk7eDrWdYuAHVZw87WDGq/mF9XLy+f0egXSXwxD6ub+MhlA4MvYse+O2tL20mODvSXCk9qux0hDqBeMHFdM6mgM=,iv:zfQbqz0814xOYyS/Eg1hlmO/exxaUz19rR0A0qLBsx0=,tag:ifzku6Dg7DtUJATmdy+Bzw==,type:str]
+    lastmodified: "2026-07-27T19:58:09Z"
+    mac: ENC[AES256_GCM,data:w2aluqHL/i6O4QZ66TVCnTKfZYh7usVfIWxUsGjTNSBKr+gvz9KJ+nW+Mz8M6O9Uw4OTlLmF5Lgb7yhmw8uUEAPomwiMcn+I7jUzkj84jtCY/gBw/SWn2TKSBJdupNEV6+orzFn7CPQDS93sKXqTLiT7EduYpliBAedypi+HSWg=,iv:6gXRT849dIz5nxKSIBvbB1Q41sxeZvyg1pJ/dbqpEU4=,tag:Qrtp6d0I/CmC3rzoJ8ubaQ==,type:str]
     pgp:
         - created_at: "2026-07-27T14:05:44Z"
           enc: |-
