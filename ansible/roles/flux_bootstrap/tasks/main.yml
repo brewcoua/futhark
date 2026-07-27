@@ -42,10 +42,13 @@
         known_hosts: "{{ flux_bootstrap_known_hosts_content }}"
   no_log: true
 
-# Flux declares all of these itself (infra/infisical-operator/app/namespace.yaml,
-# infra/external-secrets/app/namespace.yaml) and takes ownership on its first reconcile. They
-# are created here only so the Secrets below have somewhere to land, since Flux does not exist
-# yet. flux-system is already present — the Helm install above created it.
+# Flux declares all of these itself, in infra/namespaces/app/namespaces.yaml, and takes
+# ownership on its first reconcile. They are created here only so the Secrets below have
+# somewhere to land, since Flux does not exist yet. flux-system is already present — the Helm
+# install above created it.
+#
+# Deleting one of these namespaces later destroys the seed Secret inside it, and nothing in the
+# Flux tree puts it back — re-run this role. See docs/src/conventions/secrets.md.
 - name: Create the namespaces the seed Secrets land in
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"

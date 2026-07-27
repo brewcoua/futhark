@@ -16,7 +16,8 @@ namespaces ─┬─> cert-manager ───────────────
             │                                                    │      └─> tailscale-operator ──┘
             │                                                    ├─> storage
             │                                                    └─> monitoring (also needs traefik-internal, edge-ips)
-            └─> external-secrets ─> external-secrets-config (also needs cert-manager)
+            └─> external-secrets-certs ─> external-secrets ─> external-secrets-config
+                (certs also needs cert-manager)
 
 edge-ips ────────────────────────────────────> traefik-edge, monitoring
 
@@ -30,7 +31,7 @@ They need nothing from the cluster but a namespace to land in. Their `config-ks.
 are where the ordering actually bites, because those apply CRs the controller must already have
 registered CRDs for — except `tailscale-operator-config`, which runs the other way round.
 
-Four edges are less obvious than they look:
+Five edges are less obvious than they look:
 
 - `namespaces` is a root of its own rather than a file next to each component, because
   `infisical-operator` installs its chart with `scopedRBAC: true` — Helm emits a Role and
@@ -38,16 +39,19 @@ Four edges are less obvious than they look:
   belong to components that are downstream of `infisical-operator-config`. With the
   `Namespace` CRs held by their consumers the install failed outright on
   `namespaces "auth" not found`.
-- `tailscale-operator-config` runs _before_ `tailscale-operator`, inverting the pattern every
-  other `config-ks.yaml` follows. The operator chart takes its OAuth credentials from a
-  pre-created `operator-oauth` Secret, which the Deployment mounts — so with the usual edge the
-  Helm install hangs on `secret "operator-oauth" not found` while the Secret waits on the
-  install to finish. Downstream Kustomizations that need the operator _running_, rather than
-  just its credentials present, must name `tailscale-operator` — `traefik-internal` does.
-- `external-secrets-config` depends on `cert-manager`, not on anything secret-related. The
-  Bitwarden store talks to `bitwarden-sdk-server` over HTTPS, and that certificate comes from a
-  `SelfSigned` issuer — deliberately not the ACME path, which would need the Bunny token that a
-  secret store is supposed to deliver.
+- `tailscale-operator-config` and `external-secrets-certs` run _before_ their operator,
+  inverting the pattern every other `config-ks.yaml` follows. Each produces a Secret the chart's
+  own Deployment mounts — `operator-oauth` for the tailscale operator, and the
+  `bitwarden-tls-certs` that ESO's `bitwarden-sdk-server` sidecar serves HTTPS with. Put either
+  one downstream and the Helm install waits on a pod that waits on a Secret that waits on the
+  install. The rule: what a chart _mounts_ goes upstream of it, what needs the chart's _CRDs_
+  goes downstream. ESO's `ClusterSecretStore` is the second kind, so it stays in `config/`.
+- Anything that needs one of those two operators _running_, rather than just its credentials
+  present, has to name the operator and not the config ahead of it. `traefik-internal` names
+  `tailscale-operator` for exactly that reason.
+- The `bitwarden-sdk-server` certificate is issued by a `SelfSigned` Issuer, deliberately not
+  the ACME path — that would need the Bunny token, which is itself something a secret store is
+  supposed to deliver.
 - `edge-ips` has no dependencies and nothing depends on it except its two consumers. A
   `postBuild.substituteFrom` target must exist before the Kustomization that substitutes from it
   reconciles, and the obvious home — `infra-configs` — is downstream of `traefik-edge`, one of

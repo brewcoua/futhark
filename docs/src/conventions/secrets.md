@@ -71,7 +71,7 @@ In-cluster, ESO reads Bitwarden through a `ClusterSecretStore` whose `conditions
 empty, which makes it unusable from every namespace. Add one only when something genuinely needs
 a crown-jewel secret, and say why in the same commit. Reading Bitwarden from a cluster requires
 the `bitwarden-sdk-server` sidecar (the Bitwarden SDK is Rust/CGO, too heavy to link into ESO);
-its HTTPS certificate comes from a `SelfSigned` issuer in `infra/external-secrets/config/`,
+its HTTPS certificate comes from a `SelfSigned` issuer in `infra/external-secrets/certs/`,
 deliberately not from the ACME path, which would need the Bunny token that a secret store is
 supposed to deliver.
 
@@ -160,15 +160,25 @@ These exist to seed what Flux resolves for itself, so none of them can come from
 
 Plus `flux-system/git-deploy-key`, which is how Flux reaches the repo at all.
 
+Being outside GitOps cuts both ways: delete one of these namespaces and its seed Secret goes
+with it, with nothing in the Flux tree to put it back. Every `InfisicalStaticSecret` in the
+cluster then fails with `InfisicalAuth is not ready`, which reads like an operator problem and
+is not one. Re-run the role:
+
+```bash
+task ans:k0s
+```
+
 ## Adding a new secret
 
 1. Decide the tier. Identifying but harmless → a `*.sops.yaml`. Bootstraps or re-keys the system
    → Bitwarden. One app's operational secret → Infisical. Name it `SCREAMING_SNAKE_CASE` — see
    [Naming](#naming).
 2. For Infisical, put it under `/infra/<component>` or `/nodes/<hostname>/<app>` and add an
-   `InfisicalStaticSecret` in the app's namespace. If that namespace is new, add it to the right
-   tier's `scopedNamespaces` in `infra/infisical-operator/app/` — the operator cannot write
-   there otherwise.
+   `InfisicalStaticSecret` in the app's namespace. If that namespace is new, declare it in
+   `infra/namespaces/app/namespaces.yaml` and add it to the right tier's `scopedNamespaces` in
+   `infra/infisical-operator/app/` — the operator cannot write there otherwise, and the chart's
+   install fails outright if a scoped namespace does not exist.
 3. For SOPS, add the key to the relevant `*.sops.yaml` and run `sops -e -i` before committing.
 4. Confirm both checks pass: `pre-commit run sops-encrypted --all-files` and
    `pre-commit run gitleaks --all-files`.

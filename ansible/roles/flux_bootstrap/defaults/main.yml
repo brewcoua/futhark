@@ -1,8 +1,8 @@
 ---
 # Namespaces that need a copy of the Infisical universal-auth credential — one per operator
-# tier, matching infra/infisical-operator/app/namespace.yaml. Each tier's operator has scoped
-# RBAC in its own namespace only, so a shared copy in one place would be unreadable by the
-# others. Add a line here when adding a node tier.
+# tier, matching the infisical-* entries in infra/namespaces/app/namespaces.yaml. Each tier's
+# operator has scoped RBAC in its own namespace only, so a shared copy in one place would be
+# unreadable by the others. Add a line here when adding a node tier.
 flux_bootstrap_infisical_namespaces:
   - infisical-infra
   - infisical-node-kenaz

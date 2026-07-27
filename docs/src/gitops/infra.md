@@ -92,7 +92,7 @@ defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-iso
 
 ESO's only remaining job is Bitwarden Secrets Manager, which has no operator of its own. It
 reads through `bitwarden-sdk-server`, a sidecar the chart deploys because the Bitwarden SDK is
-Rust/CGO and too heavy to link into ESO; `infra/external-secrets/config/certificate.yaml` issues
+Rust/CGO and too heavy to link into ESO; `infra/external-secrets/certs/certificate.yaml` issues
 that sidecar's HTTPS certificate from a `SelfSigned` issuer.
 
 The store's `conditions` list is empty, which makes it unusable from every namespace. That is

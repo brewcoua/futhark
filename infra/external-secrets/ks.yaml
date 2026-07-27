@@ -6,5 +6,7 @@ metadata:
   name: external-secrets
 spec:
   path: ./infra/external-secrets/app
+  # certs, not namespaces: the chart's bitwarden-sdk-server Deployment mounts the Secret that
+  # Certificate issues, so the install hangs without it. namespaces comes along transitively.
   dependsOn:
-    - name: namespaces
+    - name: external-secrets-certs
