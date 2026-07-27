@@ -73,13 +73,31 @@ network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
 | `fedora_common`          | Hostname, full system upgrade, base tooling                                                                            |
 | `admin_user`             | The key-only, passwordless-sudo admin account                                                                          |
 | `ssh_harden`             | Disables root and password login, moves sshd to `ssh_port`, via a `sshd_config.d/` drop-in                             |
+| `fail2ban`               | Bans brute force on `ssh_port`, and repeat offenders, through firewalld                                                |
 | `tailscale`              | Mesh join with a freshly minted single-use auth key, firewalld zoning, and the pod → mesh routing fix                  |
 | `firewall_ingress`       | Opens 80/443 in firewalld's public zone. Only on the `public_ingress` node                                             |
 | `k0s_cluster`            | Renders `k0sctl.yaml` from inventory, converges the cluster, fetches the kubeconfig                                    |
 | `local_path_provisioner` | Installs the `local-path` StorageClass that monitoring, `auth` and `actual` bind PVCs against                          |
 | `flux_bootstrap`         | Flux Operator, the four seed Secrets, then `flux/cluster.yaml`                                                         |
 
-Two roles are worth knowing in more detail.
+Three roles are worth knowing in more detail.
+
+### `fail2ban`
+
+Two jails, both in `jail.d/10-futhark.local`: `sshd` on `ssh_port`, and `recidive`, which
+re-bans anything the first jail catches repeatedly. Bans are enforced by firewalld, from the
+`firewallcmd-rich-rules` action Fedora's own `jail.d/00-firewalld.conf` already sets — the same
+firewall every other role touches.
+
+`ignoreip` covers loopback, Tailscale's CGNAT range and both cluster CIDRs. Ops SSH and
+`k0sctl` arrive over the mesh, so without that line a misfiring jail could lock the operator
+out of every node at once.
+
+The role also redirects fail2ban's own logging from the journal to `/var/log/fail2ban.log`, in
+`fail2ban.d/10-futhark.conf`. `recidive` needs a readable log to count bans in, and the file is
+what carries ban events into VictoriaLogs — see
+[Cluster infrastructure](../gitops/infra.md#host-logs). That is why `recidive` overrides the
+default `systemd` backend with `polling`: it reads the file, not the journal.
 
 ### `ssh_identity`
 

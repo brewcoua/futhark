@@ -1,0 +1,32 @@
+# Brute-force bans on every node. Runs after ssh_harden in playbooks/setup.yml so the sshd
+# jail's port matches an sshd already listening there. The ban action is Fedora's packaged
+# jail.d/00-firewalld.conf (firewallcmd-rich-rules) — same firewalld everything else uses.
+- name: Install fail2ban
+  ansible.builtin.dnf:
+    name: fail2ban
+    state: present
+  when: node.os == 'fedora'
+
+- name: Log to a file instead of the journal
+  ansible.builtin.template:
+    src: 10-futhark.conf.j2
+    dest: /etc/fail2ban/fail2ban.d/10-futhark.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Install the jails
+  ansible.builtin.template:
+    src: 10-futhark.local.j2
+    dest: /etc/fail2ban/jail.d/10-futhark.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true

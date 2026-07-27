@@ -39,3 +39,9 @@ spec:
         maxDiskUsagePerURL: 1GiB
     collector:
       excludeFilter: kubernetes.namespace_name:=kube-system
+    # The only host-level log collected: fail2ban's, written to a file by ansible's fail2ban
+    # role precisely so this DaemonSet can read it — the chart's defaultVolumes already mount
+    # /var/log read-only from each node. vlagent adds `hostname` and `file` itself.
+    fileCollector:
+      - glob: /var/log/fail2ban.log
+        extraFields: '{"app":"fail2ban"}'

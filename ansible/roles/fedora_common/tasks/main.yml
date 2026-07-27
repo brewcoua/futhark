@@ -29,7 +29,6 @@
   ansible.builtin.dnf:
     name:
       - policycoreutils-python-utils # semanage (SELinux port labelling)
-      - fail2ban
       - curl
       - "@core"
     state: present

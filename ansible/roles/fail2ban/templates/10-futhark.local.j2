@@ -1,0 +1,23 @@
+[DEFAULT]
+# sshd logs to the journal on Fedora, so the jails read it from there rather than a file.
+backend = systemd
+bantime = 1h
+findtime = 10m
+maxretry = 5
+# The tailnet is how ops and k0sctl reach these hosts, and the cluster CIDRs are node-local
+# traffic — neither may ever be banned.
+ignoreip = 127.0.0.1/8 ::1 100.64.0.0/10 {{ k0s_pod_cidr }} {{ k0s_service_cidr }}
+
+[sshd]
+enabled = true
+port = {{ ssh_port }}
+
+[recidive]
+enabled = true
+bantime = 1w
+findtime = 1d
+maxretry = 5
+# Load-bearing overrides: recidive watches fail2ban's own log, and the [DEFAULT] systemd
+# backend above would point it at the journal, which logtarget no longer writes to.
+backend = polling
+logpath = /var/log/fail2ban.log

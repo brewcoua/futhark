@@ -16,6 +16,7 @@
       when: node.os == 'fedora'
     - admin_user
     - ssh_harden
+    - fail2ban
     - role: tailscale
       when: node.mesh | default(false)
     - role: firewall_ingress

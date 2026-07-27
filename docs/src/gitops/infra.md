@@ -41,6 +41,19 @@ The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
 Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
 consumers reconcile, and `infra-configs` — the obvious home for it — depends on `traefik-edge`.
 
+## Host logs
+
+The `vlagent` DaemonSet collects container logs, and one file from the host itself:
+`/var/log/fail2ban.log`, declared as a `fileCollector` glob in
+`infra/monitoring/app/vlagent.yaml`. It works with no shipper on the node and no route from the
+host into the cluster, because the chart already mounts each node's `/var/log` read-only.
+
+Query the bans in Grafana against the `VictoriaLogs` datasource as `app:fail2ban`. vlagent
+attaches `hostname` and `file` on its own, so events stay attributable per node.
+
+The other half — the jails, and why fail2ban logs to a file at all — is in
+[Inventory and roles](../ansible/index.md#fail2ban).
+
 ## Infisical operator
 
 The operator is installed **twice**, once per tier, and that is the isolation mechanism rather
