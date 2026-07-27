@@ -42,11 +42,16 @@
       "users": ["autogroup:nonroot", "root"],
     },
     // Matches `tailscale up --ssh` in ansible/roles/tailscale.
+    //
+    // "accept", not "check": check mode forces a browser re-auth per session, which any
+    // non-interactive caller just hangs on — it has no way to complete the flow and no way to
+    // report why. The owner already holds the tailnet's admin credentials, so a second
+    // interactive proof of the same identity buys nothing here.
     {
       "src": ["autogroup:owner"],
       "dst": ["tag:futhark-node"],
       "users": ["autogroup:nonroot"],
-      "action": "check",
+      "action": "accept",
     },
   ],
 
