@@ -8,19 +8,20 @@ This is a different `nodes/` from `ansible/nodes/`. Ansible's copy is provisioni
 to reach and bootstrap the host. This one is what runs once the host exists. See
 [Nodes](../ansible/nodes.md).
 
-A node's apps read their secrets from the OpenBao namespace `node-<hostname>` through that
-node's own `ClusterSecretStore`, `bao-node-<hostname>` — not the shared `bao-infra` one. See
-[Cluster infrastructure](infra.md).
+A node's apps read their secrets from Infisical under `/nodes/<hostname>/`, through that node's
+own operator tier in `infisical-node-<hostname>` — never the infra tier. That separation is
+enforced by RBAC and an admission policy, not convention; see
+[Cluster infrastructure](infra.md#infisical-operator).
 
-Not every k0s node gets a directory here. `ogma` runs no tenant apps: OpenBao and Pocket ID
-are cluster-wide infra rather than per-node workloads, so they live under `infra/openbao/` and
-`infra/auth/`, each pinned to `ogma` with a `nodeSelector`.
+Not every k0s node gets a directory here. `ogma` runs no tenant apps: Pocket ID is cluster-wide
+infra rather than a per-node workload, so it lives under `infra/auth/`, pinned to `ogma` with a
+`nodeSelector`.
 
 ## `kenaz.k0s`
 
 `kenaz` runs k0s as controller+worker, plus Flux and everything under `infra/`. Its first and
-so far only app is `actual` (`nodes/kenaz.k0s/actual/{ks.yaml,app/}`), reading from OpenBao
-namespace `node-kenaz`.
+so far only app is `actual` (`nodes/kenaz.k0s/actual/{ks.yaml,app/}`), reading from
+`/nodes/kenaz/actual`.
 
 New apps land the same way — the step-by-step is
 [Adding a node app](../conventions/layout.md#adding-a-node-app).

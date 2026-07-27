@@ -35,8 +35,82 @@
         namespace: flux-system
       type: Opaque
       stringData:
-        identity: "{{ lookup('protonpass', 'pass://futharkd/kenaz/deploy key') }}"
+        identity: "{{ lookup('bitwarden.secrets.lookup', bws_ids.git_deploy_key) }}"
         known_hosts: "{{ flux_bootstrap_known_hosts_content }}"
+  no_log: true
+
+# Flux declares all of these itself (infra/infisical-operator/app/namespace.yaml,
+# infra/external-secrets/app/namespace.yaml) and takes ownership on its first reconcile. They
+# are created here only so the Secrets below have somewhere to land, since Flux does not exist
+# yet. flux-system is already present — the Helm install above created it.
+- name: Create the namespaces the seed Secrets land in
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ item }}"
+  loop: "{{ flux_bootstrap_seed_namespaces }}"
+
+# The three secrets that exist to seed the ones Flux resolves for itself, so none of them can
+# come from Flux. Everything else in the cluster arrives through the Infisical operator or ESO.
+#
+#   sops-age                  Flux needs it to decrypt any *.sops.yaml, including this repo's
+#                             edge-ips Secret and the Bitwarden ClusterSecretStore.
+#   infisical-universal-auth  the operator's only credential, one copy per tier namespace so a
+#                             tier's scoped RBAC is what gates access to it.
+#   bitwarden-access-token    ESO's machine-account token for Bitwarden Secrets Manager.
+#
+# See docs/src/conventions/secrets.md.
+- name: Bridge the SOPS cluster age key
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: sops-age
+        namespace: flux-system
+      type: Opaque
+      stringData:
+        # The filename suffix is load-bearing: Flux's kustomize-controller scans the Secret for
+        # keys ending in .agekey to build its age identity set.
+        age.agekey: "{{ lookup('bitwarden.secrets.lookup', bws_ids.age_cluster_key) }}"
+  no_log: true
+
+- name: Bridge the Infisical universal-auth credential into each tier namespace
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: infisical-universal-auth
+        namespace: "{{ item }}"
+      type: Opaque
+      stringData:
+        clientId: "{{ lookup('bitwarden.secrets.lookup', bws_ids.infisical_client_id) }}"
+        clientSecret: "{{ lookup('bitwarden.secrets.lookup', bws_ids.infisical_client_secret) }}"
+  loop: "{{ flux_bootstrap_infisical_namespaces }}"
+  no_log: true
+
+- name: Bridge the Bitwarden Secrets Manager access token
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: bitwarden-access-token
+        namespace: external-secrets
+      type: Opaque
+      stringData:
+        token: "{{ lookup('bitwarden.secrets.lookup', bws_ids.bitwarden_eso_token) }}"
   no_log: true
 
 - name: Wait for the Flux Operator to be ready
@@ -51,36 +125,10 @@
   retries: 30
   delay: 10
 
-# Nothing here branches on hostname — same convention as roles/tailscale and
-# roles/firewall_ingress. Whichever host currently opts in via node.public_ingress: true is
-# the one whose mesh/public IPs get pushed, so adding or moving the edge node needs no edit
-# here.
-- name: Determine the public-ingress host
-  ansible.builtin.set_fact:
-    flux_bootstrap_edge_host: >-
-      {{ groups['all'] | map('extract', hostvars) |
-      selectattr('node.public_ingress', 'defined') |
-      selectattr('node.public_ingress') |
-      map(attribute='node.hostname') | first }}
-
-# These IPs are identifying values (see docs/src/tofu/index.md's rule, extended to every file type) —
-# never committed to git. Pushed straight into the cluster instead; Flux Kustomizations pick
-# them up via postBuild.substituteFrom (see infra/traefik-edge/ks.yaml, infra/monitoring/ks.yaml).
-# k0s_cluster_mesh_ips is set by roles/k0s_cluster (facts persist across plays in one playbook
-# run), node.ip is the pass://-sourced public IP.
-- name: Push the public-ingress host's mesh/public IPs into the cluster
-  kubernetes.core.k8s:
-    kubeconfig: "{{ generated_dir }}/kubeconfig"
-    state: present
-    definition:
-      apiVersion: v1
-      kind: ConfigMap
-      metadata:
-        name: edge-ips
-        namespace: flux-system
-      data:
-        MESH_IP: "{{ k0s_cluster_mesh_ips[flux_bootstrap_edge_host] }}"
-        PUBLIC_IP: "{{ hostvars[flux_bootstrap_edge_host].node.ip }}"
+# The edge-ips ConfigMap used to be pushed from here, because an IP could not be committed to a
+# public repo. SOPS removed that constraint: the values now live encrypted in
+# infra/edge-ips/app/edge-ips.sops.yaml and Flux decrypts them with the sops-age key above. One
+# source of truth, and Flux no longer depends on this role having run.
 
 - name: Apply the FluxInstance
   kubernetes.core.k8s:

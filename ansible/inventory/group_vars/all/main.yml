@@ -1,0 +1,27 @@
+# Shared defaults for every node. Per-node overrides live in
+# ansible/nodes/<host>/host.yml under the `node:` key.
+
+# `admin` and `tailnet_domain` are identifying rather than secret, so they live encrypted in
+# secrets.sops.yml beside this file — see docs/src/conventions/secrets.md.
+
+ssh_port: 2222
+
+# k0s's own defaults, pinned here as a single source of truth — see
+# docs/src/ansible/index.md. pod_cidr is the cluster-wide /16; kube-router carves a /24 out
+# of it per node, and the tailscale role's SNAT rule must match the /16 or a peer's pods
+# aren't covered.
+k0s_pod_cidr: 10.244.0.0/16
+k0s_service_cidr: 10.96.0.0/12
+
+# Guarded on `node is defined` because k0s_cluster/flux_bootstrap run against
+# hosts: localhost (implicit, not in inventory, no `node` var). setup.yml overrides these
+# via set_fact for first-time provisioning; facts win over inventory vars. See
+# docs/src/ansible/index.md and docs/src/ansible/nodes.md.
+ansible_host: "{{ (node.hostname + '.' + tailnet_domain if node.mesh | default(false) else node.ip) if node is defined else omit }}"
+ansible_user: "{{ admin.user }}"
+ansible_port: "{{ ssh_port }}"
+
+# playbook_dir, not inventory_dir: the roles reading these run against hosts: localhost,
+# which has no inventory_dir. Artifacts underneath are never committed — see .gitignore.
+repo_root: "{{ playbook_dir }}/../.."
+generated_dir: "{{ repo_root }}/ansible/.generated"

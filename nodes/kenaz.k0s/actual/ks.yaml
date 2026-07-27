@@ -9,7 +9,7 @@ spec:
   dependsOn:
     - name: infra-configs
     - name: traefik-internal
-    - name: external-secrets-config
+    - name: infisical-operator-config
     # app/pvc-user-files.yaml uses storageClassName: storagebox-crypt — previously reached
     # only transitively via infra-configs.
     - name: storage

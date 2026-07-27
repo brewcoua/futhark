@@ -8,11 +8,11 @@ spec:
   path: ./infra/monitoring/app
   dependsOn:
     - name: traefik-internal
-    - name: external-secrets-config
-  # The public-ingress host's mesh IP, ansible-pushed straight into the cluster (never git) —
-  # used to scrape traefik-edge's metrics port, still hostNetwork-bound. See
-  # ansible/roles/flux_bootstrap.
+    - name: infisical-operator-config
+    - name: edge-ips
+  # The public-ingress host's mesh IP — used to scrape traefik-edge's metrics port, still
+  # hostNetwork-bound. Committed SOPS-encrypted in infra/edge-ips.
   postBuild:
     substituteFrom:
-      - kind: ConfigMap
+      - kind: Secret
         name: edge-ips

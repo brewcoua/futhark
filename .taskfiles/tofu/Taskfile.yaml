@@ -14,15 +14,19 @@ tasks:
         (cd "$d" && tofu init -input=false)
       done
 
+  # Both stores, composed. `bws run` injects the Bitwarden project's secrets as environment
+  # variables named after the secrets themselves, so credentials need no committed pointer at
+  # all; `sops exec-env` then layers on the module's identifying values. Neither ever writes a
+  # value to disk. Needs BWS_ACCESS_TOKEN in the environment and the GPG card for sops.
   plan:
     desc: "Plan a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
-    cmd: pass-cli run --env-file secrets.env -- tofu plan
+    cmd: bws run -- 'sops exec-env secrets.sops.env "tofu plan"'
 
   apply:
     desc: "Apply a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
-    cmd: pass-cli run --env-file secrets.env -- tofu apply
+    cmd: bws run -- 'sops exec-env secrets.sops.env "tofu apply"'
 
   validate:
     desc: "Validate a tofu module -- <module>"

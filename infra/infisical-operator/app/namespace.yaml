@@ -1,0 +1,20 @@
+---
+# One namespace per tier, each holding that tier's operator, its InfisicalAuth and its copy of
+# the universal-auth credential. The split is what makes the isolation real: with
+# scopedRBAC: true the chart emits a Role/RoleBinding *per scoped namespace* and no cluster-wide
+# secrets ClusterRole, so the node tier's ServiceAccount has no permissions at all in
+# infisical-infra — it cannot read the infra tier's InfisicalAuth, let alone write a Secret into
+# an infra namespace. See docs/src/conventions/secrets.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infisical-infra
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infisical-node-kenaz
+  labels:
+    futk.eu/tier: infra

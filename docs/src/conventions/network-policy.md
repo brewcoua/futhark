@@ -13,7 +13,8 @@ assembled per namespace from shared templates in
 | `netpol-allow-from-ingress-edge`     | Only if the namespace ships an `Ingress` with `ingressClassName: edge`     |
 
 Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace rather
-than one file. Egress is left open everywhere — ESO calls OpenBao, cert-manager calls ACME,
+than one file. Egress is left open everywhere — the secret operators call out to their APIs,
+cert-manager calls ACME,
 apps call whatever they call. In a single-tenant homelab the risk that matters is inbound.
 
 One thing the baseline cannot cover: `traefik-edge` runs with `hostNetwork: true`, so it

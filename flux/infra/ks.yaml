@@ -13,3 +13,9 @@ spec:
     kind: GitRepository
     name: flux-system
   path: ./infra
+  # Stated in full here, not patched: flux/ has no kustomization.yaml of its own — Flux
+  # auto-generates one from cluster.yaml's sync.path. See docs/src/gitops/flux.md.
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

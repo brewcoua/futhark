@@ -8,27 +8,33 @@ terraform {
       # mints credentials.
       version = "~> 0.1.8"
     }
-    vault = {
-      source  = "hashicorp/vault"
-      version = "~> 4.0"
+    infisical = {
+      source  = "Infisical/infisical"
+      version = "~> 0.15"
     }
   }
 }
 
-# base_url/api_token come from POCKETID_BASE_URL / POCKETID_API_TOKEN — pass-cli run
-# --env-file secrets.env resolves them before tofu ever sees them. See docs/src/tofu/oidc.md.
+# base_url/api_token come from POCKETID_BASE_URL / POCKETID_API_TOKEN — POCKETID_BASE_URL from
+# this module's SOPS-encrypted secrets.sops.env, POCKETID_API_TOKEN injected by `bws run`. See
+# docs/src/tofu/oidc.md.
 provider "pocketid" {}
 
-# token comes from VAULT_TOKEN, resolved the same way as the pocketid provider above. No
-# VAULT_CACERT: vault.INT_DOMAIN is now served through the Ingress on 443 with the same
-# publicly-trusted wildcard LE cert every other internal app uses, not OpenBao's own
-# self-signed listener cert (dropped along with nodes/ogma.podman — see infra/openbao/app/
-# configmap.yaml). address is set explicitly (not via VAULT_ADDR) because it's a required
-# argument with no built-in default — leaving it env-only breaks `tofu validate` in the
-# pre-commit tofu-validate hook, which runs without secrets.env loaded. It isn't secret anyway,
-# so deriving it from domain.env (see clients.tf's local.int_domain) is fine to commit.
-# namespace is fixed per apply of this module — see variables.tf and docs/src/tofu/oidc.md.
-provider "vault" {
-  address   = "https://vault.${local.int_domain}"
-  namespace = var.openbao_namespace
+# eu.infisical.com is a separate data region, not a mirror of app.infisical.com — pointing at
+# the wrong one authenticates against a tenant that does not have this project. host is set
+# explicitly rather than left to the provider's default so `tofu validate` in the pre-commit
+# hook works with nothing loaded, and it isn't secret anyway.
+#
+# The universal auth block reads INFISICAL_UNIVERSAL_AUTH_CLIENT_ID and
+# INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET, injected by `bws run`. This is the `tofu-writer`
+# machine identity — write on /nodes/kenaz/actual only, deliberately not the read-only identity
+# the cluster uses.
+provider "infisical" {
+  host = "https://eu.infisical.com"
+  # Attribute assignment, not a block — the provider models auth as a nested object type, so
+  # `auth { universal {} }` is a syntax error. The empty universal object is deliberate: it
+  # selects universal auth and leaves both credentials to their environment variables.
+  auth = {
+    universal = {}
+  }
 }

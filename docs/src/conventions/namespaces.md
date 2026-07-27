@@ -8,7 +8,10 @@ Node and tenant namespaces are centralized instead, under
 needs policy attached to it that the app itself should not own.
 
 Every non-control-plane namespace carries `futk.eu/tier: infra` or `futk.eu/tier: node`, and
-node namespaces add `futk.eu/node: <hostname>`. Those labels mirror OpenBao's own namespace
-split into `infra` and `node-<hostname>`, created by
-`ansible/roles/openbao/tasks/namespaces.yml` — the two need to stay in step, since a node's
-apps read from the OpenBao namespace named after the node.
+node namespaces add `futk.eu/node: <hostname>`.
+
+Those labels are load-bearing, not documentation. The `ValidatingAdmissionPolicy` in
+`infra/infisical-operator/config/` reads them to decide which Infisical path a namespace may
+pull from, so a namespace with the wrong label reads the wrong tier's secrets, and one with no
+label cannot host an `InfisicalStaticSecret` at all. See
+[Secrets](secrets.md#infisical-and-how-tier-isolation-is-enforced).

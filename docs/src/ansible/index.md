@@ -2,8 +2,7 @@
 
 Ansible owns everything below Kubernetes: the user you log in as, the SSH configuration, the
 firewall, the mesh join, and the k0s install itself. Once Flux is running, Ansible's job is
-done — the only reasons to come back are adding a node, re-converging the cluster, and
-OpenBao day-2 work.
+done — the only reasons to come back are adding a node and re-converging the cluster.
 
 Run everything through `task ans:*` rather than `ansible-playbook` directly; the tasks set the
 working directory `ansible.cfg` expects. See [Task reference](../operations/tasks.md).
@@ -11,19 +10,22 @@ working directory `ansible.cfg` expects. See [Task reference](../operations/task
 ## Inventory
 
 `ansible/inventory/hosts.yml` is a bare list of node names. Everything about a node lives in
-`ansible/nodes/<hostname>/host.yml`, surfaced to Ansible by a symlink in
-`ansible/inventory/host_vars/`. See [Nodes](nodes.md) for the schema and how to add one.
+`ansible/nodes/<hostname>/host.yml` and its encrypted sibling `host.sops.yml`, surfaced to
+Ansible by symlinks in `ansible/inventory/host_vars/<hostname>/`. See [Nodes](nodes.md) for the
+schema and how to add one.
 
-`ansible/inventory/group_vars/all.yml` holds what is shared:
+`ansible/inventory/group_vars/all/` holds what is shared — `main.yml` in the clear,
+`secrets.sops.yml` encrypted:
 
-| Variable                                       | Notes                                                                      |
-| ---------------------------------------------- | -------------------------------------------------------------------------- |
-| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host, resolved from Proton Pass |
-| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so it is a `pass://` lookup    |
-| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to                           |
-| `k0s_pod_cidr`, `k0s_service_cidr`             | k0s's own defaults, pinned here as a single source of truth                |
-| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                                              |
-| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed                 |
+| Variable                                       | Notes                                                        |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted   |
+| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so encrypted     |
+| `bws_ids`                                      | Bitwarden secret IDs the roles resolve at runtime. Encrypted |
+| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to             |
+| `k0s_pod_cidr`, `k0s_service_cidr`             | k0s's own defaults, pinned here as a single source of truth  |
+| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                                |
+| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed   |
 
 Three of those deserve explanation.
 
@@ -37,7 +39,7 @@ not covered. They are private RFC1918 ranges, not identifying, so they are plain
 and falls back to `node.ip` otherwise. There is no stored mesh IP anywhere in this repo:
 Tailscale's own resolver keeps the name correct across re-keys and reassignments, so there is
 nothing to update when an address changes. The expression is guarded on `node is defined`
-because `k0s_cluster`, `flux_bootstrap` and the OpenBao plays run against `hosts: localhost`,
+because `k0s_cluster` and `flux_bootstrap` run against `hosts: localhost`,
 which is implicit, not in inventory, and has no `node` var.
 
 `setup.yml` still overrides these three with `set_fact` mid-play, for first-time provisioning
@@ -50,11 +52,10 @@ play-scoped rather than host-scoped.
 
 ## Playbooks
 
-| Playbook    | Task                                       | Does                                                                                               |
-| ----------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `setup.yml` | `task ans:setup [-- <host>]`               | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
-| `k0s.yml`   | `task ans:k0s`                             | `k0sctl apply` across the whole fleet, OpenBao's pre-Flux prep, then the Flux bootstrap            |
-| `bao.yml`   | `task bao:status` / `task bao:policy-sync` | Day-2 OpenBao, selected by `-e bao_task=`                                                          |
+| Playbook    | Task                         | Does                                                                                               |
+| ----------- | ---------------------------- | -------------------------------------------------------------------------------------------------- |
+| `setup.yml` | `task ans:setup [-- <host>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
+| `k0s.yml`   | `task ans:k0s`               | `k0sctl apply` across the whole fleet, the `local-path` StorageClass, then the Flux bootstrap      |
 
 `setup.yml` runs per host and is gated by the node's own flags — the `tailscale` role only
 runs when `node.mesh` is true, `firewall_ingress` only when `node.public_ingress` is. Nothing
@@ -63,8 +64,6 @@ in any role branches on a hostname, so a future node opts into either by setting
 `k0s.yml` is fleet-wide, not per-host: one `k0sctl apply` converges every `workflow: k0s`
 node in inventory at once. It runs against `hosts: localhost` and reaches the cluster over the
 network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
-
-`bao.yml` reaches OpenBao by `kubectl exec` into the `openbao-0` pod, not over SSH.
 
 ## Roles
 
@@ -77,9 +76,8 @@ network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
 | `tailscale`              | Mesh join with a freshly minted single-use auth key, firewalld zoning, and the pod → mesh routing fix                  |
 | `firewall_ingress`       | Opens 80/443 in firewalld's public zone. Only on the `public_ingress` node                                             |
 | `k0s_cluster`            | Renders `k0sctl.yaml` from inventory, converges the cluster, fetches the kubeconfig                                    |
-| `local_path_provisioner` | Installs the `local-path` StorageClass OpenBao's PVC needs on its first reconcile                                      |
-| `flux_bootstrap`         | Flux Operator, the git deploy key, the `edge-ips` ConfigMap, then `flux/cluster.yaml`                                  |
-| `openbao`                | `prep.yml` (namespace + seal Secret, pre-Flux) and `main.yml` (init + namespace/mount/auth/policy bootstrap, day-2)    |
+| `local_path_provisioner` | Installs the `local-path` StorageClass that monitoring, `auth` and `actual` bind PVCs against                          |
+| `flux_bootstrap`         | Flux Operator, the four seed Secrets, then `flux/cluster.yaml`                                                         |
 
 Two roles are worth knowing in more detail.
 
@@ -106,17 +104,24 @@ or re-keyed node resolves to something else, and would otherwise be baked silent
 
 The public IP still has to reach Kubernetes somehow, since kubelet can only ever register
 `--node-ip` as `InternalIP`. It arrives as the `k0sproject.io/node-ip-external` annotation,
-which the k0s cloud provider reads. `node.ip` is a `pass://` lookup, so the public IP is never
-committed.
+which the k0s cloud provider reads. `node.ip` comes from the encrypted `host.sops.yml`, so the
+public IP is never committed in the clear.
 
 This decision is also what makes cross-node pod networking non-trivial. See
 [Pod to mesh networking](networking.md).
 
-## The `protonpass` lookup
+## How secrets reach a play
 
-`ansible/plugins/lookup/protonpass.py` resolves `pass://<vault>/<item>/<field>` references by
-shelling out to `pass-cli`. It rejects anything not starting with `pass://`, so a literal
-cannot slip through by accident. `ansible/ansible.cfg` registers it with
-`lookup_plugins = plugins/lookup`.
+Two mechanisms, no custom code in this repo any more.
 
-The rule about what belongs behind a pointer is in [Secrets](../conventions/secrets.md).
+Identifying values are decrypted transparently by the `community.sops` vars plugin, enabled by
+`vars_plugins_enabled` in `ansible/ansible.cfg`. Any `*.sops.yml` under `group_vars/` or
+`host_vars/` is opened on load, so `tailnet_domain` and `node.ip` are ordinary variables at the
+point of use and no task mentions SOPS at all. `host_group_vars` has to stay listed alongside
+it: naming any plugin there replaces the default set rather than adding to it.
+
+Crown-jewel values come from Bitwarden through `bitwarden.secrets.lookup`, keyed by the IDs in
+`bws_ids`. Those calls sit in `flux_bootstrap` and `tailscale`, both `no_log: true`. The lookup
+needs `BWS_ACCESS_TOKEN` in the environment.
+
+Which store a given value belongs in is [Secrets](../conventions/secrets.md).

@@ -49,8 +49,8 @@ spec:
       type: Recreate
     admin:
       existingSecret: grafana
-      userKey: admin-user
-      passwordKey: admin-password
+      userKey: ADMIN_USER
+      passwordKey: ADMIN_PASSWORD
     # Slack/healthchecks webhook URLs referenced by the alerting provisioning below.
     envFromSecret: grafana
     # Community datasource plugin — VictoriaLogs isn't a built-in Prometheus-compatible source.

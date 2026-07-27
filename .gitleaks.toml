@@ -2,3 +2,9 @@ title = "gitleaks config"
 
 [extend]
 useDefault = true
+
+# SOPS ciphertext is high-entropy by construction and trips the default rules on every commit.
+# The sops-encrypted pre-commit hook is what guards these files — it asserts they are encrypted
+# at all, which is the failure mode that actually matters here.
+[[allowlists]]
+paths = ['''\.sops\.(ya?ml|env|json)$''']

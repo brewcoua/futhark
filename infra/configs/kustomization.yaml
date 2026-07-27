@@ -5,7 +5,6 @@ kind: Kustomization
 resources:
   - namespaces/actual
   - namespaces/auth
-  - namespaces/openbao
   - namespaces/cert-manager
   - namespaces/external-secrets
   - namespaces/monitoring

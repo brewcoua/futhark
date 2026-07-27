@@ -6,8 +6,9 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 
 | Component            | What it is                                                                                                                                |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `openbao`            | Secret store. Single-replica StatefulSet pinned to `ogma`, raft on a local-path volume, auto-unsealed by an external KMIP service. Not HA |
-| `external-secrets`   | External Secrets Operator plus the `ClusterSecretStore`s pointing at OpenBao. See below                                                   |
+| `infisical-operator` | Runtime secrets. Two namespace-scoped installs, one per tier, plus the admission policy that confines each. See below                     |
+| `external-secrets`   | External Secrets Operator, and only the Bitwarden `ClusterSecretStore`. See below                                                         |
+| `edge-ips`           | Not a controller: one SOPS-encrypted Secret holding the edge node's addresses, consumed by `postBuild.substituteFrom`                     |
 | `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once |
 | `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                  |
 | `tailscale-operator` | Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass: tailscale`                                       |
@@ -36,39 +37,47 @@ node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sock
 [Network policy](../conventions/network-policy.md).
 
 The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
-`postBuild.substituteFrom` from the `edge-ips` ConfigMap that `ansible/roles/flux_bootstrap`
-pushes into the cluster.
+`postBuild.substituteFrom` from the SOPS-encrypted `edge-ips` Secret in `infra/edge-ips/`. That
+Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
+consumers reconcile, and `infra-configs` — the obvious home for it — depends on `traefik-edge`.
+
+## Infisical operator
+
+The operator is installed **twice**, once per tier, and that is the isolation mechanism rather
+than a deployment detail. Each install sets `scopedRBAC: true` with its own `scopedNamespaces`,
+so the chart emits a `Role`/`RoleBinding` per listed namespace and no cluster-wide secrets
+`ClusterRole`. A tier's ServiceAccount has no permissions anywhere outside its own list.
+
+- **infra tier** — `infra/infisical-operator/app/helmrelease-infra.yaml`, release namespace
+  `infisical-infra`. Owns the `secrets.infisical.com` CRDs (`installCRDs: true`).
+- **node tier** — `helmrelease-node-<hostname>.yaml`, release namespace
+  `infisical-node-<hostname>`, `installCRDs: false` and `dependsOn` the infra release, because
+  two installs racing to own the same CRDs is the documented failure mode.
+
+Each tier's namespace appears first in its own `scopedNamespaces`, and not by accident: that is
+what lets the operator read the `InfisicalAuth` and credential Secret it authenticates with.
+Both tiers share one Infisical machine identity — the free tier caps identities at five — so
+what separates them is RBAC plus the `ValidatingAdmissionPolicy` in `config/`, which pins each
+`InfisicalStaticSecret`'s `secretPath` to its namespace's tier. The reasoning, and what still
+defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-isolation-is-enforced).
+
+### Adding a node tier
+
+1. Add `infra/infisical-operator/app/helmrelease-node-<hostname>.yaml` (copy the kenaz one, swap
+   the hostname, list that node's app namespaces in `scopedNamespaces`) and register it in the
+   sibling `kustomization.yaml`.
+2. Add `infra/infisical-operator/config/nodes/<hostname>.yaml` for the tier's
+   `InfisicalConnection` + `InfisicalAuth`, and list it in that `kustomization.yaml`.
+3. Add the new namespace to `flux_bootstrap_infisical_namespaces` in
+   `ansible/roles/flux_bootstrap/defaults/main.yml`, so the credential gets seeded there.
 
 ## External Secrets Operator
 
-ESO is pointed at `infra/openbao` through its `vault` provider, reached in-cluster at
-`openbao.openbao.svc.cluster.local:8200`. Isolation is enforced by OpenBao **namespaces**, not
-path-prefix policies: each namespace has its own `secret/` kv-v2 mount, its own `kubernetes`
-auth mount and its own `reader` policy, so a compromised binding cannot read outside its own
-namespace by construction.
+ESO's only remaining job is Bitwarden Secrets Manager, which has no operator of its own. It
+reads through `bitwarden-sdk-server`, a sidecar the chart deploys because the Bitwarden SDK is
+Rust/CGO and too heavy to link into ESO; `infra/external-secrets/config/certificate.yaml` issues
+that sidecar's HTTPS certificate from a `SelfSigned` issuer.
 
-- **`infra` namespace** — `infra/external-secrets/config/clustersecretstore-infra.yaml`, store `bao-infra`. Used by
-  every node-agnostic component: `cert-manager`, `storage`, `monitoring` and the rest.
-- **`node-<hostname>` namespace** — `infra/external-secrets/config/nodes/<hostname>.yaml`, one per k0s node, store
-  `bao-node-<hostname>`. Used by that node's own apps under `nodes/<hostname>.k0s/`.
-
-Every `ClusterSecretStore` authenticates via OpenBao's `kubernetes` auth method as the
-`external-secrets` ServiceAccount in the `external-secrets` namespace, so no long-lived
-credential lives in-cluster at all — the k0s API validates each request with a TokenReview. An
-app needing secrets from both scopes uses two `ExternalSecret`s, one per `secretStoreRef`; a
-store's reach is never widened to cover both.
-
-Namespace, mount and auth-role bootstrap is `ansible/roles/openbao`'s `tasks/namespaces.yml`,
-run by `task bao:policy-sync` against the in-cluster OpenBao over `kubectl exec`. It is not
-managed by tofu — this repo has no OpenBao provider outside the one write exception described
-in [Rules for every module](../tofu/index.md).
-
-The RBAC ESO itself runs under is deliberately narrow; see
-[Secrets](../conventions/secrets.md).
-
-### Adding a node to ESO
-
-1. `task bao:policy-sync` — it loops every `nodes/*.k0s/` directory and bootstraps any
-   `node-<hostname>` namespace that does not exist yet.
-2. Add `infra/external-secrets/config/nodes/<hostname>.yaml` (copy `kenaz.yaml`, swap the
-   hostname) and list it in the sibling `kustomization.yaml`.
+The store's `conditions` list is empty, which makes it unusable from every namespace. That is
+the intended resting state — see [Secrets](../conventions/secrets.md#bitwarden-secrets-manager).
+The RBAC ESO itself runs under is deliberately narrow; same page.

@@ -24,3 +24,7 @@ patches:
           kind: GitRepository
           name: flux-system
         wait: true
+        decryption:
+          provider: sops
+          secretRef:
+            name: sops-age

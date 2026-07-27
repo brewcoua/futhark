@@ -1,8 +1,11 @@
 ---
-# ESO's own namespace: read access to the ServiceAccounts it token-reviews for the
-# kubernetes auth method, plus token minting — its ClusterSecretStores use
-# auth.kubernetes.serviceAccountRef, which authenticates to OpenBao via a token ESO
-# requests through the TokenRequest API, not a static SA secret.
+# ESO's own namespace. Only two things live here now: the Bitwarden machine-account token that
+# the ClusterSecretStore authenticates with, and the cert-manager-issued CA for the
+# bitwarden-sdk-server, which the store reads via caProvider.
+#
+# The previous serviceaccounts + serviceaccounts/token grant is gone with OpenBao: it existed so
+# ESO could mint a TokenRequest for OpenBao's kubernetes auth method. Bitwarden Secrets Manager
+# authenticates with a static token instead, so ESO no longer needs to mint anything.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -10,11 +13,8 @@ metadata:
   namespace: external-secrets
 rules:
   - apiGroups: [""]
-    resources: [serviceaccounts]
+    resources: [secrets]
     verbs: [get, list, watch]
-  - apiGroups: [""]
-    resources: [serviceaccounts/token]
-    verbs: [create]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -14,7 +14,6 @@ spec:
     - name: cert-manager
     - name: monitoring
     - name: storage
-    - name: openbao
     - name: auth
     - name: external-secrets
     - name: tailscale-operator

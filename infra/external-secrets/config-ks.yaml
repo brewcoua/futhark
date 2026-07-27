@@ -1,8 +1,13 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
-# Split from ks.yaml: the ClusterSecretStores here need the external-secrets CRDs to already
+# Split from ks.yaml: the ClusterSecretStore here needs the external-secrets CRDs to already
 # exist, which the external-secrets Kustomization can't guarantee for itself (chicken-and-egg
 # on first apply).
+#
+# cert-manager is a dependency because the bitwarden-sdk-server must be reached over HTTPS and
+# its certificate is issued by a SelfSigned Issuer in this same directory. Deliberately
+# self-signed rather than ACME: the ACME path needs the Bunny token, which is itself something
+# a secret store is supposed to deliver, and that would be a cycle.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -11,4 +16,4 @@ spec:
   path: ./infra/external-secrets/config
   dependsOn:
     - name: external-secrets
-    - name: openbao
+    - name: cert-manager

@@ -1,0 +1,23 @@
+---
+# Which recipients each encrypted file is sealed to. See docs/src/conventions/secrets.md.
+#
+# The PGP entry is the *primary* key's full fingerprint, deliberately:
+#   - primary, not a subkey, so rotating or renewing the encryption subkey never touches this
+#     file — gpg picks the current encryption-capable subkey at encrypt time;
+#   - the full 40-hex fingerprint, not the 16-hex long ID, because 64-bit key IDs are
+#     collision-generatable and this file decides who can read every secret in the repo.
+# The encryption subkey lives on a smartcard, so every decrypt needs the token and its PIN.
+#
+# A GPG fingerprint and an age public key are neither credentials nor identifying values, so
+# unlike everything else in this repo they are committed literally.
+creation_rules:
+  # Host and cloud plane — operator only. The cluster key is deliberately absent: a compromise
+  # of flux-system must not expose node addresses or provider tokens.
+  - path_regex: (ansible|tofu)/.*\.sops\.(ya?ml|env)$
+    pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
+
+  # Cluster plane — operator, so these stay editable, plus the cluster age key that Flux mounts
+  # as flux-system/sops-age to decrypt at apply time.
+  - path_regex: (infra|nodes|config)/.*\.sops\.ya?ml$
+    pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
+    age: age1hxdu4pkrvy9k7u5wcpsa75cxls7p5q0plnsw6mscymwwflezda4qh9xvsw

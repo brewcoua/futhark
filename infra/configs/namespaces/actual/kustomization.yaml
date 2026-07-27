@@ -9,5 +9,4 @@ resources:
   - ../_templates/netpol-allow-same-namespace
   - ../_templates/netpol-allow-from-monitoring
   - ../_templates/netpol-allow-from-ingress-internal
-  - ../_templates/rbac-eso-writer
   - ../_templates/middleware-ratelimit

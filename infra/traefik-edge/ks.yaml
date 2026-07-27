@@ -8,10 +8,10 @@ spec:
   path: ./infra/traefik-edge/app
   dependsOn:
     - name: traefik-internal
-  # The public-ingress host's public/mesh IPs, ansible-pushed straight into the cluster (never
-  # git) — see ansible/roles/flux_bootstrap. Consumed as ${PUBLIC_IP}/${MESH_IP} in
-  # app/helmrelease.yaml.
+    - name: edge-ips
+  # The public-ingress host's public/mesh IPs, committed SOPS-encrypted in infra/edge-ips.
+  # Consumed as ${PUBLIC_IP}/${MESH_IP} in app/helmrelease.yaml.
   postBuild:
     substituteFrom:
-      - kind: ConfigMap
+      - kind: Secret
         name: edge-ips

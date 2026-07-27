@@ -5,6 +5,7 @@ node:
   workflow: k0s
   k0s_role: worker
   mesh: true
-  ip: "{{ lookup('protonpass', 'pass://futharkd/ogma/ip address') }}"
+  # Identifying, so the literal lives encrypted in host.sops.yml beside this file.
+  ip: "{{ node_ip }}"
   initial_user: fedora
   initial_port: 22

@@ -15,3 +15,7 @@ spec:
     kind: GitRepository
     name: flux-system
   path: ./nodes
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

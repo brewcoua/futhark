@@ -28,3 +28,8 @@ spec:
       name: external-secrets
     rbac:
       create: false
+    # ESO's only remaining job is Bitwarden Secrets Manager, and the Bitwarden SDK is Rust/CGO —
+    # too heavy to link into ESO, so it ships as a sidecar service. The name is hardcoded
+    # upstream so the endpoint is determinable; config/certificate.yaml issues its TLS cert.
+    bitwarden-sdk-server:
+      enabled: true

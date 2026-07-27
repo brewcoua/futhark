@@ -13,12 +13,28 @@ optional one.
 
 ## `ops:` — the operator machine
 
-| Task              | Does                                                                 |
-| ----------------- | -------------------------------------------------------------------- |
-| `ops:setup`       | Everything below, plus `tf:init`. Run this once on a new workstation |
-| `ops:deps`        | Install the toolchain. Needs `dnf` and `uv`                          |
-| `ops:collections` | `ansible-galaxy collection install -r requirements.yml`              |
-| `ops:hooks`       | `pre-commit install`                                                 |
+| Task                   | Does                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ops:setup`            | Everything below, plus `tf:init`. Run this once on a new workstation                                      |
+| `ops:deps`             | Install the toolchain. Needs `dnf` and `uv`                                                               |
+| `ops:collections`      | `ansible-galaxy collection install -r requirements.yml`                                                   |
+| `ops:hooks`            | `pre-commit install`                                                                                      |
+| `ops:age-key`          | Generate the SOPS cluster age keypair. Run once, at cold bootstrap                                        |
+| `ops:sops [-- <file>]` | Edit an encrypted file, seeding it from its `.example` if absent. No argument lists what is still missing |
+
+`ops:age-key` is not part of `ops:setup`: it mints key material, so it is deliberately explicit.
+It prints the public recipient for `.sops.yaml` and leaves the private key in a temporary file
+for you to store in Bitwarden and shred.
+
+`ops:sops` takes either name — `foo.sops.yaml` or `foo.sops.yaml.example` — and always edits the
+real file. If it does not exist yet, the template is copied, opened, and encrypted on save. It
+fails closed: an aborted edit or a failed encrypt deletes the plaintext rather than leaving it at
+a `*.sops.*` path.
+
+```bash
+task ops:sops                                    # what is still missing
+task ops:sops -- tofu/bunny/secrets.sops.env     # create it, or edit it
+```
 
 ## `ans:` — hosts
 
@@ -28,19 +44,6 @@ optional one.
 | `ans:k0s`               | Converge the cluster and bootstrap Flux  |
 | `ans:ping`              | `ansible all -m ping`                    |
 | `ans:lint`              | `ansible-lint`                           |
-
-## `bao:` — OpenBao
-
-| Task               | Does                                                                |
-| ------------------ | ------------------------------------------------------------------- |
-| `bao:status`       | Seal and init status                                                |
-| `bao:policy-sync`  | Namespace, mount, auth and policy bootstrap. Idempotent             |
-| `bao:kv -- <args>` | Run `bao kv` in-cluster. Root token is piped over stdin, never argv |
-
-```bash
-task bao:kv -- get -namespace=node-kenaz secret/actual
-task bao:kv -- put -namespace=infra secret/foo key=value
-```
 
 ## `fx:` — Flux
 
@@ -80,12 +83,16 @@ you do not need it in your environment.
 
 ## `tf:` — the cloud plane
 
-| Task                      | Does                                                 |
-| ------------------------- | ---------------------------------------------------- |
-| `tf:init [-- <module>]`   | All modules if no argument. No secrets needed        |
-| `tf:plan -- <module>`     | Plan, with `secrets.env` resolved through `pass-cli` |
-| `tf:apply -- <module>`    | Apply                                                |
-| `tf:validate -- <module>` | `tofu validate`                                      |
+| Task                      | Does                                                    |
+| ------------------------- | ------------------------------------------------------- |
+| `tf:init [-- <module>]`   | All modules if no argument. No secrets needed           |
+| `tf:plan -- <module>`     | Plan, through `bws run` and `sops exec-env` — see below |
+| `tf:apply -- <module>`    | Apply                                                   |
+| `tf:validate -- <module>` | `tofu validate`                                         |
+
+`plan` and `apply` need `BWS_ACCESS_TOKEN` in your environment and the GPG smartcard plugged in.
+There is no editing secrets from here — secret values live in Bitwarden, identifying ones in
+each module's `secrets.sops.env`, which you edit with `sops`.
 
 ## `docs:` — this book
 

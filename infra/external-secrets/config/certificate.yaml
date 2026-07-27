@@ -1,0 +1,30 @@
+---
+# The Bitwarden provider does not talk to Bitwarden directly: the Bitwarden SDK is Rust/CGO, so
+# ESO shells out to a sidecar service (bitwarden-sdk-server, enabled in app/helmrelease.yaml)
+# which must serve HTTPS. This issues its certificate.
+#
+# SelfSigned on purpose. The obvious alternative — the letsencrypt-bunny ClusterIssuer — needs
+# the Bunny API token, which arrives via a secret store, which is the thing being bootstrapped
+# here. The CA is pinned explicitly in the store's caBundle, so self-signed costs no trust.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned
+  namespace: external-secrets
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: bitwarden-sdk-server
+  namespace: external-secrets
+spec:
+  secretName: bitwarden-tls-certs
+  issuerRef:
+    name: selfsigned
+    kind: Issuer
+  dnsNames:
+    - bitwarden-sdk-server
+    - bitwarden-sdk-server.external-secrets
+    - bitwarden-sdk-server.external-secrets.svc.cluster.local

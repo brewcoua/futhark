@@ -31,18 +31,3 @@ resource "bunnynet_dns_record" "auth" {
     prevent_destroy = true
   }
 }
-
-# vault.INT_DOMAIN — resolves publicly to kenaz's Tailscale mesh IP (CGNAT, 100.64.0.0/10), so
-# only reachable from the tailnet. Routed by traefik-internal to infra/openbao, a Flux-managed
-# workload pinned to ogma.
-resource "bunnynet_dns_record" "vault" {
-  zone  = data.bunnynet_dns_zone.this.id
-  name  = "vault.${local.int_domain_prefix}"
-  type  = "A"
-  value = var.kenaz_mesh_ip
-  ttl   = 300
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}

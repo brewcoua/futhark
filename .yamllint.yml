@@ -19,3 +19,6 @@ rules:
 
 ignore: |
   .github/
+  # Reformatting SOPS output invalidates its MAC.
+  *.sops.yaml
+  *.sops.yml

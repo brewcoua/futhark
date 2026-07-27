@@ -1,18 +1,17 @@
 # oidc
 
-Registers OIDC clients in Pocket ID and writes the minted client secret straight into OpenBao.
-It is the one module allowed to write to OpenBao — see the write exception in
-[Rules for every module](index.md). It replaces the manual "register in the Pocket ID admin
-UI, hand-paste the secret into OpenBao" runbook.
+Registers OIDC clients in Pocket ID and writes the minted client secret straight into Infisical.
+It is the one module allowed to write to a secret store — see the write exception in
+[Rules for every module](index.md). It replaces the manual "register in the Pocket ID admin UI,
+hand-paste the secret" runbook.
 
 ## What it manages
 
-One `pocketid_client` + `vault_kv_secret_v2` pair per app, in `clients.tf`. Add a new pair
+One `pocketid_client` + `infisical_secret` pair per app, in `clients.tf`. Add a new pair
 following the existing block's shape as each app adopts OIDC login.
 
 Each app owns its own non-secret OIDC config — client ID, discovery URL, hostname — in its own
-ConfigMap. This module only produces the one thing that cannot be committed: the client
-secret.
+ConfigMap. This module only produces the one thing that cannot be committed: the client secret.
 
 ```bash
 task tf:init -- oidc
@@ -23,28 +22,26 @@ task tf:apply -- oidc
 ## Prerequisites
 
 A **Pocket ID admin API key**, created at Settings → Admin → API Keys on `auth.$DOMAIN`, stored
-in the Proton Pass item `secrets.env` points at.
+in Bitwarden under the name `POCKETID_API_TOKEN` so `bws run` injects it.
 
-A **namespace-scoped OpenBao token** bound to the `oidc-writer` policy — write-only on
-`secret/data/*` plus list and read on `secret/metadata/*` in that namespace.
-`ansible/roles/openbao/tasks/namespaces.yml` creates this policy in every namespace it
-bootstraps. Mint one per target namespace with the root token:
+An **Infisical machine identity** with write access scoped to the folder this module targets —
+`/nodes/<hostname>/<app>` — and nothing else. Deliberately not the read-only identity the
+cluster authenticates with: this one writes, that one reads, and neither should substitute for
+the other. Store its Universal Auth credentials in Bitwarden as
+`INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`; the provider
+reads both straight from the environment, so no `secrets.sops.env` entry points at them.
 
-```bash
-bao token create -namespace=<namespace> -policy=oidc-writer -period=768h
-```
+The project ID goes in `secrets.sops.env` as `TF_VAR_infisical_project_id`. It identifies an
+account rather than granting anything, which is why it is SOPS-encrypted rather than held in
+Bitwarden — see [Secrets](../conventions/secrets.md).
 
-Store it in the Proton Pass item `VAULT_TOKEN` in `secrets.env` points at. Not the root token
-— this module only ever needs to write one app's client secret into one namespace.
-
-There is no CA to fetch. OpenBao is served through `traefik-internal`'s Ingress with the same
-publicly-trusted wildcard certificate every other internal app uses, not a self-signed
-listener cert — see `infra/openbao/app/configmap.yaml`.
+Note the host: the provider is pinned to `https://eu.infisical.com`. That is a separate data
+region, not a mirror of `app.infisical.com` — pointing at the wrong one authenticates against a
+tenant with no such project.
 
 ## Verifying
 
 - The Pocket ID admin UI shows the new client under Applications.
-- `bao kv get -namespace=<namespace> secret/<name>` confirms the secret landed. The
-  `oidc-writer` token has read access for exactly this.
-- The app's `ExternalSecret` syncs on its next poll interval:
-  `kubectl get externalsecret -n <app>` shows `SecretSynced`.
+- The Infisical UI shows the secret at `/nodes/<hostname>/<app>` in the `prod` environment.
+- The app's `InfisicalStaticSecret` syncs on its next interval:
+  `kubectl get infisicalstaticsecret -n <app>`.

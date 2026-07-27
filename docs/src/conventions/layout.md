@@ -23,8 +23,7 @@ If you are naming a Kubernetes YAML file something else, you are naming it wrong
   [Node apps](../gitops/nodes.md).
 
 Cluster-wide infra that happens to be pinned to a specific node is not a `nodes/` entry.
-OpenBao and Pocket ID both run only on `ogma`, and both express that as a `nodeSelector`
-under `infra/`. `nodes/` is for tenant workloads, not infra controllers.
+Pocket ID runs only on `ogma`, and expresses that as a `nodeSelector` under `infra/`. `nodes/` is for tenant workloads, not infra controllers.
 
 ## Flux `Kustomization` boilerplate
 
@@ -42,12 +41,15 @@ itself into reconciliation.
 
 1. Create `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}`. The `ks.yaml` needs
    `dependsOn: [infra-configs]`, plus whatever the app itself needs — usually
-   `traefik-internal` and `external-secrets-config`. `nodes/kenaz.k0s/actual/ks.yaml` is the
+   `traefik-internal` and `infisical-operator-config`. `nodes/kenaz.k0s/actual/ks.yaml` is the
    worked example.
 2. Add the directory to the sibling `kustomization.yaml`'s `resources:`.
 3. Create `infra/configs/namespaces/<app>/` with a `namespace.yaml` labeled
    `futk.eu/tier: node` and `futk.eu/node: <hostname>`, plus the default-deny,
    same-namespace and from-monitoring [network policy](network-policy.md) templates.
 4. Add the ingress-bridge template only if `app/` ships an `Ingress`.
-5. Add the `rbac-eso-writer` template only if `app/` ships an `ExternalSecret`.
+5. If `app/` ships an `InfisicalStaticSecret`, add its namespace to the right tier's
+   `scopedNamespaces` in `infra/infisical-operator/app/` — the operator has no RBAC there
+   otherwise. `rbac-eso-writer` is only for the rare namespace with a Bitwarden
+   `ExternalSecret`.
 6. Add the new overlay directory to `infra/configs/kustomization.yaml`.

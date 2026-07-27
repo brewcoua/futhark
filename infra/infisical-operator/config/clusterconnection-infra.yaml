@@ -1,0 +1,35 @@
+---
+# The infra tier's Infisical endpoint and credential binding. Both live in infisical-infra, the
+# only namespace besides the scoped app namespaces that this tier's operator has RBAC in.
+#
+# infisical-universal-auth is not in git and is not managed by Flux: it is one of the three
+# secrets ansible/roles/flux_bootstrap seeds directly into the cluster, because it is what ESO
+# and this operator need *before* anything can resolve secrets for itself. See
+# docs/src/conventions/secrets.md.
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalConnection
+metadata:
+  name: infisical
+  namespace: infisical-infra
+spec:
+  address: https://eu.infisical.com
+---
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalAuth
+metadata:
+  name: infisical
+  namespace: infisical-infra
+spec:
+  method: universal
+  infisicalConnectionRef:
+    name: infisical
+    namespace: infisical-infra
+  universal:
+    clientIdRef:
+      name: infisical-universal-auth
+      namespace: infisical-infra
+      key: clientId
+    clientSecretRef:
+      name: infisical-universal-auth
+      namespace: infisical-infra
+      key: clientSecret

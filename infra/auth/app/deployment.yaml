@@ -77,11 +77,13 @@ spec:
           secret:
             secretName: pocketid-secrets
             items:
-              - key: encryption_key
+              # key is the Secret key (Infisical's naming convention, see
+              # docs/src/conventions/secrets.md); path is the filename Pocket ID reads.
+              - key: POCKETID_ENCRYPTION_KEY
                 path: encryption_key
         - name: maxmind-key
           secret:
             secretName: pocketid-secrets
             items:
-              - key: maxmind_license_key
+              - key: MAXMIND_LICENSE_KEY
                 path: maxmind_license_key

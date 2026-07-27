@@ -1,0 +1,27 @@
+---
+# Template. Copy to edge-ips.sops.yaml, fill in, encrypt:
+#
+#   cp edge-ips.sops.yaml.example edge-ips.sops.yaml
+#   $EDITOR edge-ips.sops.yaml
+#   sops -e -i edge-ips.sops.yaml
+#
+# The public-ingress host's public and tailnet addresses, consumed as ${PUBLIC_IP}/${MESH_IP}
+# via postBuild.substituteFrom in infra/traefik-edge/ks.yaml and infra/monitoring/ks.yaml.
+#
+# These used to be pushed into the cluster out-of-band by ansible/roles/flux_bootstrap, because
+# there was no way to commit an identifying value. SOPS removes that constraint, so they live
+# here instead: one source of truth, reviewable in a diff, and Flux no longer depends on ansible
+# having run. The tradeoff is that MESH_IP is now a value you maintain rather than one discovered
+# from the tailnet — it is stable per node, but if you ever re-create a node, update this file.
+#
+# A Secret rather than a ConfigMap: substituteFrom accepts either, and SOPS encrypting a
+# ConfigMap's data would be conspicuous mislabelling of something that is, in fact, hidden.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edge-ips
+  namespace: flux-system
+type: Opaque
+stringData:
+  PUBLIC_IP: 203.0.113.10
+  MESH_IP: 100.64.0.1

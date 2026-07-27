@@ -18,27 +18,28 @@ Run by `task ans:k0s` (`ansible/playbooks/k0s.yml`):
 
 1. **`k0s_cluster`** — render `k0sctl.yaml` from inventory, `k0sctl apply`, fetch the
    kubeconfig into `ansible/.generated/`.
-2. **`local_path_provisioner`** — install the `local-path` StorageClass. OpenBao's
-   StatefulSet needs it to bind its PVC on the very first reconcile, and nothing in the
-   Flux-managed tree can provision it, since OpenBao is the root of that graph.
-3. **`openbao`'s `prep.yml`** — create the `openbao` Namespace and the seal Secret (KMIP
-   endpoint, key id, mTLS material, all from Proton Pass) _before_ Flux exists.
-   `infra/openbao`'s StatefulSet needs both mounted on its first reconcile. See
+2. **`local_path_provisioner`** — install the `local-path` StorageClass. `monitoring`, `auth`
+   and `nodes/kenaz.k0s/actual` all bind PVCs on their first reconcile, and nothing in the
+   Flux-managed tree can provision a StorageClass for itself. See
    [Startup ordering](../conventions/ordering.md).
-4. **`flux_bootstrap`**:
+3. **`flux_bootstrap`**:
    1. Install the Flux Operator via Helm.
    2. Apply the `flux-system/git-deploy-key` Secret, with `known_hosts` built from GitHub's
       published host keys rather than a blind `ssh-keyscan`.
-   3. Wait for the Flux Operator to be ready.
-   4. Push the `edge-ips` ConfigMap — the public-ingress node's public and mesh addresses,
-      straight into the cluster and never into git. See
-      [Secrets](../conventions/secrets.md).
-   5. Apply `flux/cluster.yaml`. Flux takes over from here, reconciling `openbao` first and
-      everything else behind it.
+   3. Create the namespaces the next step writes into, since Flux does not exist yet to declare
+      them. Flux takes ownership of all of them on its first reconcile.
+   4. Apply the three Secrets that exist to seed what Flux resolves for itself, and so cannot
+      come from Flux: `flux-system/sops-age`, `infisical-universal-auth` in each tier namespace,
+      and `external-secrets/bitwarden-access-token`. All four values come from Bitwarden — see
+      [Secrets](../conventions/secrets.md#the-three-secrets-outside-gitops).
+   5. Wait for the Flux Operator to be ready.
+   6. Apply `flux/cluster.yaml`. Flux takes over from here.
 
-Once OpenBao is up and auto-unsealed, run `task bao:policy-sync` to finish the
-namespace, mount, auth and policy bootstrap. It is idempotent and safe to re-run. It is not
-part of the automated sequence above because it needs the OpenBao pod already running.
+There is no follow-up step. Everything past `flux/cluster.yaml` is Flux reconciling git.
+
+Every Kustomization carries a `decryption` block naming `flux-system/sops-age`, patched in once
+via `infra/kustomization.yaml` and `nodes/kustomization.yaml`. `flux/infra/ks.yaml` and
+`flux/nodes/ks.yaml` state it in full for the same reason they state everything else in full.
 
 ## Day-to-day
 

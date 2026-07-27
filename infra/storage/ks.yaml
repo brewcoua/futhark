@@ -7,4 +7,4 @@ metadata:
 spec:
   path: ./infra/storage/app
   dependsOn:
-    - name: external-secrets-config
+    - name: infisical-operator-config

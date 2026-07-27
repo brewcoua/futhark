@@ -17,9 +17,9 @@ point straight at it.
 It is keyed on tags and autogroups, not on people or addresses: architecture, which this repo
 already publishes in far more detail, rather than values. Keep it that way — no user emails,
 no `100.x` node addresses, no tailnet name. The tailnet name and the OAuth credentials are
-identifying, so they stay in `secrets.env` as `pass://` pointers. If a rule ever genuinely
-needs a literal user, switch `acl.tf` to `templatefile()` and pass it as a `TF_VAR` pointer,
-the same pattern as [`bunny`](bunny.md).
+identifying — the tailnet name lives SOPS-encrypted in `secrets.sops.env`, the OAuth
+credentials in Bitwarden. If a rule ever genuinely needs a literal user, switch `acl.tf` to
+`templatefile()` and pass it as a `TF_VAR`, the same pattern as [`bunny`](bunny.md).
 
 ## First apply
 
@@ -34,8 +34,8 @@ apply until the live policy has been imported:
 ```bash
 cd tofu/tailscale
 tofu init
-pass-cli run --env-file secrets.env -- tofu import tailscale_acl.this acl
-pass-cli run --env-file secrets.env -- tofu plan
+bws run -- 'sops exec-env secrets.sops.env "tofu import tailscale_acl.this acl"'
+bws run -- 'sops exec-env secrets.sops.env "tofu plan"'
 ```
 
 Read the plan before applying. If the tailnet has been edited in the admin console since, the
@@ -64,7 +64,7 @@ nothing about the tests. Expect a failure to surface as
 `Error: Failed to update ACL — test(s) failed (400)`.
 
 That is the main reason this module exists: the missing `ip-in-ip` rule took the cluster down
-and presented as an OpenBao seal fault three layers away. Add a test whenever a rule turns out
+and presented as a storage fault three layers away. Add a test whenever a rule turns out
 to be load-bearing.
 
 Protocols that do not use ports are tested against port **0**, not `*` — the same rule the
@@ -84,9 +84,10 @@ takes strict JSON, so strip the comments and trailing commas from `policy.hujson
 
 ## Before the first apply
 
-Populate the Proton Pass items `secrets.env` points at: the tailnet name, and an OAuth client
-created in the admin console under Settings → OAuth clients with **write** access to the
-policy file.
+Fill in `secrets.sops.env` (from its `.example`) with the tailnet name, and store an OAuth
+client in Bitwarden as `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_CLIENT_SECRET`. Create
+it in the admin console under Settings → OAuth clients with **write** access to the policy
+file.
 
 Then, in the admin console's policy file management page, set **External reference** to this
 directory's URL and enable **Prevent edits in the admin console**. The former is only a link

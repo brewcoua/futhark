@@ -4,8 +4,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: flux-system
 resources:
-  - openbao/ks.yaml
   - configs-ks.yaml
+  - edge-ips/ks.yaml
+  - infisical-operator/ks.yaml
+  - infisical-operator/config-ks.yaml
   - external-secrets/ks.yaml
   - external-secrets/config-ks.yaml
   - auth/ks.yaml
@@ -34,6 +36,14 @@ patches:
         sourceRef:
           kind: GitRepository
           name: flux-system
+        # Patched in here rather than repeated per ks.yaml: any Kustomization may grow a
+        # *.sops.yaml, and a missing decryption block fails as an unparseable manifest rather
+        # than as anything that names SOPS. The sops-age Secret is seeded by
+        # ansible/roles/flux_bootstrap — see docs/src/conventions/secrets.md.
+        decryption:
+          provider: sops
+          secretRef:
+            name: sops-age
         # Explicit rather than relying on the API's default: a dependsOn edge is only a
         # readiness guarantee (not just an apply-ordering one) if the upstream Kustomization
         # actually health-checks what it reconciled — e.g. traefik-internal's HelmRelease

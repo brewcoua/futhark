@@ -11,4 +11,4 @@ spec:
   path: ./infra/cert-manager/config
   dependsOn:
     - name: cert-manager
-    - name: external-secrets-config
+    - name: infisical-operator-config

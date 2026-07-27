@@ -6,6 +6,9 @@ node:
   k0s_role: controller+worker
   mesh: true
   public_ingress: true
-  ip: "{{ lookup('protonpass', 'pass://futharkd/kenaz/ip address') }}"
+  # Identifying, so the literal lives encrypted in host.sops.yml beside this file. Kept as a
+  # reference rather than moved out of `node:` so every hostvars[x].node.ip in the roles and
+  # k0sctl template keeps working unchanged.
+  ip: "{{ node_ip }}"
   initial_user: fedora
   initial_port: 22

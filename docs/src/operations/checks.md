@@ -15,8 +15,16 @@
 | `ansible-lint`                    | `ansible/` only                                                                      |
 | `kustomize-build`                 | Every `kustomization.yaml` under `flux/`, `infra/`, `nodes/`, with `--enable-helm`   |
 | `tofu-validate`                   | `tofu fmt -check -diff` and `tofu validate` per module                               |
+| `sops-encrypted`                  | Every `*.sops.{yaml,yml,env,json}` actually contains ciphertext                      |
 
-Three of these have a wrinkle worth knowing.
+Four of these have a wrinkle worth knowing.
+
+**`sops-encrypted` greps, it does not decrypt.** It looks for an `ENC[` marker and nothing else,
+so it needs no key and runs identically on a runner and on your laptop. It exists for one
+failure mode: writing a `*.sops.yaml` and committing it before running `sops -e -i`. `gitleaks`
+will not reliably catch that, because a node address or a domain matches no credential pattern —
+which is exactly the class of value those files hold. `.gitleaks.toml` allowlists the same paths,
+since SOPS ciphertext otherwise trips the entropy rules on every commit.
 
 **`tofu-validate` deliberately does not run `tofu init`.** `init` can touch
 `.terraform.lock.hcl`, and pre-commit treats a hook that modifies a tracked file as a failure.
@@ -55,3 +63,53 @@ push only, not the live Flux deploy-key channel.
 
 All three workflows check out with `persist-credentials: false`, and every version they
 install is pinned.
+
+CI holds no decryption key and must never need one. Nothing above decrypts: `kustomize build`
+parses SOPS output fine, because SOPS encrypts values and leaves keys alone, and
+`sops-encrypted` only greps. `ansible-playbook --syntax-check` is the exception to watch — it
+loads vars plugins, so `community.sops` will try to open `group_vars`/`host_vars`. Keep that
+non-fatal in CI rather than putting a key into GitHub Actions.
+
+## Infisical tier isolation
+
+Two manual checks, in the same spirit as the `ip-in-ip` test in
+[tailscale](../tofu/tailscale.md). Neither is automated, and both are worth re-running after any
+change to the operator HelmReleases or the admission policy — they are the only evidence the
+tier boundary is real rather than merely intended. Run them once at the end of
+[Cold bootstrap](setup.md), and delete the objects afterwards.
+
+**RBAC.** Create an `InfisicalStaticSecret` in `actual` (a `futk.eu/tier: node` namespace) whose
+`targets[0].namespace` is `monitoring`. The object is admitted — the policy below only pins
+targets to the object's own namespace, and this one violates that, so in practice admission
+catches it first. To test RBAC on its own, add a second namespace to the node tier's
+`scopedNamespaces`, point a target at it, and confirm the operator writes there; then remove it
+and confirm the write starts failing with a `forbidden` error in the operator's logs.
+
+**Admission.** In `actual`, create one with `sources[0].secretPath: /infra/cert-manager`:
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalStaticSecret
+metadata:
+  name: isolation-probe
+  namespace: actual
+spec:
+  infisicalAuthRef: {name: infisical, namespace: infisical-node-kenaz}
+  sources:
+    - projectSlug: futhark
+      environmentSlug: prod
+      secretPath: /infra/cert-manager
+  targets:
+    - kind: Secret
+      name: isolation-probe
+      namespace: actual
+      creationPolicy: Owner
+  syncOptions:
+    refreshInterval: 1m
+EOF
+```
+
+The API server must reject this at admission with `secretPath must lie within the namespace's
+own tier`. If it is created instead, the `ValidatingAdmissionPolicyBinding` is not selecting the
+namespace — check that `actual` still carries `futk.eu/tier` and `futk.eu/node`.

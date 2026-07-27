@@ -1,0 +1,58 @@
+---
+# The gap scopedRBAC does not close.
+#
+# RBAC decides which namespaces an operator may write Secrets *into*. It says nothing about
+# which Infisical path an InfisicalStaticSecret may *read*, and there is only one machine
+# identity (Infisical's free tier caps identities at five), so that one credential can read the
+# whole project. Without this policy an InfisicalStaticSecret in `actual` could set
+# secretPath: /infra/cert-manager and the node-tier operator would happily serve it.
+#
+# A ValidatingAdmissionPolicy is the whole enforcement — no extra controller, no Kyverno; the
+# API server evaluates it and the object is never persisted. Together with scopedRBAC this gives
+# back, in the cluster, the tier isolation OpenBao used to enforce on its own server side.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: infisical-path-scope
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["secrets.infisical.com"]
+        apiVersions: ["v1beta1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["infisicalstaticsecrets"]
+  validations:
+    # Keeps a Secret from being planted in a sibling namespace of the same tier. RBAC already
+    # blocks cross-tier writes; this closes the within-tier case.
+    - expression: >-
+        object.spec.targets.all(t, !has(t.namespace) || t.namespace == object.metadata.namespace)
+      message: an InfisicalStaticSecret may only target a Secret in its own namespace
+
+    # Confines each tier to its own subtree of the Infisical project. The labels are the ones
+    # every namespace already carries — see docs/src/conventions/namespaces.md.
+    - expression: >-
+        object.spec.sources.all(s, s.secretPath.startsWith(
+          namespaceObject.metadata.labels['futk.eu/tier'] == 'infra'
+            ? '/infra'
+            : '/nodes/' + namespaceObject.metadata.labels['futk.eu/node']))
+      message: secretPath must lie within the namespace's own tier (/infra or /nodes/<hostname>)
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: infisical-path-scope
+spec:
+  policyName: infisical-path-scope
+  validationActions: [Deny]
+  # Scoped to namespaces that carry the tier label. The second expression above indexes
+  # futk.eu/tier unconditionally and would error on a namespace without it — and a CEL error
+  # under failurePolicy: Fail is a denial, which would block any namespace that forgot the
+  # label rather than letting it through. Selecting on label presence keeps the failure mode
+  # legible: an unlabelled namespace simply cannot host an InfisicalStaticSecret, because the
+  # operator has no RBAC there either.
+  matchResources:
+    namespaceSelector:
+      matchExpressions:
+        - key: futk.eu/tier
+          operator: Exists

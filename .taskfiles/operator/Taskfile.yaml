@@ -16,7 +16,7 @@ tasks:
 
   deps:
     desc: >-
-      Install required packages (ansible-core, ansible-lint, yamllint, pass-cli,
+      Install required packages (ansible-core, ansible-lint, yamllint, sops, age, bws,
       pre-commit, kubectl, helm, kustomize, k0sctl, flux, tofu, mdbook)
     vars:
       # Bump these deliberately, not implicitly via `master`/`latest` — see the kustomize and
@@ -24,23 +24,39 @@ tasks:
       KUSTOMIZE_VERSION: v5.5.0
       K0SCTL_VERSION: v0.20.0
       MDBOOK_VERSION: v0.5.4
+      SOPS_VERSION: v3.13.3
+      BWS_VERSION: 2.1.0
     cmds:
       # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
       # ships a same-path conflicting package literally named `tofu`, don't use it here.
-      - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu
+      #
+      # gnupg2/pcsc-lite/pinentry are the smartcard path: the SOPS operator recipient is a GPG
+      # key whose encryption subkey lives on a token, so every `sops -d` goes through gpg-agent
+      # to the card reader. age is only ever used to generate/hold the *cluster* recipient.
+      - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry unzip
+      - sudo systemctl enable --now pcscd.socket
       # kubernetes.core.helm's idempotency check shells out to this plugin if present.
       - helm plugin list | grep -q ^diff || helm plugin install --verify=false https://github.com/databus23/helm-diff
       - uv tool install --upgrade ansible-lint
       - uv tool install --upgrade pre-commit
-      # kubernetes.core's modules (flux_bootstrap, openbao's namespace bootstrap) import this
+      # kubernetes.core's modules (flux_bootstrap) import this
       # library directly, not the kubectl binary above — installed into /usr/bin/python3's
       # site-packages since that's the interpreter ansible-core actually runs modules with,
       # not a uv tool's isolated venv.
       - sudo uv pip install --python /usr/bin/python3 kubernetes
-      # No known way to pin/checksum-verify Proton's own installer script — it's their only
-      # documented install path for pass-cli, the tool every secret in this repo resolves
-      # through. Worth revisiting if Proton ever publishes a pinned release artifact.
-      - curl -fsSL https://proton.me/download/pass-cli/install.sh | bash
+      # Pinned release binaries. sops decrypts everything committed here; bws resolves the
+      # crown-jewel secrets that are deliberately not committed at all.
+      - >-
+        command -v sops > /dev/null ||
+        (curl -fsSL -o /tmp/sops
+        https://github.com/getsops/sops/releases/download/{{.SOPS_VERSION}}/sops-{{.SOPS_VERSION}}.linux.amd64 &&
+        sudo install -m 755 /tmp/sops /usr/local/bin/sops)
+      - >-
+        command -v bws > /dev/null ||
+        (curl -fsSL -o /tmp/bws.zip
+        https://github.com/bitwarden/sdk-sm/releases/download/bws-v{{.BWS_VERSION}}/bws-x86_64-unknown-linux-gnu-{{.BWS_VERSION}}.zip &&
+        unzip -oq /tmp/bws.zip -d /tmp/bws.d &&
+        sudo install -m 755 /tmp/bws.d/bws /usr/local/bin/bws)
       # Pinned release binary, not curl-to-sudo-bash of the installer script tracking master.
       - >-
         command -v kustomize > /dev/null ||
@@ -61,6 +77,62 @@ tasks:
     preconditions:
       - which dnf
       - which uv
+
+  age-key:
+    desc: Generate the SOPS cluster age keypair (run once, at cold bootstrap)
+    silent: true
+    cmd: |
+      set -eu
+      # Explicit modes rather than `umask 077`: go-task runs this through mvdan/sh, which has
+      # no umask builtin. mktemp -d is 0700 already; the chmod is belt and braces.
+      dir=$(mktemp -d)
+      out="$dir/cluster.agekey"
+      age-keygen -o "$out" 2>/dev/null
+      chmod 600 "$out"
+      echo
+      echo "Public recipient — put this in .sops.yaml under the (infra|nodes|config) rule:"
+      grep -o 'age1[a-z0-9]*' "$out" | head -1
+      echo
+      echo "Private key is at $out and is NOT in the repo. Store it in Bitwarden Secrets"
+      echo "Manager as 'age cluster private key', then shred it:  shred -u $out"
+      echo "ansible/roles/flux_bootstrap reads it from there to create flux-system/sops-age."
+
+  sops:
+    desc: "Edit an encrypted file, creating it from its .example if absent -- <file>"
+    silent: true
+    dir: "{{.ROOT_DIR}}"
+    cmd: |
+      set -eu
+      f="{{.CLI_ARGS}}"
+      if [ -z "$f" ]; then
+        echo "usage: task ops:sops -- <path/to/thing.sops.yaml>"
+        echo
+        echo "Files still to create:"
+        for e in $(find . -name '*.sops.*.example' -not -path './.git/*' | sort); do
+          [ -f "${e%.example}" ] || echo "  ${e%.example}"
+        done
+        exit 2
+      fi
+      # Accept either name, so tab-completing the template does the right thing.
+      f="${f%.example}"
+      if [ -f "$f" ]; then
+        # sops exits 200 when the edit changed nothing, which is a normal outcome here, not a
+        # failure worth a red task.
+        sops "$f" || { rc=$?; [ "$rc" = 200 ] || exit "$rc"; }
+        exit 0
+      fi
+      [ -f "$f.example" ] || { echo "no $f, and no $f.example to seed it from"; exit 1; }
+      cp "$f.example" "$f"
+      # Fail closed at both steps. An aborted edit or a failed encrypt must never leave a
+      # plaintext file sitting at a *.sops.* path — that is the one mistake this whole
+      # convention exists to prevent.
+      if ! "${EDITOR:-vi}" "$f"; then
+        rm -f "$f"; echo "editor exited non-zero, removed $f"; exit 1
+      fi
+      if ! sops -e -i "$f"; then
+        rm -f "$f"; echo "encryption failed, removed plaintext $f"; exit 1
+      fi
+      echo "created and encrypted $f"
 
   hooks:
     desc: Install the repo's pre-commit hooks

@@ -1,0 +1,11 @@
+---
+# ansible-lint runs its own embedded yamllint with its own config, so the *.sops.* exclusions in
+# the repo's .yamllint.yml do not reach it. SOPS ciphertext is one long line per value and trips
+# yaml[line-length] every time.
+#
+# Excluded rather than skipped: these files are opaque ciphertext, not Ansible content, so there
+# is nothing in them worth linting. Skipping the rule globally would also stop catching genuine
+# long lines in the roles.
+exclude_paths:
+  - "**/*.sops.yml"
+  - "**/*.sops.yaml"

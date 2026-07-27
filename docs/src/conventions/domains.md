@@ -2,7 +2,7 @@
 
 Base domains live in exactly one file, `config/domain/domain.env`, as `DOMAIN` and
 `INT_DOMAIN`. Ansible reads the same file through
-`ansible/inventory/group_vars/all.yml`. Never hardcode a base domain in an app.
+`ansible/inventory/group_vars/all/main.yml`. Never hardcode a base domain in an app.
 
 `config/domain/kustomization.yaml` wraps it as a reusable Kustomize Component that generates
 a `domain` ConfigMap. It lives under `config/` rather than `infra/` precisely because it is

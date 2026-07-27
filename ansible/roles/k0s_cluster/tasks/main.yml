@@ -100,7 +100,8 @@
   no_log: true
 
 # kubelet can only ever register --node-ip as InternalIP, so the public IP arrives via this
-# annotation, which the k0s cloud provider reads. node.ip is a pass:// lookup — never committed.
+# annotation, which the k0s cloud provider reads. node.ip comes from the SOPS-encrypted
+# host.sops.yml — never committed in the clear.
 - name: Annotate nodes with their external IP (k0s cloud provider)
   ansible.builtin.command:
     cmd: >-

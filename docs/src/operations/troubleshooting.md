@@ -36,8 +36,8 @@ If that fails, the tailnet ACL is almost certainly missing the `ip-in-ip` rule t
 overlay needs. Full explanation and the fix:
 [Pod to mesh networking](../ansible/networking.md#tailnet-acl-prerequisite-ip-in-ip).
 
-This is the one that took the cluster down and presented as an OpenBao seal fault three layers
-away. Check it before believing a cross-node bug is node-local.
+This is the one that took the cluster down and presented as a storage fault three layers away.
+Check it before believing a cross-node bug is node-local.
 
 ## `no route to host` from a pod dialing a node
 
@@ -69,39 +69,51 @@ Same root cause as the two above. `konnectivity-agent` dials the controller's
 `konnectivity-server` over the mesh, so it is the first thing to break when pod → mesh
 networking is broken, and it takes the whole exec path with it.
 
-## OpenBao won't come up
+## Flux can't decrypt a manifest
 
-`task bao:policy-sync` waits for the pod, and fails with the container's own last 30 log lines
-if it never answers — read those first, rather than assuming the sync is stuck.
-
-Almost always it is the KMIP seal refusing to configure. Two distinct failures:
-
-- `ItemNotFound` on `GetAttributes` — wrong key id. It must be the KMIP object UID, not the
-  OVH service key id.
-- `Operation is not authorized` on `GetAttributes` — the credential is missing an IAM action.
-
-Both are covered in [The OpenBao seal](setup.md#the-openbao-seal).
-
-Note that `bao status` exiting 2 means sealed-but-reachable, which should not linger — the
-KMIP seal auto-unseals on every start, so a pod that stays sealed is a seal configuration
-problem, not something to unseal by hand.
-
-## An `ExternalSecret` never syncs
+`kustomize-controller` reporting `failed to decrypt` or an unparseable manifest means the
+`sops-age` Secret is missing, holds the wrong key, or the file was encrypted to a recipient the
+cluster key is not among.
 
 ```bash
-kubectl get externalsecret -A
-kubectl describe externalsecret -n <ns> <name>
+kubectl get secret sops-age -n flux-system
+sops -d <the file>          # works for you via the GPG card, independently of the cluster key
+```
+
+If `sops -d` succeeds locally but Flux fails, the file was sealed without the cluster age
+recipient — check it matches the `(infra|nodes|config)` rule in `.sops.yaml` and re-run
+`sops updatekeys` on it. Files under `ansible/` and `tofu/` are _supposed_ to fail this way in
+cluster context; they are deliberately not sealed to the cluster key.
+
+## An `InfisicalStaticSecret` never syncs
+
+```bash
+kubectl get infisicalstaticsecret -A
+kubectl describe infisicalstaticsecret -n <ns> <name>
+kubectl logs -n infisical-<tier> deploy/... -f
 ```
 
 Check in this order:
 
-1. Is the right store referenced? A node app must use `bao-node-<hostname>`, not `bao-infra`.
-   See [Cluster infrastructure](../gitops/infra.md#external-secrets-operator).
-2. Does the OpenBao namespace exist? `task bao:policy-sync` creates one per `nodes/*.k0s/`
-   directory, so a newly added node needs a re-run.
-3. Does ESO have write access to `Secret`s in that namespace? That is opt-in per namespace via
-   the `rbac-eso-writer` template — see [Secrets](../conventions/secrets.md#eso-rbac).
-4. Does the path actually hold the key? `task bao:kv -- get -namespace=<ns> secret/<name>`.
+1. Is the namespace in the right tier's `scopedNamespaces`? If not, the operator has no RBAC
+   there and will not act at all — this is the most common cause after adding an app, and it
+   looks like nothing happening rather than an error.
+2. Is `infisicalAuthRef` pointing at that same tier's namespace? A node app must reference
+   `infisical-node-<hostname>`, not `infisical-infra`. The node operator cannot read the infra
+   tier's `InfisicalAuth`.
+3. Was the object rejected at admission? A `secretPath` outside the namespace's tier never gets
+   created — `kubectl apply` fails loudly, so check your shell history rather than the cluster.
+4. Does the path actually hold the secret? Check the Infisical UI at that folder and
+   environment.
+
+## A Bitwarden `ExternalSecret` never syncs
+
+Check the store is usable from that namespace at all — `conditions` on the `bitwarden`
+`ClusterSecretStore` starts empty by design, so the answer is usually "the namespace was never
+added". See [Secrets](../conventions/secrets.md#bitwarden-secrets-manager).
+
+Then check `bitwarden-sdk-server` is up and its certificate issued: ESO talks to it over HTTPS
+and reports a connection error, not a Bitwarden error, when it is not.
 
 ## A Kustomization is stuck, and its dependency is fine
 
@@ -129,7 +141,7 @@ kubectl describe certificaterequest -n <ns> <name>
 Issuance goes through Let's Encrypt DNS-01 against the Bunny zone, so it waits on DNS
 propagation and can legitimately take minutes. If it never completes, check the
 `cert-manager-config` Kustomization is Ready — the `ClusterIssuer` lives there, behind
-`external-secrets-config`, because the webhook's API key is an `ExternalSecret`.
+`infisical-operator-config`, because the webhook's API key is an `InfisicalStaticSecret`.
 
 ## `tofu apply` fails with `test(s) failed (400)`
 

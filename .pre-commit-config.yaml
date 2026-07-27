@@ -51,6 +51,18 @@ repos:
         always_run: false
   - repo: local
     hooks:
+      # The one mistake SOPS makes possible: writing a *.sops.* file and committing it before
+      # running `sops -e -i`. gitleaks will not reliably catch it — a node IP or a domain is not
+      # a credential pattern — so assert the ciphertext marker is present instead. Greps only;
+      # it never needs a decryption key, so it works in CI too.
+      - id: sops-encrypted
+        name: sops files are encrypted
+        entry: bash -c 'for f in "$@"; do grep -q "ENC\[" "$f" || { echo "not encrypted - $f - run sops -e -i"; exit 1; }; done' --
+        language: system
+        files: \.sops\.(ya?ml|env|json)$
+        # The root .sops.yaml is SOPS's own config — recipients, not ciphertext. It matches the
+        # pattern above by accident of naming.
+        exclude: ^\.sops\.yaml$
       - id: kustomize-build
         name: kustomize build
         entry: bash -c 'for d in $(find flux infra nodes -name kustomization.yaml -exec dirname {} \;); do kustomize build --enable-helm "$d" > /dev/null || exit 1; done'

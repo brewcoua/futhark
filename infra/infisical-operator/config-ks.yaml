@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Split from ks.yaml: the InfisicalConnection/InfisicalAuth pairs here need the
+# secrets.infisical.com CRDs to already exist, which the operator Kustomization can't guarantee
+# for itself on first apply — same chicken-and-egg as external-secrets/config-ks.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infisical-operator-config
+spec:
+  path: ./infra/infisical-operator/config
+  dependsOn:
+    - name: infisical-operator
