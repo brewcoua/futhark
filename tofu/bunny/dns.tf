@@ -31,3 +31,20 @@ resource "bunnynet_dns_record" "auth" {
     prevent_destroy = true
   }
 }
+
+# Every internal hostname (dash, headlamp, logs, metrics, actual, …) is served by the same
+# traefik-internal, which the tailscale operator exposes as one tailnet device named "internal"
+# (the tailscale.com/hostname annotation in infra/traefik-internal/app/helmrelease.yaml). So one
+# wildcard covers all of them, and an internal app landing needs no apply here.
+#
+# A CNAME to the MagicDNS name rather than an A record to the device's tailnet IP: that IP is
+# assigned by the operator and recorded nowhere in this repo, so an A record would drift exactly
+# the way edge-ips' MESH_IP did. Only tailnet resolvers answer a *.ts.net name — off-tailnet
+# this record dead-ends, which is the point of the internal domain.
+resource "bunnynet_dns_record" "internal_wildcard" {
+  zone  = data.bunnynet_dns_zone.this.id
+  name  = "*.${local.int_domain_prefix}"
+  type  = "CNAME"
+  value = "internal.${var.tailnet_domain}"
+  ttl   = 300
+}

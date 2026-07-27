@@ -12,6 +12,20 @@ variable "kenaz_public_ip" {
   }
 }
 
+# The tailnet's MagicDNS domain, target of the internal wildcard CNAME in dns.tf. Held in this
+# module's secrets.sops.env, not node-refs.env: that path resolves node addresses out of
+# ansible/nodes/<node>/host.sops.yml and this is neither a node nor an address. tofu/tailscale's
+# TAILSCALE_TAILNET is the same value — the one place in this repo a second encrypted copy is
+# unavoidable, so change both together.
+variable "tailnet_domain" {
+  description = "The tailnet's MagicDNS domain, e.g. example-tailnet.ts.net."
+  type        = string
+  validation {
+    condition     = endswith(var.tailnet_domain, ".ts.net")
+    error_message = "tailnet_domain must be a MagicDNS domain ending in .ts.net."
+  }
+}
+
 # kenaz_mesh_ip was declared here but referenced by no resource in this module — ${MESH_IP} in
 # infra/traefik-internal is substituted by Flux out of infra/edge-ips/app/edge-ips.sops.yaml,
 # never by tofu. Removed rather than wired up; add it back only alongside a consumer.
