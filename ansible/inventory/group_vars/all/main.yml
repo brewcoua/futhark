@@ -6,6 +6,14 @@
 
 ssh_port: 2222
 
+# Bitwarden Secrets Manager lives on the EU cloud. Both the `bws` CLI and bitwarden.secrets
+# default to the US endpoints and answer a wrong-region access token with a bare
+# `400 invalid_client`, so every lookup passes this explicitly. The plugin derives
+# `<base>/api` and `<base>/identity` from it, the same shape as `bws config server-base`.
+# A region endpoint of a public service is neither secret nor identifying, so it sits here in
+# the clear rather than in secrets.sops.yml.
+bws_base_url: https://vault.bitwarden.eu
+
 # k0s's own defaults, pinned here as a single source of truth — see
 # docs/src/ansible/index.md. pod_cidr is the cluster-wide /16; kube-router carves a /24 out
 # of it per node, and the tailscale role's SNAT rule must match the /16 or a peer's pods

@@ -35,7 +35,7 @@
         namespace: flux-system
       type: Opaque
       stringData:
-        identity: "{{ lookup('bitwarden.secrets.lookup', bws_ids.git_deploy_key) }}"
+        identity: "{{ lookup('bitwarden.secrets.lookup', bws_ids.git_deploy_key, base_url=bws_base_url) }}"
         known_hosts: "{{ flux_bootstrap_known_hosts_content }}"
   no_log: true
 
@@ -78,7 +78,7 @@
       stringData:
         # The filename suffix is load-bearing: Flux's kustomize-controller scans the Secret for
         # keys ending in .agekey to build its age identity set.
-        age.agekey: "{{ lookup('bitwarden.secrets.lookup', bws_ids.age_cluster_key) }}"
+        age.agekey: "{{ lookup('bitwarden.secrets.lookup', bws_ids.age_cluster_key, base_url=bws_base_url) }}"
   no_log: true
 
 - name: Bridge the Infisical universal-auth credential into each tier namespace
@@ -93,8 +93,8 @@
         namespace: "{{ item }}"
       type: Opaque
       stringData:
-        clientId: "{{ lookup('bitwarden.secrets.lookup', bws_ids.infisical_client_id) }}"
-        clientSecret: "{{ lookup('bitwarden.secrets.lookup', bws_ids.infisical_client_secret) }}"
+        clientId: "{{ lookup('bitwarden.secrets.lookup', bws_ids.infisical_client_id, base_url=bws_base_url) }}"
+        clientSecret: "{{ lookup('bitwarden.secrets.lookup', bws_ids.infisical_client_secret, base_url=bws_base_url) }}"
   loop: "{{ flux_bootstrap_infisical_namespaces }}"
   no_log: true
 
@@ -110,7 +110,7 @@
         namespace: external-secrets
       type: Opaque
       stringData:
-        token: "{{ lookup('bitwarden.secrets.lookup', bws_ids.bitwarden_eso_token) }}"
+        token: "{{ lookup('bitwarden.secrets.lookup', bws_ids.bitwarden_eso_token, base_url=bws_base_url) }}"
   no_log: true
 
 - name: Wait for the Flux Operator to be ready

@@ -5,6 +5,13 @@ version: "3"
 vars:
   TOFU_DIR: "{{.ROOT_DIR}}/tofu"
 
+env:
+  # The organisation is on Bitwarden's EU cloud; bws defaults to the US one and rejects an
+  # EU access token with a bare `400 invalid_client`. Set here rather than via
+  # `bws config server-base` so a fresh workstation needs no per-machine state. Mirrors
+  # `bws_base_url` in ansible/inventory/group_vars/all/main.yml.
+  BWS_SERVER_URL: https://vault.bitwarden.eu
+
 tasks:
   init:
     desc: "Init tofu module(s) [-- <module>] (no secrets needed: provider download only)"

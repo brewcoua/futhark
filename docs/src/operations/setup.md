@@ -64,6 +64,13 @@ export BWS_ACCESS_TOKEN=<futhark-operator token>
 bws secret list                      # note the UUIDs of the lowercase seven
 ```
 
+`bws config` only affects your own shell. The region the repo's tooling uses is committed in two
+places instead, so a fresh workstation needs no per-machine state: `BWS_SERVER_URL` in
+`.taskfiles/tofu/Taskfile.yaml`, and `bws_base_url` in
+`ansible/inventory/group_vars/all/main.yml`, which every `bitwarden.secrets.lookup` call passes
+as `base_url`. Point either at the wrong region and Bitwarden answers `400 invalid_client`
+with nothing to say about why.
+
 ## 2. Infisical
 
 Sign up at **eu.infisical.com**. That is a separate data region, not a mirror of
