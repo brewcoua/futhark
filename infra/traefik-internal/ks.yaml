@@ -12,9 +12,9 @@ spec:
     # honoured, which needs the controller running. Since tailscale-operator-config now runs
     # ahead of the operator, naming it here would no longer guarantee that.
     - name: tailscale-operator
-    - name: int-domain
+    - name: substitutions
   # INT_DOMAIN (certificate.yaml's commonName/dnsNames) is committed SOPS-encrypted in
-  # infra/int-domain.
+  # infra/substitutions.
   postBuild:
     substituteFrom:
       - kind: Secret

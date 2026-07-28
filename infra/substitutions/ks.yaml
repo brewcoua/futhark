@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Deliberately dependency-free, and deliberately not part of infra-configs: a
+# postBuild.substituteFrom target must exist before any consumer reconciles, and infra-configs
+# depends on traefik-edge, which is itself a consumer.
+#
+# One Kustomization for all three sources. A consumer still names the individual Secret or
+# ConfigMap it substitutes from, so `dependsOn: substitutions` says "the values exist" and the
+# substituteFrom list says which ones this manifest actually reads.
+#
+# ${DOMAIN} is here because `replacements` cannot reach every shape. A Kustomize replacement
+# rewrites one delimiter-separated segment of a field, which covers a bare hostname
+# (`auth.DOMAIN`) but not a domain embedded in a longer string — an OIDC discovery URL has a path
+# after the host, so there is no single segment to swap. Prefer `replacements` where it works;
+# docs/src/conventions/domains.md says which to reach for.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: substitutions
+spec:
+  path: ./infra/substitutions/app

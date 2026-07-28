@@ -5,7 +5,7 @@
 # `components: [../../../config/domain]` plus its own `replacements` block to splice DOMAIN
 # into the right field — see docs/src/conventions/domains.md.
 #
-# INT_DOMAIN lives elsewhere: infra/int-domain/app/int-domain.sops.yaml, a SOPS-encrypted
+# INT_DOMAIN lives elsewhere: infra/substitutions/app/int-domain.sops.yaml, a SOPS-encrypted
 # Secret, consumed as ${INT_DOMAIN} via postBuild.substituteFrom (see infra/monitoring/ks.yaml
 # for the reference wiring). Unlike DOMAIN it's not committed in the clear.
 apiVersion: kustomize.config.k8s.io/v1alpha1

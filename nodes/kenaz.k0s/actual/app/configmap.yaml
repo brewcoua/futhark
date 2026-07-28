@@ -10,6 +10,7 @@ data:
   ACTUAL_OPENID_ENFORCE: "true"
   # First OIDC login becomes the server owner automatically, no manual promotion step.
   ACTUAL_USER_CREATION_MODE: "login"
-  # Pocket ID's own public endpoint (infra/auth, edge-exposed) — a stable dependency of any
-  # OIDC-consuming app, not a per-node value, so it's not templated like the field above.
-  ACTUAL_OPENID_DISCOVERY_URL: https://auth.brewen.dev/.well-known/openid-configuration
+  # Pocket ID's own public endpoint (infra/auth, edge-exposed). ${DOMAIN} rather than a
+  # `replacements` block because the domain sits mid-string, ahead of a path — see
+  # infra/substitutions/ks.yaml.
+  ACTUAL_OPENID_DISCOVERY_URL: https://auth.${DOMAIN}/.well-known/openid-configuration

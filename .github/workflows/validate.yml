@@ -23,17 +23,22 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v9.0.0
       - uses: opentofu/setup-opentofu@v2.0.2
+      # config/versions.env is already in the KEY=value shape $GITHUB_ENV wants, so the pins CI
+      # uses are the same ones `task ops:deps` installs, with no parsing step. See
+      # .taskfiles/operator/Taskfile.yaml.
+      - name: Load pinned tool versions
+        run: grep -v '^#' config/versions.env | grep . >> "$GITHUB_ENV"
       # kustomize-build (in .pre-commit-config.yaml) shells out to both binaries with
       # language: system — neither ships on the runner image, and neither was previously
       # installed here, so the hook only ever passed if the image happened to carry them.
       - name: Install kustomize
         run: |
-          curl -fsSL -o /tmp/kustomize.tar.gz https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz
+          curl -fsSL -o /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
           tar -xzf /tmp/kustomize.tar.gz -C /tmp
           sudo install -m 755 /tmp/kustomize /usr/local/bin/kustomize
       - name: Install helm
         run: |
-          curl -fsSL -o /tmp/helm.tar.gz https://get.helm.sh/helm-v3.16.2-linux-amd64.tar.gz
+          curl -fsSL -o /tmp/helm.tar.gz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
           tar -xzf /tmp/helm.tar.gz -C /tmp
           sudo install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
       - uses: actions/cache@v6
@@ -49,7 +54,8 @@ jobs:
       # under `run --all-files` — it silently scans nothing above. Run a real full-tree scan.
       - name: gitleaks (full tree, not just the staged index)
         run: |
-          curl -fsSL -o /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          # The tag carries a leading v, the tarball's name does not — hence the ${x#v} strip.
+          curl -fsSL -o /tmp/gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz"
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
           sudo install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks dir . --config .gitleaks.toml

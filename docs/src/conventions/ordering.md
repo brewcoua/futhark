@@ -1,9 +1,10 @@
 # Startup ordering
 
 Two Kustomizations `dependsOn` nothing: `namespaces`, which is every `Namespace` CR and no
-controller, and `edge-ips`, which is one encrypted Secret and no controller either. The two
-controllers that need nothing else from the cluster — `infisical-operator` and `cert-manager` —
-sit directly behind `namespaces`.
+controller, and `substitutions`, which is every `postBuild.substituteFrom` source and no
+controller either. A substitution target has to exist before any consumer reconciles, so it
+cannot wait on anything. The two controllers that need nothing else from the cluster —
+`infisical-operator` and `cert-manager` — sit directly behind `namespaces`.
 
 The real graph, as declared in each `ks.yaml`:
 
@@ -15,9 +16,10 @@ namespaces ─┬─> cert-manager ───────────────
             │                                                    ├─> tailscale-operator-config   │
             │                                                    │      └─> tailscale-operator ──┘
             │                                                    ├─> storage
-            │                                                    └─> monitoring (also needs traefik-internal, edge-ips)
+            │                                                    └─> monitoring (also needs traefik-internal)
 
-edge-ips ────────────────────────────────────> traefik-edge, monitoring
+substitutions ───────────────────────────────> traefik-internal, traefik-edge, monitoring,
+                                               infra-configs, actual
 
 everything above ──> infra-configs ──> nodes
 ```
@@ -45,10 +47,10 @@ Four edges are less obvious than they look:
 - Anything that needs an operator _running_, rather than just its credentials present, has to
   name the operator and not the config ahead of it. `traefik-internal` names
   `tailscale-operator` for exactly that reason.
-- `edge-ips` has no dependencies and nothing depends on it except its two consumers. A
-  `postBuild.substituteFrom` target must exist before the Kustomization that substitutes from it
-  reconciles, and the obvious home — `infra-configs` — is downstream of `traefik-edge`, one of
-  those consumers.
+- `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
+  cluster: the `edge-ips` and `int-domain` Secrets, and the `domain` ConfigMap. A substitution
+  target must exist before the Kustomization that substitutes from it reconciles, and the obvious
+  home — `infra-configs` — is downstream of `traefik-edge`, one of those consumers.
 
 `infra-configs` sits behind every infra controller. Its overlays attach policy to namespaces
 that are already there, so the ordering it needs is the controllers': `middleware-ratelimit`

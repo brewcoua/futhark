@@ -2,6 +2,9 @@
 # yaml-language-server: $schema=https://taskfile.dev/schema.json
 version: "3"
 
+# The $*_VERSION pins below come from config/versions.env, loaded by the root Taskfile — go-task
+# rejects a `dotenv:` in an included Taskfile, so it can only be declared there. Referenced as
+# `$FOO` rather than `{{.FOO}}`: dotenv entries land in the environment, not the template scope.
 vars:
   ANSIBLE_DIR: "{{.ROOT_DIR}}/ansible"
 
@@ -33,14 +36,6 @@ tasks:
     desc: >-
       Install required packages (ansible-core, ansible-lint, yamllint, sops, age, pass-cli,
       pre-commit, kubectl, helm, kustomize, k0sctl, flux, tofu, mdbook)
-    vars:
-      # Bump these deliberately, not implicitly via `master`/`latest` — see the kustomize and
-      # k0sctl lines below, both of which used to track a moving target.
-      KUSTOMIZE_VERSION: v5.5.0
-      K0SCTL_VERSION: v0.20.0
-      MDBOOK_VERSION: v0.5.4
-      SOPS_VERSION: v3.13.3
-      PASS_CLI_VERSION: 2.2.3
     cmds:
       # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
       # ships a same-path conflicting package literally named `tofu`, don't use it here.
@@ -64,28 +59,28 @@ tasks:
       - >-
         command -v sops > /dev/null ||
         (curl -fsSL -o /tmp/sops
-        https://github.com/getsops/sops/releases/download/{{.SOPS_VERSION}}/sops-{{.SOPS_VERSION}}.linux.amd64 &&
+        https://github.com/getsops/sops/releases/download/${SOPS_VERSION}/sops-${SOPS_VERSION}.linux.amd64 &&
         sudo install -m 755 /tmp/sops /usr/local/bin/sops)
       - >-
         command -v pass-cli > /dev/null ||
         (curl -fsSL -o /tmp/pass-cli
-        https://github.com/protonpass/pass-cli/releases/download/{{.PASS_CLI_VERSION}}/pass-cli-linux-x86_64 &&
+        https://github.com/protonpass/pass-cli/releases/download/${PASS_CLI_VERSION}/pass-cli-linux-x86_64 &&
         sudo install -m 755 /tmp/pass-cli /usr/local/bin/pass-cli)
       # Pinned release binary, not curl-to-sudo-bash of the installer script tracking master.
       - >-
         command -v kustomize > /dev/null ||
         (curl -fsSL -o /tmp/kustomize.tar.gz
-        https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F{{.KUSTOMIZE_VERSION}}/kustomize_{{.KUSTOMIZE_VERSION}}_linux_amd64.tar.gz &&
+        https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz &&
         tar -xzf /tmp/kustomize.tar.gz -C /tmp &&
         sudo install -m 755 /tmp/kustomize /usr/local/bin/kustomize)
-      - curl -fsSL https://github.com/k0sproject/k0sctl/releases/download/{{.K0SCTL_VERSION}}/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
+      - curl -fsSL https://github.com/k0sproject/k0sctl/releases/download/${K0SCTL_VERSION}/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
       # Every fx:* task and k0s:status (via flux get) needs this; nothing else here installed it.
       - command -v flux > /dev/null || curl -fsSL https://fluxcd.io/install.sh | sudo bash
-      # Pinned to match .github/workflows/docs.yml, so a local `task docs:build` renders what CI publishes.
+      # Same pin .github/workflows/docs.yml reads, so a local `task docs:build` renders what CI publishes.
       - >-
         command -v mdbook > /dev/null ||
         (curl -fsSL -o /tmp/mdbook.tar.gz
-        https://github.com/rust-lang/mdBook/releases/download/{{.MDBOOK_VERSION}}/mdbook-{{.MDBOOK_VERSION}}-x86_64-unknown-linux-gnu.tar.gz &&
+        https://github.com/rust-lang/mdBook/releases/download/${MDBOOK_VERSION}/mdbook-${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz &&
         tar -xzf /tmp/mdbook.tar.gz -C /tmp &&
         sudo install -m 755 /tmp/mdbook /usr/local/bin/mdbook)
     preconditions:

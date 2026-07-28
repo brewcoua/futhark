@@ -18,7 +18,7 @@ spec:
     - name: tailscale-operator
     - name: traefik-internal
     - name: traefik-edge
-    - name: edge-ips
+    - name: substitutions
   # netpol-allow-from-ingress-edge needs kenaz's mesh IP — traefik-edge's hostNetwork pod
   # connects to backends as itself, not as a namespaced pod identity. Same Secret
   # infra/traefik-edge consumes as ${PUBLIC_IP}/${MESH_IP}.

@@ -4,19 +4,19 @@
 `Kustomization`. Layout rules are in [Layout and naming](../conventions/layout.md); the order
 they come up in is [Startup ordering](../conventions/ordering.md).
 
-| Component            | What it is                                                                                                                                |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `infisical-operator` | Runtime secrets. Two namespace-scoped installs, one per tier, plus the admission policy that confines each. See below                     |
-| `edge-ips`           | Not a controller: one SOPS-encrypted Secret holding the edge node's addresses, consumed by `postBuild.substituteFrom`                     |
-| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once |
-| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                  |
-| `tailscale-operator` | Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass: tailscale`                                       |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. Exposed through the Tailscale operator                                             |
-| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                               |
-| `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                       |
-| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters                                                                               |
-| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                       |
-| `configs`            | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                               |
+| Component            | What it is                                                                                                                                           |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infisical-operator` | Runtime secrets. Two namespace-scoped installs, one per tier, plus the admission policy that confines each. See below                                |
+| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `edge-ips` and `int-domain` Secrets, and `${DOMAIN}` from `config/domain/domain.env` |
+| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once            |
+| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                             |
+| `tailscale-operator` | Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass: tailscale`                                                  |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. Exposed through the Tailscale operator                                                        |
+| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                          |
+| `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                                  |
+| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters                                                                                          |
+| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                  |
+| `configs`            | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                          |
 
 ## The two ingresses
 
@@ -37,8 +37,8 @@ node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sock
 [Network policy](../conventions/network-policy.md).
 
 The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
-`postBuild.substituteFrom` from the SOPS-encrypted `edge-ips` Secret in `infra/edge-ips/`. That
-Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
+`postBuild.substituteFrom` from the SOPS-encrypted `edge-ips` Secret in `infra/substitutions/`.
+That Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
 consumers reconcile, and `infra-configs` — the obvious home for it — depends on `traefik-edge`.
 
 ## Host logs

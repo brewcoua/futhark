@@ -12,9 +12,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  MDBOOK_VERSION: v0.5.4
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,6 +20,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      # config/versions.env is already in the KEY=value shape $GITHUB_ENV wants, so the pins CI
+      # uses are the same ones `task ops:deps` installs, with no parsing step. See
+      # .taskfiles/operator/Taskfile.yaml.
+      - name: Load pinned tool versions
+        run: grep -v '^#' config/versions.env | grep . >> "$GITHUB_ENV"
       - name: Install mdbook
         run: |
           curl -fsSL -o /tmp/mdbook.tar.gz \

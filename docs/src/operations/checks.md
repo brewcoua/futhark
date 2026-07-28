@@ -61,8 +61,13 @@ and on demand. It is disaster recovery, not a second remote you push to. It uses
 authenticated equivalent to GitHub's `api.github.com/meta`. The blast radius is this mirror
 push only, not the live Flux deploy-key channel.
 
-All three workflows check out with `persist-credentials: false`, and every version they
-install is pinned.
+All three workflows check out with `persist-credentials: false`, and every version they install
+is pinned — in `config/versions.env`, the same file `task ops:deps` reads, so a local
+`task docs:build` renders with the mdbook CI publishes and pre-commit runs the kustomize CI
+installs. Both sides consume it natively: go-task via `dotenv:` in the root `Taskfile.yaml`, the
+workflows via `grep -v '^#' config/versions.env >> "$GITHUB_ENV"`. It is dotenv rather than YAML
+for the same reason `config/domain/domain.env` is — nothing in it nests, and parsing YAML would
+mean a `yq` dependency inside the very task whose job is installing dependencies.
 
 CI holds no decryption key and must never need one. Nothing above decrypts: `kustomize build`
 parses SOPS output fine, because SOPS encrypts values and leaves keys alone, and

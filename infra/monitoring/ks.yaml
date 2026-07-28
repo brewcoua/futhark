@@ -9,11 +9,10 @@ spec:
   dependsOn:
     - name: traefik-internal
     - name: infisical-operator-config
-    - name: edge-ips
-    - name: int-domain
+    - name: substitutions
   # The public-ingress host's mesh IP — used to scrape traefik-edge's metrics port, still
-  # hostNetwork-bound. Committed SOPS-encrypted in infra/edge-ips. INT_DOMAIN (internal
-  # hostnames below) is committed SOPS-encrypted in infra/int-domain.
+  # hostNetwork-bound — and INT_DOMAIN, the internal hostnames below. Both committed
+  # SOPS-encrypted in infra/substitutions.
   postBuild:
     substituteFrom:
       - kind: Secret

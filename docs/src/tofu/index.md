@@ -51,25 +51,38 @@ task tf:apply -- <module>
 `sops exec-env secrets.sops.env 'pass-cli run -- tofu <cmd>'`. That needs a Proton Pass session
 (`pass-cli info`) and the GPG smartcard present; neither ever writes a value to disk.
 
-### Node addresses
+### Values another plane owns
 
-A module that needs a node's address does not keep its own copy. It declares one in
-`node-refs.env`, which `plan` and `apply` resolve before running:
+A module never keeps its own copy of a value that already lives somewhere else. It declares a
+reference in `refs.env`, which `plan` and `apply` resolve before running:
 
 ```
-# <tofu variable>=<node>:<key in ansible/nodes/<node>/host.sops.yml>
-TF_VAR_kenaz_public_ip=kenaz:node_ip
+# <variable>=<repo-relative .sops file>#<sops --extract expression>
+TF_VAR_kenaz_public_ip=ansible/nodes/kenaz/host.sops.yml#["node_ip"]
+TF_VAR_tailnet_domain=ansible/inventory/group_vars/all/secrets.sops.yml#["tailnet_domain"]
+TF_VAR_int_domain=infra/substitutions/app/int-domain.sops.yaml#["stringData"]["INT_DOMAIN"]
 ```
 
-`ansible/nodes/<node>/host.sops.yml` is canonical — `roles/tailscale` writes `node_mesh_ip`
-back into it after each tailnet join, so an address is recorded once, where it is discovered.
-`node-refs.env` holds only references, so it is committed in the clear even though its target
-is encrypted; both paths seal to the same operator key, so resolving one costs no extra card
-touch. A module without the file is unaffected.
+The expression goes to `sops --extract` verbatim, so one line shape reaches a node fact, an
+Ansible group_var and a Flux Secret alike. Who owns what:
 
-`infra/edge-ips/app/edge-ips.sops.yaml` cannot use this and keeps its own copy: Flux decrypts
-it in-cluster, so it is sealed to the cluster age key as well, and `.sops.yaml` deliberately
-keeps that key away from everything under `ansible/` and `tofu/`.
+| Value            | Owner                                               | Why                                                                                                            |
+| ---------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| node addresses   | `ansible/nodes/<node>/host.sops.yml`                | `roles/tailscale` writes `node_mesh_ip` back into it after each tailnet join — recorded where it is discovered |
+| `tailnet_domain` | `ansible/inventory/group_vars/all/secrets.sops.yml` | `roles/tailscale` needs it on every node                                                                       |
+| `INT_DOMAIN`     | `infra/substitutions/app/int-domain.sops.yaml`      | Flux substitutes it into manifests                                                                             |
+
+`refs.env` holds only references, so it is committed in the clear even though every file it
+names is encrypted. All of them seal to the same operator key, so resolving one costs no extra
+card touch. A module without the file is unaffected.
+
+**A variable in both `refs.env` and `secrets.sops.env` is not a harmless duplicate.**
+`sops exec-env` runs _after_ the refs are exported, so the encrypted copy wins and the ref is
+silently dead. Keep each value in exactly one of the two.
+
+`infra/substitutions/app/edge-ips.sops.yaml` is the reverse direction and keeps its own copy: Flux
+decrypts it in-cluster, so it is sealed to the cluster age key as well, and `.sops.yaml`
+deliberately keeps that key away from everything under `ansible/` and `tofu/`.
 
 The pre-commit `tofu-validate` hook only runs `fmt` and `validate`, never `init` — a hook that
 touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run

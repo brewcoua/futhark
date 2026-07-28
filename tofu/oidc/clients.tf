@@ -1,6 +1,6 @@
-# INT_DOMAIN is SOPS-encrypted (infra/int-domain/app/int-domain.sops.yaml is Flux's copy), so
-# it comes in as a Tofu variable rather than being read from config/domain/domain.env — see
-# tofu/bunny/dns.tf/variables.tf for the same pattern.
+# INT_DOMAIN is SOPS-encrypted, so it comes in as a Tofu variable — extracted from
+# infra/substitutions/app/int-domain.sops.yaml via refs.env — rather than being read from
+# config/domain/domain.env like DOMAIN. See tofu/bunny/dns.tf/variables.tf for the same pattern.
 
 # One pocketid_client + infisical_secret pair per app — add a block per app as it adopts OIDC
 # login. Each app owns its own non-secret OIDC config (client ID, discovery URL, hostname) in

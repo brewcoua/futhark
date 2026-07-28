@@ -1,8 +1,8 @@
-# Declared in this module's node-refs.env and resolved out of ansible/nodes/kenaz/host.sops.yml
-# at plan/apply time — that file is the canonical record, and the same one the tailscale role
-# writes node_mesh_ip back into after a tailnet join. Not held in this module's
-# secrets.sops.env: a second encrypted copy of the same address drifts silently, and both paths
-# seal to the same operator key anyway (.sops.yaml, `(ansible|tofu)/.*\.sops\.(ya?ml|env)$`).
+# Declared in this module's refs.env and resolved out of ansible/nodes/kenaz/host.sops.yml at
+# plan/apply time — that file is the canonical record, and the same one the tailscale role writes
+# node_mesh_ip back into after a tailnet join. Not held in this module's secrets.sops.env: a
+# second encrypted copy of the same address drifts silently, and it would also *win*, since
+# `sops exec-env` runs after the refs are exported.
 variable "kenaz_public_ip" {
   description = "kenaz's public IP — same value substituted into $${PUBLIC_IP} in infra/traefik-edge/app/helmrelease.yaml."
   type        = string
@@ -12,11 +12,10 @@ variable "kenaz_public_ip" {
   }
 }
 
-# The tailnet's MagicDNS domain, target of the internal wildcard CNAME in dns.tf. Held in this
-# module's secrets.sops.env, not node-refs.env: that path resolves node addresses out of
-# ansible/nodes/<node>/host.sops.yml and this is neither a node nor an address. tofu/tailscale's
-# TAILSCALE_TAILNET is the same value — the one place in this repo a second encrypted copy is
-# unavoidable, so change both together.
+# The tailnet's MagicDNS domain, target of the internal wildcard CNAME in dns.tf. Declared in
+# refs.env and read from ansible/inventory/group_vars/all/secrets.sops.yml, which owns it because
+# roles/tailscale needs it on every node. tofu/tailscale's TAILSCALE_TAILNET reads the same key,
+# so there is one copy rather than three.
 variable "tailnet_domain" {
   description = "The tailnet's MagicDNS domain, e.g. example-tailnet.ts.net."
   type        = string
@@ -26,15 +25,14 @@ variable "tailnet_domain" {
   }
 }
 
-# Held in this module's secrets.sops.env, same reasoning as tailnet_domain: an apex domain
-# unrelated to any node, so node-refs.env's per-host indirection doesn't apply. Duplicates
-# infra/int-domain/app/int-domain.sops.yaml (the value Flux substitutes as ${INT_DOMAIN}) —
-# unavoidably, since Tofu and Flux decrypt through different keys/paths. Change both together.
+# Declared in refs.env and read from infra/substitutions/app/int-domain.sops.yaml, the Secret Flux
+# substitutes into manifests as ${INT_DOMAIN}. Flux owns it; tofu/oidc reads the same key. Tofu
+# and Flux decrypt through different key paths, but both reach this file, so one copy suffices.
 variable "int_domain" {
   description = "The internal wildcard's base domain, e.g. example.eu."
   type        = string
 }
 
 # kenaz_mesh_ip was declared here but referenced by no resource in this module — ${MESH_IP} in
-# infra/traefik-internal is substituted by Flux out of infra/edge-ips/app/edge-ips.sops.yaml,
+# infra/traefik-internal is substituted by Flux out of infra/substitutions/app/edge-ips.sops.yaml,
 # never by tofu. Removed rather than wired up; add it back only alongside a consumer.

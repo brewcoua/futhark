@@ -5,23 +5,32 @@ version: "3"
 vars:
   TOFU_DIR: "{{.ROOT_DIR}}/tofu"
 
-  # Resolves a module's node-refs.env, if it has one. Each line maps a tofu variable to a value
-  # in a node's SOPS file — `TF_VAR_kenaz_public_ip=kenaz:node_ip` reads the `node_ip` key from
-  # ansible/nodes/kenaz/host.sops.yml. The file holds only references, never values, so it is
-  # committed in the clear; a module opts in by creating one, and this Taskfile never needs to
-  # know which modules or which variables exist.
+  # Resolves a module's refs.env, if it has one. Each line maps an environment variable to a
+  # value living in someone else's SOPS file:
+  #
+  #   <variable>=<repo-relative path to a .sops file>#<sops --extract expression>
+  #
+  # This is how a value that two planes both need stays in one place. The plane that owns it
+  # keeps the only copy; tofu reads it at plan/apply time. `sops --extract` takes the expression
+  # verbatim, so the same line shape reaches a node fact, an Ansible group_var and a Flux Secret
+  # alike — no per-source special casing, and this Taskfile never needs to know which modules or
+  # which variables exist.
+  #
+  # The file holds only references, never values, so it is committed in the clear while every
+  # source it names is encrypted. A module opts in by creating one.
   #
   # `< "$f"` rather than a pipe on purpose: a pipeline would run the loop in a subshell and the
-  # exports would not survive it.
-  NODE_REFS: |
-    f=node-refs.env
+  # exports would not survive it. Reading the whole line and splitting by hand, rather than
+  # `IFS='='`, because an extract expression may itself contain `=`.
+  REFS: |
+    f=refs.env
     if [ -f "$f" ]; then
-      while IFS='=' read -r var ref; do
-        case "$var" in ''|\#*) continue ;; esac
-        host=${ref%%:*}; key=${ref##*:}
-        src="{{.ROOT_DIR}}/ansible/nodes/$host/host.sops.yml"
-        val=$(sops -d --extract "[\"$key\"]" "$src") || {
-          echo "node-refs.env: cannot read $key from $src" >&2; exit 1; }
+      while IFS= read -r line; do
+        case "$line" in ''|\#*) continue ;; esac
+        var=${line%%=*}; ref=${line#*=}
+        src=${ref%%#*}; key=${ref#*#}
+        val=$(sops -d --extract "$key" "{{.ROOT_DIR}}/$src") || {
+          echo "refs.env: cannot read $key from $src" >&2; exit 1; }
         export "$var=$val"
       done < "$f"
     fi
@@ -45,23 +54,22 @@ tasks:
   # URIs and ignores braced ones, which is the exact inverse of `inject`. Getting it backwards
   # fails by passing the literal string through to the provider, which reads as a bad credential.
   #
-  # A third source, for node addresses only: ansible/nodes/<host>/host.sops.yml is canonical
-  # (the tailscale role writes node_mesh_ip back into it after each join), so a module that
-  # needs one declares it in node-refs.env instead of keeping a second encrypted copy in its
-  # own secrets.sops.env. Two copies of an address drift silently; both paths seal to the same
-  # operator key, so this costs no extra card touch.
+  # A third source, for values another plane already owns: refs.env above. A module's own
+  # secrets.sops.env holds only what nothing else has — everything shared is read from its one
+  # canonical home instead, because two encrypted copies of a value drift silently and nothing
+  # catches it. All of them seal to the same operator key, so this costs no extra card touch.
   plan:
     desc: "Plan a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
     cmd: |
-      {{.NODE_REFS}}
+      {{.REFS}}
       sops exec-env secrets.sops.env 'pass-cli run -- tofu plan'
 
   apply:
     desc: "Apply a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
     cmd: |
-      {{.NODE_REFS}}
+      {{.REFS}}
       sops exec-env secrets.sops.env 'pass-cli run -- tofu apply'
 
   validate:

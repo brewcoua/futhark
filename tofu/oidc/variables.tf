@@ -9,9 +9,9 @@ variable "infisical_project_id" {
   }
 }
 
-# Duplicates infra/int-domain/app/int-domain.sops.yaml (the value Flux substitutes as
-# ${INT_DOMAIN}) and tofu/bunny's own copy — unavoidably, since each module decrypts through
-# its own secrets.sops.env. Change all three together.
+# Declared in refs.env and read from infra/substitutions/app/int-domain.sops.yaml, the Secret
+# Flux substitutes into manifests as ${INT_DOMAIN}. Flux owns it; tofu/bunny reads the same key.
+# One copy, not three.
 variable "int_domain" {
   description = "The internal wildcard's base domain, e.g. example.eu."
   type        = string

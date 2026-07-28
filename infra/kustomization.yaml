@@ -6,8 +6,7 @@ namespace: flux-system
 resources:
   - namespaces/ks.yaml
   - configs-ks.yaml
-  - edge-ips/ks.yaml
-  - int-domain/ks.yaml
+  - substitutions/ks.yaml
   - infisical-operator/ks.yaml
   - infisical-operator/config-ks.yaml
   - auth/ks.yaml

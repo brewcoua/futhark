@@ -161,16 +161,19 @@ with the references already written, so only the identifying half needs filling 
   and `tailnet_domain`.
 - `ansible/nodes/<hostname>/host.sops.yml` — that node's public address. Leave `node_mesh_ip`
   out: the node has not joined the tailnet yet, and `roles/tailscale` writes it in at step 7.
-- `infra/edge-ips/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put a
-  placeholder in `MESH_IP` for now**; the node has not joined the tailnet yet. Step 7 fills it.
-- `tofu/tailscale/secrets.sops.env` — the tailnet name.
-- `tofu/bunny/secrets.sops.env` — no identifying values at all. The edge node's public address
-  is declared in `tofu/bunny/node-refs.env` and read from
-  `ansible/nodes/<hostname>/host.sops.yml` at plan/apply time, rather than kept as a second
-  encrypted copy here, so the template's `pass://` line is the whole file.
+- `infra/substitutions/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put
+  a placeholder in `MESH_IP` for now**; the node has not joined the tailnet yet. Step 7 fills it.
+- `infra/substitutions/app/int-domain.sops.yaml` — the internal base domain. `tofu/bunny` and
+  `tofu/oidc` both read it from here, so this is its only copy.
+- `tofu/tailscale/secrets.sops.env` — its OAuth client only.
+- `tofu/bunny/secrets.sops.env` — its API key only.
 - `tofu/oidc/secrets.sops.env` — the Pocket ID base URL and the Infisical project ID.
 
-Nothing builds until the two under `infra/` exist: both are referenced by a
+None of the three `tofu/` files carries a node address, a tailnet name or the internal domain:
+each module declares those in its `refs.env` and reads them from the plane that owns them, at
+plan/apply time. See [Values another plane owns](../tofu/index.md#values-another-plane-owns).
+
+Nothing builds until the two under `infra/substitutions/` exist: both are referenced by a
 `kustomization.yaml`, so `kustomize build` fails without them. That is deliberate — better a
 loud failure than a cluster reconciling with half its inputs missing.
 
@@ -203,12 +206,12 @@ Each host's mesh address is read back with `tailscale ip -4` and written into
 leaves those files modified. Commit them — `playbooks/k0s.yml` reads the value from there, and
 `tofu/bunny` gets the public address from the same file.
 
-`infra/edge-ips` is sealed to the cluster age key as well as yours, so it cannot share that
+The `edge-ips` Secret is sealed to the cluster age key as well as yours, so it cannot share that
 file and still needs filling by hand:
 
 ```bash
 ssh <edge host> tailscale ip -4
-sops infra/edge-ips/app/edge-ips.sops.yaml     # set MESH_IP
+sops infra/substitutions/app/edge-ips.sops.yaml     # set MESH_IP
 git commit -am 'fix(edge-ips): real mesh address' && git push
 ```
 

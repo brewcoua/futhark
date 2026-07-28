@@ -13,9 +13,13 @@ spec:
     # app/pvc-user-files.yaml uses storageClassName: storagebox-crypt — previously reached
     # only transitively via infra-configs.
     - name: storage
-    - name: int-domain
-  # INT_DOMAIN (ingress host, OIDC hostname) is committed SOPS-encrypted in infra/int-domain.
+    - name: substitutions
+  # INT_DOMAIN (ingress host, OIDC hostname) is committed SOPS-encrypted in infra/substitutions;
+  # DOMAIN (the edge domain, for Pocket ID's discovery URL) is published from the same place, out
+  # of config/domain/domain.env.
   postBuild:
     substituteFrom:
       - kind: Secret
         name: int-domain
+      - kind: ConfigMap
+        name: domain
