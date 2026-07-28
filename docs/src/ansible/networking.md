@@ -20,13 +20,15 @@ kube-router installs `from <node's pod /24> lookup 77` and puts the peer's mesh 
 77 pointing at its tunnel. That outranks Tailscale's own pref 5270 (`lookup 52`), so the
 packet is routed into the very tunnel whose transport endpoint **is** that address.
 
-The fix is one `ip rule` per peer at priority 10, matching only that peer's `/32` — never the
+The fix is one `ip rule` per peer at priority 5, matching only that peer's `/32` — never the
 pod CIDR, so pod-to-pod overlay routing is untouched.
 
-The priority is load-bearing. kube-router currently installs its rule at pref 99; an earlier
-release used 5209. Anything numerically above kube-router's is silently shadowed, and the
-whole script becomes a no-op with no error anywhere. Check `ip rule` on the node rather than
-assuming, and re-check after a kube-router bump.
+The priority is load-bearing. kube-router's own rule priority has moved before: 5209, then 99,
+then priority 9 as of kube-router v2.10.0 (k0s v1.36.3) — which silently shadowed this fix at
+its old priority 10 and broke every mesh-peer-initiated connection into a pod (backends behind
+traefik-edge, since it's hostNetwork and reaches them as the node's own mesh IP), surfacing as
+502 Bad Gateway with no error anywhere else in the stack. Check `ip rule` on the node rather
+than assuming, and re-check after a kube-router bump.
 
 ## 2. Source address
 

@@ -11,11 +11,12 @@
 # play — so drain every copy first. Draining without matching on priority also clears rules
 # left at a priority this script used previously.
 #
-# Priority 10 is load-bearing: kube-router installs its own rule at pref 99 (5209 in an earlier
-# release), and anything numerically above it is silently shadowed, making this a no-op with no
-# error. Check `ip rule` on the node after a kube-router bump rather than assuming.
+# The priority is load-bearing: kube-router installs its own `from <pod /24> lookup 77` rule,
+# and anything numerically above it is silently shadowed, making this a no-op with no error.
+# It's been 99, then 5209, and is priority 9 as of kube-router v2.10.0 (k0s v1.36.3) — check
+# `ip rule` on the node after a kube-router bump rather than assuming a fixed gap holds.
 while ip rule del to {{ ip }}/32 lookup 52 2>/dev/null; do :; done
-ip rule add to {{ ip }}/32 lookup 52 priority 10
+ip rule add to {{ ip }}/32 lookup 52 priority 5
 
 iptables -t nat -C POSTROUTING -s {{ k0s_pod_cidr }} -d {{ ip }}/32 -o tailscale0 -j MASQUERADE 2>/dev/null \
   || iptables -t nat -A POSTROUTING -s {{ k0s_pod_cidr }} -d {{ ip }}/32 -o tailscale0 -j MASQUERADE

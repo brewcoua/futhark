@@ -1,9 +1,6 @@
-# Same source of truth as config/domain/domain.env, read straight from that file
-# so nothing drifts — see tofu/bunny/dns.tf for the same pattern.
-locals {
-  domain_env_file = file("${path.module}/../../config/domain/domain.env")
-  int_domain      = regex("(?m)^INT_DOMAIN=(.*)$", local.domain_env_file)[0]
-}
+# INT_DOMAIN is SOPS-encrypted (infra/int-domain/app/int-domain.sops.yaml is Flux's copy), so
+# it comes in as a Tofu variable rather than being read from config/domain/domain.env — see
+# tofu/bunny/dns.tf/variables.tf for the same pattern.
 
 # One pocketid_client + infisical_secret pair per app — add a block per app as it adopts OIDC
 # login. Each app owns its own non-secret OIDC config (client ID, discovery URL, hostname) in
@@ -14,7 +11,7 @@ locals {
 # Pocket ID's token endpoint server-side, never exposed to the browser.
 resource "pocketid_client" "actual" {
   name          = "Actual Budget"
-  callback_urls = ["https://actual.${local.int_domain}/openid/callback"]
+  callback_urls = ["https://actual.${var.int_domain}/openid/callback"]
   is_public     = false
   pkce_enabled  = true
 }

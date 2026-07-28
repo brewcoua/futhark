@@ -89,7 +89,7 @@ spec:
         traefik.ingress.kubernetes.io/router.tls: "true"
         traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
       hosts:
-        - host: headlamp.INT_DOMAIN
+        - host: headlamp.${INT_DOMAIN}
           paths:
             - path: /
               type: Prefix

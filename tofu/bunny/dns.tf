@@ -1,19 +1,21 @@
-# Same source of truth as config/domain/domain.env (Kustomize's DOMAIN/INT_DOMAIN,
-# used across Flux-managed apps) and ansible's `domain`/`int_domain` vars — read straight from
-# that file so nothing drifts.
+# DOMAIN is Kustomize's source of truth too (config/domain/domain.env) — read straight from
+# that file so it never drifts. INT_DOMAIN isn't in that file: it's SOPS-encrypted (see
+# var.int_domain), so it comes in as a Tofu variable instead.
 locals {
   domain_env_file = file("${path.module}/../../config/domain/domain.env")
   domain          = regex("(?m)^DOMAIN=(.*)$", local.domain_env_file)[0]
-  int_domain      = regex("(?m)^INT_DOMAIN=(.*)$", local.domain_env_file)[0]
-  # e.g. INT_DOMAIN "local.brewen.dev" against DOMAIN "brewen.dev" -> "local", the record name
-  # prefix relative to the zone.
-  int_domain_prefix = trimsuffix(local.int_domain, ".${local.domain}")
 }
 
-# Looked up, not created: the zone already exists (it's what cert-manager's DNS-01 webhook
-# already points at for infra/cert-manager) — creating a bunnynet_dns_zone here would duplicate it.
+# Looked up, not created: both zones already exist (the same DNS-01 webhook in
+# infra/cert-manager solves challenges on either) — creating a bunnynet_dns_zone here would
+# duplicate them. DOMAIN and INT_DOMAIN are unrelated apex domains, not the same zone, so each
+# gets its own lookup.
 data "bunnynet_dns_zone" "this" {
   domain = local.domain
+}
+
+data "bunnynet_dns_zone" "internal" {
+  domain = var.int_domain
 }
 
 # One record per edge-exposed hostname — add one bunnynet_dns_record block per additional edge
@@ -41,9 +43,12 @@ resource "bunnynet_dns_record" "auth" {
 # assigned by the operator and recorded nowhere in this repo, so an A record would drift exactly
 # the way edge-ips' MESH_IP did. Only tailnet resolvers answer a *.ts.net name — off-tailnet
 # this record dead-ends, which is the point of the internal domain.
+#
+# Name is the bare wildcard "*": INT_DOMAIN is its own zone apex (not a subdomain of DOMAIN),
+# so there's no prefix to compute.
 resource "bunnynet_dns_record" "internal_wildcard" {
-  zone  = data.bunnynet_dns_zone.this.id
-  name  = "*.${local.int_domain_prefix}"
+  zone  = data.bunnynet_dns_zone.internal.id
+  name  = "*"
   type  = "CNAME"
   value = "internal.${var.tailnet_domain}"
   ttl   = 300

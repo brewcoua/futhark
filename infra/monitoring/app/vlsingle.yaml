@@ -47,7 +47,7 @@ spec:
           traefik.ingress.kubernetes.io/router.tls: "true"
           traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
         hosts:
-          - name: logs.INT_DOMAIN
+          - name: logs.${INT_DOMAIN}
             path:
               - /
             port: http

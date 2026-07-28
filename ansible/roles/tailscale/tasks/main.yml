@@ -128,6 +128,15 @@
 
 # The CNI bridge is in no zone, so it would land in the default "public" zone, which is
 # limited to the hardened SSH port and 80/443. Trust the cluster's own dataplane explicitly.
+#
+# Cross-node pod traffic doesn't actually cross on tailscale0: kube-router builds its own
+# per-peer IPIP tunnel (tun-<hash>, a new interface name every rejoin) and routes pod-bound
+# packets out through that instead. A hostNetwork pod's traffic — e.g. traefik-edge dialing a
+# backend pod on the other node — carries the node's own mesh IP as source, which matches
+# neither an interface rule (the tunnel's name is unpredictable) nor the pod/service CIDR
+# sources above, so it falls through to the default zone and gets rejected: the exact shape of
+# the "Bad Gateway" traefik-edge hit reaching pocketid on ogma. Trusting the whole tailnet CIDR
+# by source, rather than by interface, covers it regardless of which tunnel name comes and goes.
 - name: Trust the CNI bridge and cluster CIDRs in firewalld
   ansible.posix.firewalld:
     zone: trusted
@@ -140,8 +149,41 @@
     - interface: kube-bridge
     - source: "{{ k0s_pod_cidr }}"
     - source: "{{ k0s_service_cidr }}"
+    - source: "100.64.0.0/10"
   loop_control:
     label: "{{ item.interface | default(item.source) }}"
+  when: node.os == 'fedora'
+
+# kube-router's per-peer IPIP tunnel (tun-<hash>) is a fresh interface every rejoin, so it
+# starts life with whatever net.ipv4.conf.default.rp_filter says — loose (2) on stock Fedora.
+# A mesh-peer-sourced packet arriving on it for a local pod (e.g. traefik-edge, hostNetwork,
+# dialing a backend on the other node) should pass loose mode: a route to the source exists
+# via tailscale0. It doesn't — confirmed via TcpExtIPReversePathFilter incrementing on every
+# such packet — and the packet is dropped before it ever reaches kube-bridge, no log, no
+# REJECT, just a timeout.
+- name: Disable reverse-path filtering by default, for interfaces kube-router creates from here on
+  ansible.posix.sysctl:
+    name: net.ipv4.conf.default.rp_filter
+    value: "0"
+    sysctl_set: true
+    state: present
+    reload: true
+  when: node.os == 'fedora'
+
+# conf.default is only a template for interfaces created *after* it's set — the tunnel(s)
+# already up keep whatever rp_filter they started with until kube-router recreates them (next
+# reboot or service restart). Fix the live ones now too, by name pattern rather than a value
+# read at play start, so this still works if a peer reconnected mid-run and got a new tunnel.
+- name: Also disable it on whichever kube-router tunnels already exist right now
+  ansible.builtin.shell:
+    cmd: |
+      set -e
+      for f in /proc/sys/net/ipv4/conf/tun-*/rp_filter; do
+        echo 0 > "$f"
+      done
+  register: tailscale_rp_filter_live_tunnels
+  changed_when: tailscale_rp_filter_live_tunnels.rc == 0
+  failed_when: false
   when: node.os == 'fedora'
 
 # A pod dialing a mesh peer's own address is broken twice over — routing and source address —

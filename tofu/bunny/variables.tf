@@ -26,6 +26,15 @@ variable "tailnet_domain" {
   }
 }
 
+# Held in this module's secrets.sops.env, same reasoning as tailnet_domain: an apex domain
+# unrelated to any node, so node-refs.env's per-host indirection doesn't apply. Duplicates
+# infra/int-domain/app/int-domain.sops.yaml (the value Flux substitutes as ${INT_DOMAIN}) —
+# unavoidably, since Tofu and Flux decrypt through different keys/paths. Change both together.
+variable "int_domain" {
+  description = "The internal wildcard's base domain, e.g. example.eu."
+  type        = string
+}
+
 # kenaz_mesh_ip was declared here but referenced by no resource in this module — ${MESH_IP} in
 # infra/traefik-internal is substituted by Flux out of infra/edge-ips/app/edge-ips.sops.yaml,
 # never by tofu. Removed rather than wired up; add it back only alongside a consumer.

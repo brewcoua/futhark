@@ -305,5 +305,5 @@ spec:
         traefik.ingress.kubernetes.io/router.tls: "true"
         traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
       hosts:
-        - dash.INT_DOMAIN
+        - dash.${INT_DOMAIN}
       path: /

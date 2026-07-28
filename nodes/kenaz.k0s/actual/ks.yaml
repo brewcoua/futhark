@@ -13,3 +13,9 @@ spec:
     # app/pvc-user-files.yaml uses storageClassName: storagebox-crypt — previously reached
     # only transitively via infra-configs.
     - name: storage
+    - name: int-domain
+  # INT_DOMAIN (ingress host, OIDC hostname) is committed SOPS-encrypted in infra/int-domain.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: int-domain

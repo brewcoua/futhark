@@ -12,7 +12,7 @@ spec:
   issuerRef:
     name: letsencrypt-bunny
     kind: ClusterIssuer
-  commonName: "*.INT_DOMAIN"
+  commonName: "*.${INT_DOMAIN}"
   dnsNames:
-    - "*.INT_DOMAIN"
-    - "INT_DOMAIN"
+    - "*.${INT_DOMAIN}"
+    - "${INT_DOMAIN}"

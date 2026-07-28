@@ -13,7 +13,7 @@ metadata:
 spec:
   ingressClassName: internal
   rules:
-    - host: actual.INT_DOMAIN
+    - host: actual.${INT_DOMAIN}
       http:
         paths:
           - path: /
