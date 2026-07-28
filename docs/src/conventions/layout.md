@@ -37,6 +37,22 @@ and `spec.dependsOn`.
 `flux/cluster.yaml`'s `sync.path: flux` — and adding a real one would pull `cluster.yaml`
 itself into reconciliation.
 
+## Version pins
+
+Two rules, one per kind of artifact.
+
+- **Container images pin an exact tag.** A floating tag is not a version: the same manifest
+  becomes a different binary, and Flux never reconciles, because nothing it watches changed.
+- **Helm charts pin `MAJOR.MINOR.*`.** Patch is chart packaging, so it floats and a template fix
+  lands without a commit. Minor and major carry values-schema changes and stay pinned.
+
+The two meet where a chart's image tag defaults to `.Chart.AppVersion` — `csi-driver-rclone` is
+the case here. A chart patch then moves the app as well, and the exact-image rule has no way to
+reach it. That gap is accepted rather than closed: overriding `image.tag` in `values` only
+trades it for a tag that drifts from the chart shipping it. Each pin instead carries a comment
+recording the chart-to-app mapping, so what a bump changes is readable without opening the
+chart.
+
 ## Adding a node app
 
 1. Create `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}`. The `ks.yaml` needs

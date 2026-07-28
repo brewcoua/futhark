@@ -18,7 +18,7 @@ spec:
   chart:
     spec:
       chart: victoria-metrics-single
-      version: "0.13.*" # chart 0.13.x -> VictoriaMetrics v1.106.x; pin a patch for reproducibility
+      version: "0.13.*" # chart 0.13.x -> VictoriaMetrics v1.106.x
       sourceRef:
         kind: HelmRepository
         name: victoria-metrics

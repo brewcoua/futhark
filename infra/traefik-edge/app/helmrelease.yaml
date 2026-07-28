@@ -32,7 +32,7 @@ spec:
   chart:
     spec:
       chart: traefik
-      version: "41.*" # Traefik v3.7.x; pin a patch for reproducibility
+      version: "41.0.*" # chart 41.0.x -> Traefik v3.7.x
       sourceRef:
         kind: HelmRepository
         name: traefik

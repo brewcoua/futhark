@@ -17,7 +17,7 @@ spec:
   chart:
     spec:
       chart: prometheus-node-exporter
-      version: "4.45.*" # chart 4.45.x -> node_exporter v1.9.x; pin a patch for reproducibility
+      version: "4.45.*" # chart 4.45.x -> node_exporter v1.9.x
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
@@ -51,7 +51,7 @@ spec:
   chart:
     spec:
       chart: kube-state-metrics
-      version: "5.27.*" # chart 5.27.x -> kube-state-metrics v2.14.x; pin a patch for reproducibility
+      version: "5.27.*" # chart 5.27.x -> kube-state-metrics v2.14.x
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
