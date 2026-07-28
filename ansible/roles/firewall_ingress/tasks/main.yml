@@ -17,3 +17,17 @@
     immediate: true
     state: disabled
   when: node.os == 'fedora'
+
+# traefik-edge runs hostNetwork + non-root, so it binds 443 in this host's own network
+# namespace. This node's containerd (2.3.3) never populates the inheritable/ambient capability
+# sets, so a granted NET_BIND_SERVICE capability gets wiped the moment the container drops to
+# non-root — see containerd/containerd#5644. Lowering the host's unprivileged port floor below
+# 443 sidesteps that entirely: no capability needed to bind it. Host-level because hostNetwork
+# pods share the host's netns, so the per-pod securityContext.sysctls form doesn't apply here.
+- name: Allow unprivileged binds down to 443 (works around containerd not setting ambient caps)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_unprivileged_port_start
+    value: "443"
+    sysctl_set: true
+    state: present
+    reload: true
