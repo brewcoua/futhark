@@ -84,5 +84,6 @@ defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-iso
    sibling `kustomization.yaml`.
 3. Add `infra/infisical-operator/config/nodes/<hostname>.yaml` for the tier's
    `InfisicalConnection` + `InfisicalAuth`, and list it in that `kustomization.yaml`.
-4. Add the new namespace to `flux_bootstrap_infisical_namespaces` in
-   `ansible/roles/flux_bootstrap/defaults/main.yml`, so the credential gets seeded there.
+4. Set `app_tier: true` in `ansible/nodes/<hostname>/host.yml`, so `flux_bootstrap` seeds the
+   credential into the new namespace. The list of tiers is derived from that flag rather than
+   written out, so there is nothing to keep in step with step 1.

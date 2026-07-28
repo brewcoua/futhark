@@ -6,6 +6,10 @@ node:
   k0s_role: controller+worker
   mesh: true
   public_ingress: true
+  # This node carries apps of its own, under nodes/kenaz.k0s/ in the Flux tree — so it gets an
+  # infisical-node-kenaz operator tier, which roles/flux_bootstrap seeds a credential into.
+  # ogma is a worker with no such tree and so sets nothing here.
+  app_tier: true
   # Identifying, so the literal lives encrypted in host.sops.yml beside this file. Kept as a
   # reference rather than moved out of `node:` so every hostvars[x].node.ip in the roles and
   # k0sctl template keeps working unchanged.

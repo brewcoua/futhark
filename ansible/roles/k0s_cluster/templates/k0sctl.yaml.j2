@@ -5,17 +5,19 @@ metadata:
   name: futhark
 spec:
   hosts:
-{% for host in groups['all'] %}
-{% if hostvars[host].node.workflow == 'k0s' %}
+{% for host in k0s_cluster_hosts %}
+{#    ansible_host, not a second copy of the mesh-name-or-public-IP expression:
+      group_vars/all/main.yml already resolves "how do we reach this node" once, and k0sctl
+      reaches it the same way Ansible does. #}
     - role: {{ hostvars[host].node.k0s_role }}
       ssh:
-        address: {{ hostvars[host].node.hostname + '.' + tailnet_domain if hostvars[host].node.mesh | default(false) else hostvars[host].node.ip }}
+        address: {{ hostvars[host].ansible_host }}
         user: {{ hostvars[host].admin.user }}
         port: {{ hostvars[host].ssh_port }}
-{#      privateInterface only feeds spec.api.address/etcd peerAddress below, not kubelet —
-        under --enable-cloud-provider=true kubelet won't self-assign InternalIP at all, so
-        --node-ip is passed explicitly (node.mesh_ip, recorded by the tailscale role at join).
-        It can't set ExternalIP at all (that's the k0s-cloud-provider annotation instead). #}
+{#    privateInterface only feeds spec.api.address/etcd peerAddress below, not kubelet —
+      under --enable-cloud-provider=true kubelet won't self-assign InternalIP at all, so
+      --node-ip is passed explicitly (node.mesh_ip, recorded by the tailscale role at join).
+      It can't set ExternalIP at all (that's the k0s-cloud-provider annotation instead). #}
       privateInterface: tailscale0
       installFlags:
 {% if hostvars[host].node.k0s_role == 'controller+worker' %}
@@ -24,7 +26,6 @@ spec:
 {% endif %}
         - --enable-cloud-provider=true
         - --kubelet-extra-args="--node-ip={{ hostvars[host].node.mesh_ip }}"
-{% endif %}
 {% endfor %}
 {#  k0s otherwise self-detects spec.api.address from the default-route interface, which on
     these hosts is the public IP — join tokens then carry that address, and workers can't
@@ -38,12 +39,12 @@ spec:
         api:
           address: {{ k0s_cluster_controller_mesh_ip }}
           sans:
-            - {{ k0s_cluster_controller_host }}.{{ tailnet_domain }}
+            - {{ hostvars[k0s_cluster_controller_host].ansible_host }}
             - {{ hostvars[k0s_cluster_controller_host].node.ip }}
 {#      These are k0s's own defaults, so pinning them changes nothing about the running
         cluster — but the tailscale role has to know the pod CIDR to scope its pod -> mesh
         SNAT rule, and a CIDR that only exists as an upstream default is a value that can
-        shift under us. Declared once in inventory/group_vars/all.yml. #}
+        shift under us. Declared once in inventory/group_vars/all/network.yml. #}
         network:
           provider: kuberouter
           podCIDR: {{ k0s_pod_cidr }}

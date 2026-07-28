@@ -1,11 +1,18 @@
 ---
 # Namespaces that need a copy of the Infisical universal-auth credential — one per operator
-# tier, matching the infisical-* entries in infra/namespaces/app/namespaces.yaml. Each tier's
-# operator has scoped RBAC in its own namespace only, so a shared copy in one place would be
-# unreadable by the others. Add a line here when adding a node tier.
-flux_bootstrap_infisical_namespaces:
-  - infisical-infra
-  - infisical-node-kenaz
+# tier. Each tier's operator has scoped RBAC in its own namespace only, so a shared copy in one
+# place would be unreadable by the others.
+#
+# Derived rather than listed, so this and infra/namespaces/app/namespaces.yaml can't drift: the
+# infra tier always exists, and a node tier exists for each host that carries apps — the
+# `node.app_tier: true` opt-in in ansible/nodes/<host>/host.yml, same shape as node.mesh and
+# node.public_ingress. Deliberately not "every k0s host": ogma is a worker with no
+# nodes/<host>.k0s/ tree, and seeding a credential into a namespace Flux never adopts would
+# leave it unmanaged and unpruned.
+flux_bootstrap_infisical_namespaces: >-
+  {{ ['infisical-infra'] + (groups['all'] | map('extract', hostvars) |
+  selectattr('node.app_tier', 'defined') | selectattr('node.app_tier') |
+  map(attribute='node.hostname') | map('regex_replace', '^', 'infisical-node-') | list) }}
 
 # Namespaces this role must create before Flux exists, because it writes Secrets into them.
 # Flux re-declares and takes ownership of all of these on its first reconcile; creating them

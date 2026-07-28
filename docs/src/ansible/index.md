@@ -17,22 +17,32 @@ schema and how to add one.
 `ansible/inventory/group_vars/all/` holds what is shared — `main.yml` in the clear,
 `secrets.sops.yml` encrypted:
 
-| Variable                                       | Notes                                                       |
-| ---------------------------------------------- | ----------------------------------------------------------- |
-| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted  |
-| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so encrypted    |
-| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to            |
-| `k0s_pod_cidr`, `k0s_service_cidr`             | k0s's own defaults, pinned here as a single source of truth |
-| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                               |
-| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed  |
+| Variable                                       | Notes                                                      |
+| ---------------------------------------------- | ---------------------------------------------------------- |
+| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted |
+| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so encrypted   |
+| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to           |
+| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                              |
+| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed |
 
-Three of those deserve explanation.
+`network.yml` beside it holds every constant more than one role has an opinion about:
 
-**The CIDRs are pinned rather than left implicit** because two things need to agree on them:
-`k0s_cluster` writes them into the k0s `ClusterConfig`, and the `tailscale` role needs the pod
-CIDR to scope its pod → mesh SNAT rule. `k0s_pod_cidr` is the cluster-wide `/16`; kube-router
-carves a `/24` out of it per node, and the SNAT rule must match the `/16` or a peer's pods are
-not covered. They are private RFC1918 ranges, not identifying, so they are plain literals.
+| Variable                                  | Notes                                                                                           |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `mesh_cidr`, `mesh_cidr_regex`            | Tailscale's CGNAT pool, as a CIDR and — for `assert`, which has no membership test — as a regex |
+| `mesh_node_tag`                           | The ACL tag every node advertises at join. `tofu/tailscale`'s policy grants against it          |
+| `mesh_route_table`, `mesh_route_priority` | The routing-rule slot `roles/tailscale`'s pod → mesh script claims                              |
+| `k0s_pod_cidr`, `k0s_service_cidr`        | k0s's own defaults, pinned as a single source of truth                                          |
+
+**These are collected rather than written at each use site** because they had drifted into
+different spellings of the same fact: the tailnet range was a literal in fail2ban's `ignoreip`,
+a literal again in `tailscale`'s firewalld loop, and a hand-expanded regex in `k0s_cluster`'s
+assert. A constant with three spellings is three constants. The CIDRs specifically need two
+consumers to agree: `k0s_cluster` writes them into the k0s `ClusterConfig`, and `tailscale`
+needs the pod CIDR to scope its pod → mesh SNAT rule — `k0s_pod_cidr` is the cluster-wide
+`/16`, kube-router carves a `/24` out of it per node, and the SNAT rule must match the `/16` or
+a peer's pods are not covered. All of these are private or RFC6598 ranges, not identifying, so
+they are plain literals.
 
 **`ansible_host` resolves through MagicDNS for mesh nodes** — `<hostname>.<tailnet_domain>` —
 and falls back to `node.ip` otherwise. There is no stored mesh IP anywhere in this repo:
@@ -60,6 +70,23 @@ play-scoped rather than host-scoped.
 runs when `node.mesh` is true, `firewall_ingress` only when `node.public_ingress` is. Nothing
 in any role branches on a hostname, so a future node opts into either by setting the flag.
 
+It also carries tags, so a single concern can be re-converged without running the whole thing:
+
+| Tag        | Roles                          |
+| ---------- | ------------------------------ |
+| `base`     | `fedora_common`                |
+| `access`   | `admin_user`, `ssh_harden`     |
+| `firewall` | `fail2ban`, `firewall_ingress` |
+| `mesh`     | `tailscale`                    |
+
+`admin_user` and `ssh_harden` share one tag on purpose: `ssh_harden` disables root and password
+login, so running it without `admin_user` locks the host out permanently. `ssh_identity` and the
+post-play `set_fact` are tagged `always`, because they decide which login and port every other
+task connects with — skipping them would have `--tags mesh` dial a fresh host as an admin user
+that does not exist yet.
+
+`k0s.yml` is tagged the same way: `k0s`, `storage`, `flux`.
+
 `k0s.yml` is fleet-wide, not per-host: one `k0sctl apply` converges every `workflow: k0s`
 node in inventory at once. It runs against `hosts: localhost` and reaches the cluster over the
 network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
@@ -72,14 +99,32 @@ network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
 | `fedora_common`          | Hostname, full system upgrade, base tooling                                                                            |
 | `admin_user`             | The key-only, passwordless-sudo admin account                                                                          |
 | `ssh_harden`             | Disables root and password login, moves sshd to `ssh_port`, via a `sshd_config.d/` drop-in                             |
+| `firewalld`              | Nothing but "the daemon is up and answering". A dependency of the four roles that write firewalld rules                |
 | `fail2ban`               | Bans brute force on `ssh_port`, and repeat offenders, through firewalld                                                |
 | `tailscale`              | Mesh join with a freshly minted single-use auth key, firewalld zoning, and the pod → mesh routing fix                  |
-| `firewall_ingress`       | Opens 80/443 in firewalld's public zone. Only on the `public_ingress` node                                             |
-| `k0s_cluster`            | Renders `k0sctl.yaml` from inventory, converges the cluster, fetches the kubeconfig                                    |
+| `firewall_ingress`       | Opens 443 in firewalld's public zone. Only on the `public_ingress` node                                                |
+| `k0s_cluster`            | Renders `k0sctl.yaml` from inventory, converges the cluster, writes the kubeconfig                                     |
 | `local_path_provisioner` | Installs the `local-path` StorageClass that monitoring, `auth` and `actual` bind PVCs against                          |
 | `flux_bootstrap`         | Flux Operator, the four seed Secrets, then `flux/cluster.yaml`                                                         |
 
-Three roles are worth knowing in more detail.
+Ordering between them is declared in each role's `meta/main.yml`, not left to the order of the
+playbook's role list. `ssh_harden` depends on `admin_user` for the lockout reason above, and the
+four firewall-writing roles depend on `firewalld`. That last one used to be two tasks inside
+`ssh_harden`, which made "tailscale needs a running firewalld" an ordering fact you could only
+learn by reading `setup.yml` top to bottom. Ansible runs a role once per play regardless of how
+many times it is reached, so the dependencies cost nothing at runtime — though `--list-tasks`
+prints the pre-deduplication list and will show them repeated.
+
+Four roles are worth knowing in more detail.
+
+### `fedora_common`
+
+`dnf upgrade` on `"*"`, then a reboot if `needs-restarting -r` asks for one. Both are gated:
+`fedora_common_upgrade` and `fedora_common_reboot`, defaulting true. Without them, asking for an
+unrelated change on a node carrying live workloads — re-converging the mesh, say — would upgrade
+and reboot it as a side effect. `-e fedora_common_upgrade=false` converges hostname and base
+tooling only; `-e fedora_common_reboot=false` upgrades now and reboots in a window, and the run
+still reports whether one is pending.
 
 ### `fail2ban`
 
@@ -125,7 +170,7 @@ own workstation to be on the tailnet. The write is guarded by a compare, because
 re-encryption changes the ciphertext even when the plaintext has not.
 
 The role then asserts every recorded address is non-empty and inside Tailscale's CGNAT range
-`100.64.0.0/10`. That assertion is not paranoia: a node deleted and re-registered picks up a
+(`mesh_cidr`). That assertion is not paranoia: a node deleted and re-registered picks up a
 different address, and a stale value would otherwise be baked silently into `spec.api.address`
 and every kubelet's `--node-ip`.
 
@@ -136,6 +181,14 @@ public IP is never committed in the clear.
 
 This decision is also what makes cross-node pod networking non-trivial. See
 [Pod to mesh networking](networking.md).
+
+Two idempotency notes. `k0sctl apply` writes the kubeconfig itself, via `--kubeconfig-out`, so
+there is no second `k0sctl kubeconfig` invocation whose `--config` could drift from the first
+one's. And k0sctl has no "nothing to do" signal — it walks its whole phase list every run and
+exits 0 either way — so the task matches the lines k0sctl prints only when it actually mutates a
+host. Re-check those markers after a k0sctl bump: one that quietly stops matching turns the task
+into "never changed". `kubectl annotate` needs no such guess, since `--overwrite` reports
+`not annotated` when the value was already right.
 
 ## How secrets reach a play
 

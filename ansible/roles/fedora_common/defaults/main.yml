@@ -1,0 +1,12 @@
+---
+# Whether to run a full `dnf upgrade` and reboot into it. Default true, because that is what a
+# fresh node wants. Set false — `-e fedora_common_upgrade=false` — to re-converge hostname and
+# base tooling on a node that is already carrying live workloads, which is the case setup.yml
+# used to have no answer for: it upgraded "*" and rebooted on whatever `needs-restarting -r`
+# said, as a side effect of asking for an unrelated change.
+fedora_common_upgrade: true
+
+# Whether a required reboot is actually taken. Separate from the above so an operator can
+# upgrade now and reboot in a maintenance window; the check itself always runs, so the run
+# still reports whether one is pending.
+fedora_common_reboot: true

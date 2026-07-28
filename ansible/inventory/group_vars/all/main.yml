@@ -4,14 +4,9 @@
 # `admin` and `tailnet_domain` are identifying rather than secret, so they live encrypted in
 # secrets.sops.yml beside this file — see docs/src/conventions/secrets.md.
 
-ssh_port: 2222
+# Mesh, pod and service CIDRs and the tailnet ACL tag live in network.yml beside this file.
 
-# k0s's own defaults, pinned here as a single source of truth — see
-# docs/src/ansible/index.md. pod_cidr is the cluster-wide /16; kube-router carves a /24 out
-# of it per node, and the tailscale role's SNAT rule must match the /16 or a peer's pods
-# aren't covered.
-k0s_pod_cidr: 10.244.0.0/16
-k0s_service_cidr: 10.96.0.0/12
+ssh_port: 2222
 
 # Guarded on `node is defined` because k0s_cluster/flux_bootstrap run against
 # hosts: localhost (implicit, not in inventory, no `node` var). setup.yml overrides these

@@ -8,7 +8,7 @@
     name: "*"
     state: latest
     update_cache: true
-  register: fedora_common_upgrade
+  when: fedora_common_upgrade
 
 - name: Install dnf-utils (needs-restarting)
   ansible.builtin.dnf:
@@ -21,9 +21,13 @@
   changed_when: false
   failed_when: fedora_common_reboot_required.rc not in [0, 1]
 
+# Two conditions, not one: that a reboot is *needed* is the host's answer, that it is *taken*
+# now is the operator's. See defaults/main.yml.
 - name: Reboot if the upgrade needs it
   ansible.builtin.reboot:
-  when: fedora_common_reboot_required.rc == 1
+  when:
+    - fedora_common_reboot
+    - fedora_common_reboot_required.rc == 1
 
 - name: Install base tooling
   ansible.builtin.dnf:

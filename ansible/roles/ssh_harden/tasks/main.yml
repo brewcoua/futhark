@@ -8,25 +8,6 @@
     state: present
   when: node.os == 'fedora'
 
-- name: Ensure firewalld is running
-  ansible.builtin.systemd:
-    name: firewalld
-    state: started
-    enabled: true
-  when: node.os == 'fedora'
-
-# systemd reports firewalld started before the daemon finishes loading its config, so
-# `immediate: true` here can race it ("firewall is not currently running"). --state is
-# the daemon's own readiness check.
-- name: Wait for firewalld to accept commands
-  ansible.builtin.command: firewall-cmd --state
-  register: ssh_harden_firewalld_state
-  until: ssh_harden_firewalld_state.rc == 0
-  retries: 10
-  delay: 2
-  changed_when: false
-  when: node.os == 'fedora'
-
 - name: Open the hardened SSH port in firewalld
   ansible.posix.firewalld:
     port: "{{ ssh_port }}/tcp"

@@ -1,0 +1,14 @@
+---
+# The one ordering constraint in this tree that is destructive to get wrong: this role disables
+# root and password login and moves sshd to ssh_port, so if it runs before admin_user has
+# installed the admin key the host is unreachable for good. Declared here rather than left to
+# the order of playbooks/setup.yml's role list, so `--tags` can't split the pair. In a full
+# setup.yml run admin_user has already run by this point and Ansible's role dedupe skips it.
+#
+# firewalld first is not a lockout risk, though it looks like one: Fedora's default public zone
+# already permits the ssh service on 22, and firewalld accepts RELATED,ESTABLISHED, so the live
+# session survives even if the daemon was stopped when we arrived. This role then opens
+# ssh_port *before* installing the sshd drop-in that moves sshd off 22.
+dependencies:
+  - role: firewalld
+  - role: admin_user

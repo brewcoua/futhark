@@ -1,0 +1,7 @@
+---
+# The ban action is Fedora's packaged jail.d/00-firewalld.conf, so the jails are inert without
+# a running firewalld. ssh_harden is *not* a dependency despite the sshd jail needing sshd on
+# the hardened port: a jail pointed at a port nothing listens on is harmless, and making it a
+# dependency would drag the whole SSH rewrite into `--tags firewall`.
+dependencies:
+  - role: firewalld

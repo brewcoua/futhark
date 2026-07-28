@@ -7,14 +7,23 @@
     state: directory
     mode: "0700"
 
+# "the k0s hosts" was previously re-derived at each of five use sites — three `when:` guards
+# here plus a `{% if %}` in the template — so a change to what counts as a k0s host had five
+# places to miss. Derived once; everything below loops over this.
+- name: Select the k0s hosts from inventory
+  ansible.builtin.set_fact:
+    k0s_cluster_hosts: >-
+      {{ groups['all'] | map('extract', hostvars) |
+      selectattr('node.workflow', 'equalto', 'k0s') |
+      map(attribute='inventory_hostname') | list }}
+
 # Used by the template to identify which host is the k0s controller.
 - name: Determine the k0s controller host
   ansible.builtin.set_fact:
     k0s_cluster_controller_host: >-
-      {{ groups['all'] | map('extract', hostvars) |
-      selectattr('node.workflow', 'equalto', 'k0s') |
+      {{ k0s_cluster_hosts | map('extract', hostvars) |
       selectattr('node.k0s_role', 'search', 'controller') |
-      map(attribute='node.hostname') | first }}
+      map(attribute='inventory_hostname') | first }}
 
 # Mesh IPs come from each node's own `tailscale ip -4`, recorded into
 # ansible/nodes/<host>/host.sops.yml by the tailscale role at join time and surfaced here as
@@ -22,16 +31,27 @@
 # than resolved per-run: this play is `hosts: localhost` in a separate run from setup.yml, so
 # a MagicDNS lookup here would require the operator's own workstation to be on the tailnet and
 # would lag a node's join by seconds. See docs/src/ansible/index.md#k0s_cluster.
-- name: Assert every k0s host has a recorded mesh IP
+#
+# The range check catches a recorded address that is no longer a tailnet address (node deleted
+# and re-registered into a different pool, value hand-edited) before it gets baked silently
+# into spec.api.address and every kubelet's --node-ip. privateInterface only feeds
+# spec.api.address/etcd peerAddress, never kubelet: under --cloud-provider=external kubelet
+# won't self-assign InternalIP without an explicit --node-ip, so every k0s host's own mesh IP
+# is checked, not just the controller's.
+- name: Assert every k0s host has a recorded mesh IP inside the tailnet
   ansible.builtin.assert:
-    that: hostvars[item].node.mesh_ip | default('') | length > 0
+    that:
+      - hostvars[item].node.mesh_ip | default('') | length > 0
+      - hostvars[item].node.mesh_ip is regex(mesh_cidr_regex)
     fail_msg: >-
-      {{ item }} has no node.mesh_ip recorded — run playbooks/setup.yml against it first, which
-      joins the tailnet and writes the address into ansible/nodes/{{ item }}/host.sops.yml.
-  loop: "{{ groups['all'] }}"
+      {{ item }} has node.mesh_ip
+      '{{ hostvars[item].node.mesh_ip | default('') }}', which isn't an address in the tailnet's
+      {{ mesh_cidr }} pool — run playbooks/setup.yml against it first, which joins the tailnet
+      and writes the address into ansible/nodes/{{ item }}/host.sops.yml, or check that file
+      for a stale value.
+  loop: "{{ k0s_cluster_hosts }}"
   loop_control:
     label: "{{ item }}"
-  when: hostvars[item].node.workflow == 'k0s'
 
 # k0s would otherwise self-detect spec.api.address from the default-route interface — the
 # public IP — and join tokens would carry an address workers can't reach.
@@ -39,52 +59,35 @@
   ansible.builtin.set_fact:
     k0s_cluster_controller_mesh_ip: "{{ hostvars[k0s_cluster_controller_host].node.mesh_ip }}"
 
-# A recorded address that is no longer a tailnet address (node deleted and re-registered into
-# a different pool, value hand-edited) would otherwise get baked silently into
-# spec.api.address and every kubelet's --node-ip. Tailscale's CGNAT pool is 100.64.0.0/10 —
-# second octet 64-127. privateInterface only feeds spec.api.address/etcd peerAddress, never
-# kubelet: under --cloud-provider=external kubelet won't self-assign InternalIP without an
-# explicit --node-ip, so every k0s host's own mesh IP is checked here, not just the
-# controller's.
-- name: Assert every recorded mesh IP is inside the tailnet's CGNAT range
-  ansible.builtin.assert:
-    that: >-
-      hostvars[item].node.mesh_ip is
-      regex('^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.')
-    fail_msg: >-
-      {{ item }} has node.mesh_ip {{ hostvars[item].node.mesh_ip }}, which isn't a
-      100.64.0.0/10 tailnet address — stale value in ansible/nodes/{{ item }}/host.sops.yml?
-  loop: "{{ groups['all'] }}"
-  loop_control:
-    label: "{{ item }}"
-  when: hostvars[item].node.workflow == 'k0s'
-
 - name: Render k0sctl.yaml from inventory
   ansible.builtin.template:
     src: k0sctl.yaml.j2
     dest: "{{ generated_dir }}/k0sctl.yaml"
     mode: "0600"
 
+# --kubeconfig-out writes the admin kubeconfig as part of the same apply, so there is no second
+# `k0sctl kubeconfig` invocation whose --config could drift from this one's.
 - name: Converge the k0s cluster
   ansible.builtin.command:
-    cmd: "k0sctl apply --config {{ generated_dir }}/k0sctl.yaml"
-  changed_when: true
-
-- name: Fetch the cluster kubeconfig
-  ansible.builtin.command:
-    cmd: "k0sctl kubeconfig --config {{ generated_dir }}/k0sctl.yaml"
-  register: k0s_cluster_kubeconfig_fetch
-  changed_when: true
+    cmd: >-
+      k0sctl apply --config {{ generated_dir }}/k0sctl.yaml
+      --kubeconfig-out {{ generated_dir }}/kubeconfig
+  register: k0s_cluster_apply
   no_log: true
+  # k0sctl has no "nothing to do" signal: it walks its whole phase list every run and exits 0
+  # either way, which is why this task used to be `changed_when: true` and reported changed on
+  # a fully-converged fleet. These are the lines it prints only when it actually mutates a
+  # host. Re-check them against real output after a k0sctl bump — a marker that quietly stops
+  # matching turns this into "never changed", which is the failure mode to watch for.
+  changed_when: >-
+    k0s_cluster_apply.stdout is search('is now installed|Upgrading|Reinstalling|restart the k0s service')
 
-# Written explicitly at 0600 rather than via a shell redirect (which inherits umask) — this
-# holds the cluster-admin client key.
-- name: Write the kubeconfig
-  ansible.builtin.copy:
-    content: "{{ k0s_cluster_kubeconfig_fetch.stdout }}"
-    dest: "{{ generated_dir }}/kubeconfig"
+# k0sctl's output file mode is not part of its contract, and this holds the cluster-admin
+# client key.
+- name: Restrict the kubeconfig to the operator
+  ansible.builtin.file:
+    path: "{{ generated_dir }}/kubeconfig"
     mode: "0600"
-  no_log: true
 
 # kubelet can only ever register --node-ip as InternalIP, so the public IP arrives via this
 # annotation, which the k0s cloud provider reads. node.ip comes from the SOPS-encrypted
@@ -96,6 +99,10 @@
       k0sproject.io/node-ip-external={{ hostvars[item].node.ip }} --overwrite
   environment:
     KUBECONFIG: "{{ generated_dir }}/kubeconfig"
-  loop: "{{ groups['all'] }}"
-  when: hostvars[item].node.workflow == 'k0s'
-  changed_when: true
+  loop: "{{ k0s_cluster_hosts }}"
+  loop_control:
+    label: "{{ item }}"
+  register: k0s_cluster_annotate
+  # kubectl prints "node/x annotated" when the value moved and "node/x not annotated" when
+  # --overwrite found it already correct. Its own idempotency report, so use it.
+  changed_when: "'not annotated' not in k0s_cluster_annotate.stdout"

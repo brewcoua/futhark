@@ -24,14 +24,15 @@ node:
   initial_port: 22
 ```
 
-| Field                           | Meaning                                                                                                                              |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `workflow`                      | `k0s` or `none`. Branches later setup steps; `k0s` nodes are the ones `k0sctl.yaml` is rendered from                                 |
-| `k0s_role`                      | `controller+worker`, `controller` or `worker`. Only with `workflow: k0s`                                                             |
-| `mesh`                          | Optional, default false. Joins the Tailscale mesh                                                                                    |
-| `public_ingress`                | Optional, default false. Opens 80/443 in firewalld and marks this host as the one `infra/substitutions`' `edge-ips` Secret describes |
-| `ip`                            | The node's public address. Also becomes its Kubernetes `ExternalIP`, via the k0s cloud provider's `node-ip-external` annotation      |
-| `initial_user` / `initial_port` | First-contact login, the provider default, before the admin account exists                                                           |
+| Field                           | Meaning                                                                                                                           |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `workflow`                      | `k0s` or `none`. Branches later setup steps; `k0s` nodes are the ones `k0sctl.yaml` is rendered from                              |
+| `k0s_role`                      | `controller+worker`, `controller` or `worker`. Only with `workflow: k0s`                                                          |
+| `mesh`                          | Optional, default false. Joins the Tailscale mesh                                                                                 |
+| `public_ingress`                | Optional, default false. Opens 443 in firewalld and marks this host as the one `infra/substitutions`' `edge-ips` Secret describes |
+| `app_tier`                      | Optional, default false. This host carries apps under `nodes/<hostname>.k0s/`, so it gets an `infisical-node-<hostname>` tier     |
+| `ip`                            | The node's public address. Also becomes its Kubernetes `ExternalIP`, via the k0s cloud provider's `node-ip-external` annotation   |
+| `initial_user` / `initial_port` | First-contact login, the provider default, before the admin account exists                                                        |
 
 `ip` stays a reference, never a literal — a real address is an identifying value and this
 repository is public. `node_ip` comes from `host.sops.yml`:

@@ -1,0 +1,4 @@
+---
+# Opens 443 in firewalld's public zone.
+dependencies:
+  - role: firewalld

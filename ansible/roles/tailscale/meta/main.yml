@@ -1,0 +1,4 @@
+---
+# Puts tailscale0 and the cluster CIDRs in firewalld's trusted zone.
+dependencies:
+  - role: firewalld

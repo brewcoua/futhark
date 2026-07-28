@@ -58,7 +58,7 @@
             reusable: false
             ephemeral: false
             preauthorized: true
-            tags: ["tag:futhark-node"]
+            tags: ["{{ mesh_node_tag }}"]
       expirySeconds: 300
     status_code: 200
   register: tailscale_authkey
@@ -70,7 +70,7 @@
     cmd: >
       tailscale up
       --authkey={{ tailscale_authkey.json.key }}
-      --advertise-tags=tag:futhark-node
+      --advertise-tags={{ mesh_node_tag }}
       --ssh
   when: tailscale_authkey is not skipped
   changed_when: true
@@ -149,7 +149,7 @@
     - interface: kube-bridge
     - source: "{{ k0s_pod_cidr }}"
     - source: "{{ k0s_service_cidr }}"
-    - source: "100.64.0.0/10"
+    - source: "{{ mesh_cidr }}"
   loop_control:
     label: "{{ item.interface | default(item.source) }}"
   when: node.os == 'fedora'

@@ -7,6 +7,7 @@
   gather_facts: false
   roles:
     - role: k0s_cluster
+      tags: k0s
 
 # Nothing in the Flux-managed tree can provision a StorageClass for itself, and monitoring,
 # auth and nodes/kenaz.k0s/actual all bind local-path PVCs on their first reconcile. (This used
@@ -18,6 +19,7 @@
   gather_facts: false
   roles:
     - role: local_path_provisioner
+      tags: storage
 
 - name: Bootstrap Flux
   hosts: localhost
@@ -30,3 +32,4 @@
     - "{{ playbook_dir }}/../.generated/secrets.yml"
   roles:
     - role: flux_bootstrap
+      tags: flux

@@ -10,22 +10,41 @@
   # references that Jinja would try to evaluate — see .taskfiles/ansible/Taskfile.yaml.
   vars_files:
     - "{{ playbook_dir }}/../.generated/secrets.yml"
+  # Four tags, so a single concern can be re-converged without running the whole thing:
+  #
+  #   base      hostname, dnf upgrade, base tooling
+  #   access    the admin user and the SSH hardening that depends on it — one tag, never two,
+  #             because ssh_harden without admin_user locks the host out permanently
+  #   firewall  fail2ban and the public 443 ingress
+  #   mesh      the tailnet join and the pod -> mesh routing
+  #
+  # Anything that touches how we *connect* is `always`: the identity probe below decides which
+  # login and port every later task uses, so skipping it by tag would have `--tags mesh` dial a
+  # fresh host as the admin user that does not exist yet.
   pre_tasks:
     - name: Pick the SSH identity
       ansible.builtin.import_role:
         name: ssh_identity
+      tags: always
     - name: Gather facts
       ansible.builtin.setup:
+      tags: always
   roles:
     - role: fedora_common
       when: node.os == 'fedora'
-    - admin_user
-    - ssh_harden
-    - fail2ban
+      tags: base
+    - role: admin_user
+      tags: access
+    - role: ssh_harden
+      tags: access
+    - role: fail2ban
+      tags: firewall
     - role: tailscale
       when: node.mesh | default(false)
+      tags: mesh
     - role: firewall_ingress
       when: node.public_ingress | default(false)
+      tags: firewall
   post_tasks:
     # set_fact persists for the rest of the run — the host now answers only as the
     # admin user on the hardened port, even if ssh_identity picked the initial login.
@@ -33,3 +52,4 @@
       ansible.builtin.set_fact:
         ansible_user: "{{ admin.user }}"
         ansible_port: "{{ ssh_port }}"
+      tags: always

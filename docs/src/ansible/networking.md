@@ -17,10 +17,11 @@ controller's `konnectivity-server` over the mesh — so while it is broken, `kub
 ## 1. Routing
 
 kube-router installs `from <node's pod /24> lookup 77` and puts the peer's mesh IP into table
-77 pointing at its tunnel. That outranks Tailscale's own pref 5270 (`lookup 52`), so the
+77 pointing at its tunnel. That outranks Tailscale's own pref 5270 (`lookup 52`, the table
+`mesh_route_table` names), so the
 packet is routed into the very tunnel whose transport endpoint **is** that address.
 
-The fix is one `ip rule` per peer at priority 5, matching only that peer's `/32` — never the
+The fix is one `ip rule` per peer at `mesh_route_priority`, matching only that peer's `/32` — never the
 pod CIDR, so pod-to-pod overlay routing is untouched.
 
 The priority is load-bearing. kube-router's own rule priority has moved before: 5209, then 99,
@@ -40,9 +41,9 @@ They have to be masqueraded to the node's mesh IP. Nothing else does this: kube-
 `KUBE-POSTROUTING` only masquerades service traffic carrying the `0x4000` mark, and tailscaled
 only installs its own `ts-postrouting` chain when acting as a subnet router or exit node.
 
-The SNAT is scoped to peer `/32`s rather than the whole `100.64.0.0/10` tailnet on purpose:
+The SNAT is scoped to peer `/32`s rather than the whole `mesh_cidr` tailnet on purpose:
 pods get to reach cluster nodes (konnectivity-agent → konnectivity-server, Prometheus →
-traefik on the mesh IP) without inheriting the node's `tag:futhark-node` reach across the
+traefik on the mesh IP) without inheriting the node's `mesh_node_tag` reach across the
 entire tailnet.
 
 Both rules live in `ansible/roles/tailscale/templates/futhark-mesh-routes.sh.j2`, re-applied

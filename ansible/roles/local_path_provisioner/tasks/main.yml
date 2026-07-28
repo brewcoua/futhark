@@ -1,12 +1,11 @@
 ---
 # monitoring, auth and nodes/kenaz.k0s/actual all bind `local-path` PVCs on their very first
 # reconcile, and nothing in the Flux-managed tree can provision the StorageClass for itself.
-# See docs/src/conventions/ordering.md.
-#
-# Pinned to v0.0.36 (fixes a high-severity HelperPod template-injection CVE) for
-# reproducibility — never track master.
+# See docs/src/conventions/ordering.md. Pinned in defaults/main.yml.
 - name: Install local-path-provisioner
   kubernetes.core.k8s:
     kubeconfig: "{{ generated_dir }}/kubeconfig"
     state: present
-    src: https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.36/deploy/local-path-storage.yaml
+    src: >-
+      https://raw.githubusercontent.com/rancher/local-path-provisioner/{{
+      local_path_provisioner_version }}/deploy/local-path-storage.yaml
