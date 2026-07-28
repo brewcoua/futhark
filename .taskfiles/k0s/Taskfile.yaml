@@ -111,3 +111,7 @@ tasks:
     desc: Re-converge the cluster with k0sctl and re-bootstrap Flux
     dir: "{{.ROOT_DIR}}/ansible"
     cmd: ansible-playbook playbooks/k0s.yml
+
+  kctl:
+    desc: "kubectl passthrough using the generated kubeconfig -- <args>"
+    cmd: "kubectl {{.CLI_ARGS}}"

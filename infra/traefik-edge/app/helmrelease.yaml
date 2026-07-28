@@ -1,5 +1,5 @@
 ---
-# Public edge ingress: binds 80/443 on the edge node's own interface. Give a public Ingress
+# Public edge ingress: binds 443 (TLS only) on the edge node's own interface. Give a public Ingress
 # the class "edge" to route through here. ${PUBLIC_IP}/${MESH_IP} are substituted by
 # postBuild.substituteFrom in ks.yaml, from the SOPS-encrypted edge-ips Secret committed in
 # infra/edge-ips. MESH_IP is filled by hand — see docs/src/operations/setup.md step 7.
@@ -59,7 +59,7 @@ spec:
         enabled: true
         ingressClass: edge
     hostNetwork: true
-    # Real 80/443 on the host, so the container needs the one capability the chart drops.
+    # Real 443 on the host, so the container needs the one capability the chart drops.
     # traefik-internal doesn't: it stays on the chart's unprivileged 8000/8443 behind a Service.
     securityContext:
       capabilities:
@@ -70,14 +70,9 @@ spec:
     nodeSelector:
       kubernetes.io/hostname: kenaz
     ports:
-      web:
-        port: 80
-        hostIP: ${PUBLIC_IP}
-        http:
-          redirections:
-            entryPoint:
-              to: websecure
-              scheme: https
+      # No plaintext HTTP — this edge only ever serves TLS. `null` removes the chart's
+      # default web (80) entryPoint entirely, rather than just hiding its Service port.
+      web: null
       websecure:
         port: 443
         hostIP: ${PUBLIC_IP}

@@ -1,14 +1,19 @@
 ---
-# Opens the public zone for edge ingress (80/443). Gated by node.public_ingress in
-# playbooks/setup.yml — nothing in here branches on hostname, same convention as
-# roles/tailscale (any future node opts in just by setting node.public_ingress: true).
-- name: Open HTTP/HTTPS in firewalld's public zone
+# Opens the public zone for edge ingress. TLS only — no plaintext HTTP, so 80 stays closed.
+# Gated by node.public_ingress in playbooks/setup.yml — nothing in here branches on hostname,
+# same convention as roles/tailscale (any future node opts in just by setting node.public_ingress: true).
+- name: Open HTTPS in firewalld's public zone
   ansible.posix.firewalld:
-    port: "{{ item }}/tcp"
+    port: "443/tcp"
     permanent: true
     immediate: true
     state: enabled
-  loop:
-    - "80"
-    - "443"
+  when: node.os == 'fedora'
+
+- name: Close plaintext HTTP in firewalld's public zone (previously opened, no longer served)
+  ansible.posix.firewalld:
+    port: "80/tcp"
+    permanent: true
+    immediate: true
+    state: disabled
   when: node.os == 'fedora'
