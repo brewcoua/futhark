@@ -31,8 +31,8 @@ worker; Pocket ID is pinned to it with a `nodeSelector`. Both are on the mesh an
 by their MagicDNS name, never by a stored address — see [Nodes](ansible/nodes.md).
 
 The pieces, roughly in dependency order: the Infisical operator (which syncs runtime secrets
-into Kubernetes `Secret`s), External Secrets Operator (Bitwarden only), Pocket ID (OIDC),
-cert-manager (Let's Encrypt over DNS-01), two Traefiks — one public, one mesh-only — and a
+into Kubernetes `Secret`s), Pocket ID (OIDC), cert-manager (Let's Encrypt over DNS-01), two
+Traefiks — one public, one mesh-only — and a
 VictoriaMetrics/VictoriaLogs/Grafana stack. Each is described in
 [Cluster infrastructure](gitops/infra.md), and the order they must come up in is
 [Startup ordering](conventions/ordering.md).
@@ -42,6 +42,7 @@ VictoriaMetrics/VictoriaLogs/Grafana stack. Each is described in
 No credential is ever committed in the clear, and neither is any identifying value, because
 this repository is public. Values that identify but grant nothing — node addresses, the tailnet
 name — are committed SOPS-encrypted. Anything that could bootstrap or re-key the system lives in
-Bitwarden Secrets Manager and is never committed at all. Per-app runtime secrets live in
-Infisical and reach pods through the Infisical operator. The full rule, and what to do when you
-need a new one, is in [Secrets](conventions/secrets.md).
+Proton Pass and is never committed at all; the cluster holds no credential for it, so a cluster
+compromise cannot reach the keys that rebuild it. Per-app runtime secrets live in Infisical and
+reach pods through the Infisical operator. The full rule, and what to do when you need a new one,
+is in [Secrets](conventions/secrets.md).

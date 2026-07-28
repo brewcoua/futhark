@@ -4,24 +4,32 @@ This repository is public. Nothing in it is a credential in the clear, and nothi
 identifying value in the clear either — no real addresses, endpoints, account or key
 identifiers.
 
-Three stores, chosen by what a value can _do_ rather than by who consumes it.
+Three stores, chosen by what a value can _do_ rather than by who consumes it. Only two of them
+hold credentials; SOPS is a file format rather than a service.
 
-| Store                         | Holds                                                                                              | Read by                                  |
-| ----------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **SOPS**, encrypted in git    | Identifying but non-granting: node addresses, the tailnet MagicDNS suffix, account and project IDs | Ansible, OpenTofu, Flux                  |
-| **Bitwarden Secrets Manager** | Anything that can bootstrap or re-key the system                                                   | `bws` (Ansible, OpenTofu)                |
-| **Infisical Cloud** (EU)      | Per-app runtime secrets                                                                            | the Infisical operator, OpenTofu (write) |
+| Store                             | Holds                                                                                              | Read by                                  |
+| --------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **SOPS**, encrypted in git        | Identifying but non-granting: node addresses, the tailnet MagicDNS suffix, account and project IDs | Ansible, OpenTofu, Flux                  |
+| **Proton Pass**, vault `futharkd` | Anything that can bootstrap or re-key the system                                                   | `pass-cli`, on operator machines only    |
+| **Infisical Cloud** (EU)          | Per-app runtime secrets                                                                            | the Infisical operator, OpenTofu (write) |
 
 The dividing line: publishing a node's IP would tie this repo to a machine, but the IP grants
-nothing on its own — that is SOPS. An SSH private key or the Flux deploy key grants everything —
-that is Bitwarden. A Grafana admin password is neither of those; it is one app's operational
+nothing on its own — that is SOPS. The Flux deploy key or the cluster age key grants everything —
+that is Proton Pass. A Grafana admin password is neither of those; it is one app's operational
 secret, rotatable without touching anything else — that is Infisical.
+
+**The cluster holds no Proton Pass credential at all.** That is the whole tier boundary, and it
+rests on absence rather than on a console-side path grant that could be misconfigured or drift: a
+compromise of the cluster cannot reach the keys that rebuild it, because there is nothing in the
+cluster to reach them with.
 
 ## SOPS
 
 `.sops.yaml` at the repo root routes by path, so two recipients never overlap where they
-shouldn't:
+shouldn't. SOPS takes the **first** matching rule, so the order is load-bearing:
 
+- `config/secrets.sops.yaml` — the operator GPG key only. Listed first, deliberately; see
+  [Why the reference map is encrypted](#why-the-reference-map-is-encrypted).
 - `ansible/**` and `tofu/**` — the operator GPG key only.
 - `infra/**`, `nodes/**`, `config/**` — the operator GPG key _and_ the cluster age key.
 
@@ -51,24 +59,79 @@ Three resolvers, one per plane:
   `infra/kustomization.yaml` and `nodes/kustomization.yaml`. `flux/infra/ks.yaml` and
   `flux/nodes/ks.yaml` state it in full, since `flux/` has no kustomization of its own.
 
-## Bitwarden Secrets Manager
+## Proton Pass
 
-The crown-jewel tier: the admin SSH identity, the Flux git deploy key, the cluster age private
-key, the Infisical machine-identity credentials, the Tailscale OAuth client, the Bunny API key.
+The crown-jewel tier, in one vault named `futharkd` — the same slug as the Infisical project, so
+the two remote stores are named alike. It holds the Flux git deploy key, the cluster age private
+key, both Infisical machine identities, the Tailscale OAuth client, the Bunny API key and the
+Pocket ID admin token.
 
-Ansible resolves these with `bitwarden.secrets.lookup` against secret IDs held in the encrypted
-`group_vars/all/secrets.sops.yml` (`bws_ids.*`). OpenTofu gets them from `bws run`, which
-injects a project's secrets as environment variables named after the secrets themselves — so no
-committed pointer is needed at all.
+**The admin SSH private key is not in it, and never will be.** It is the operator's own identity,
+it already lives in `~/.ssh` on the machine doing the connecting, and Ansible never reads it — it
+_authenticates with_ it, which SSH does on its own. Its public half stays in
+`group_vars/all/secrets.sops.yml` as `admin.ssh_pubkey`: identifying, granting nothing.
 
-`bws run` warns `secret '<name>' does not have a POSIX-compliant name` for each of the six
-lowercase-with-spaces entries. That is the design working, not a defect: a name with spaces
-cannot become an environment variable, so `bws run` skips it, and the Ansible-facing crown
-jewels stay out of OpenTofu's environment. Renaming them to silence the warning would inject all
-six into every `tofu` process. See [Naming](#naming).
+Nothing in the repo holds a Proton Pass credential either. What a new operator machine needs out
+of band is exactly two things — the GPG smartcard that opens SOPS, and a Proton Pass personal
+access token:
 
-Nothing in the cluster reads this tier. It is operator-machine only, which is the whole point of
-the boundary: a compromise of the cluster cannot reach the keys that rebuild it.
+```bash
+pass-cli info || PROTON_PASS_PERSONAL_ACCESS_TOKEN=pst_… pass-cli login
+```
+
+`pass-cli` persists a session after that, so it is a once-per-machine step and not a per-command
+prompt. `task ops:pass-session` checks it and prints this if it is missing.
+
+### Two commands, and the brace rule that separates them
+
+Both planes compose SOPS with Proton Pass, and both resolve **SOPS first, pass-cli second** — the
+committed file holds references, and only the second step turns them into values. They use
+different pass-cli subcommands, which take opposite syntax:
+
+|                   | resolves                                   | ignores     | used by  |
+| ----------------- | ------------------------------------------ | ----------- | -------- |
+| `pass-cli inject` | `{{ pass://… }}` in a document             | bare URIs   | Ansible  |
+| `pass-cli run`    | bare `pass://…` in an environment variable | braced URIs | OpenTofu |
+
+**Ansible** reads one file, `config/secrets.sops.yaml`, which maps the crown jewels _this plane_
+needs to `pass://<vault>/<item>/<field>` references under a nested `secrets:` key. OpenTofu's are
+deliberately not in it — listing them would mean writing secrets to disk that Ansible never reads.
+`task ans:render-secrets` resolves it, and `ans:setup` / `ans:k0s` depend on that:
+
+```bash
+sops -d config/secrets.sops.yaml | pass-cli inject -f -o ansible/.generated/secrets.yml
+```
+
+`--out-file` rather than a shell redirect, because it applies pass-cli's default `0600` where `>`
+would use the umask. `ansible/.generated/` is gitignored. The playbooks load the result with an
+explicit `vars_files`, and the roles then reference plain variables — `secrets.flux.deploy_key` —
+with no lookup plugin involved at all. Keep `no_log: true` on those tasks.
+
+That file must live in `config/` and **not** under `group_vars/`. `{{ }}` is Jinja syntax as well
+as pass-cli's, and the `community.sops` vars plugin auto-decrypts anything matching
+`group_vars/*.sops.yml` — so Ansible would decrypt the template and then try to evaluate
+`pass://futharkd/flux/deploy key` as an expression. Rendering to `.generated/` first means no
+braces survive to be misread.
+
+**OpenTofu** needs no second file. Each module's existing `secrets.sops.env` carries its
+credentials as bare `pass://` URIs alongside its identifying values, so `sops exec-env` loads the
+whole thing and `pass-cli run` rewrites the URI-valued variables in place:
+
+```bash
+sops exec-env secrets.sops.env 'pass-cli run -- tofu plan'
+```
+
+Getting the braces backwards fails quietly in both directions — an unresolved reference is passed
+through as a literal string, which surfaces as a bad credential rather than as a template error.
+
+### Why the reference map is encrypted
+
+Vault, item and field names are identifying, and this repo commits nothing identifying in the
+clear. More than that, `config/secrets.sops.yaml` is a map to the keys that rebuild the cluster,
+so it is sealed to the **operator GPG key only** — never the cluster age key. `.sops.yaml` gives
+it a dedicated rule placed **above** the broader `(infra|nodes|config)/` one, because SOPS takes
+the first match; the other way round would hand `flux-system` a map to the Flux deploy key and to
+the age key that decrypts it.
 
 ## Infisical, and how tier isolation is enforced
 
@@ -137,11 +200,12 @@ key charset is narrower than Kubernetes', and a hyphen that works in one may not
 Most of these values end up as environment variables anyway, where the shape is not a choice.
 And a single rule means you never have to remember which store spells a thing which way.
 
-The exception is Bitwarden's six Ansible-facing entries, which are referenced by UUID rather
-than by name and are deliberately lowercase-with-spaces — see
-[Bitwarden Secrets Manager](#bitwarden-secrets-manager). Naming them in the convention's style
-would risk colliding with the entries `bws run` injects as environment variables, which are
-matched by name.
+The exception is Proton Pass, whose items and fields are lowercase-with-spaces —
+`pass://futharkd/tailscale/client id`. Nothing there is matched by name or becomes an environment
+variable under that name: every reference is a path, and the environment variable it lands in is
+named by the consumer, not by the store. `TAILSCALE_OAUTH_CLIENT_ID` in a module's
+`secrets.sops.env` and `secrets.tailscale.client_id` in Ansible are two different fields of two
+different items, and the names say nothing about that — the paths do.
 
 Kubernetes Secret **keys** are a separate question, because the consumer often dictates them and
 upstream charts do not follow this convention. Where the consumer is configurable, point it at
@@ -188,8 +252,9 @@ task ans:k0s
 ## Adding a new secret
 
 1. Decide the tier. Identifying but harmless → a `*.sops.yaml`. Bootstraps or re-keys the system
-   → Bitwarden. One app's operational secret → Infisical. Name it `SCREAMING_SNAKE_CASE` — see
-   [Naming](#naming).
+   → Proton Pass, added to `config/secrets.sops.yaml` for Ansible or to the module's
+   `secrets.sops.env` for OpenTofu. One app's operational secret → Infisical. Name it
+   `SCREAMING_SNAKE_CASE` — see [Naming](#naming).
 2. For Infisical, put it under `/infra/<component>` or `/nodes/<hostname>/<app>` and add an
    `InfisicalStaticSecret` in the app's namespace, with `secretPath` only — add
    `components: [<relative>/config/infisical]` to the overlay for the project and environment.

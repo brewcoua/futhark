@@ -18,11 +18,11 @@ secrets straight to Infisical. It authenticates as a machine identity scoped to 
 folder — `/nodes/<hostname>/<app>` — and is deliberately not the read-only identity the cluster
 uses. Every other module stays read-only.
 
-**Provider tokens are never committed, in any form.** They come from Bitwarden via `bws run`,
-which injects a project's secrets as environment variables named after the secrets themselves —
-so a module needs no committed pointer at all. A module's `secrets.sops.env` holds only the
-other category: values that _identify_ but grant nothing — a real public IP, the tailnet name,
-an account ID — SOPS-encrypted, as `TF_VAR_<name>=...`. See
+**Provider tokens are never committed, in any form.** A module's `secrets.sops.env` holds two
+kinds of line, and neither is a value: identifying values that grant nothing — a real public IP,
+the tailnet name, an account ID, as `TF_VAR_<name>=...` — and credentials as bare `pass://`
+references that `pass-cli run` resolves after `sops exec-env` has loaded the file. No braces:
+`run` resolves bare URIs and ignores braced ones, the inverse of `inject`. See
 [Secrets](../conventions/secrets.md).
 
 A genuinely non-identifying constant that is also shared with other parts of the repo — the
@@ -47,9 +47,9 @@ task tf:apply -- <module>
 ```
 
 `task tf:init` with no module argument inits every module under `tofu/`, and runs as part of
-`task ops:setup`. `plan` and `apply` compose both stores:
-`bws run -- 'sops exec-env secrets.sops.env "tofu <cmd>"'`. That needs `BWS_ACCESS_TOKEN`
-exported and the GPG smartcard present; neither ever writes a value to disk.
+`task ops:setup`. `plan` and `apply` compose both stores, in this order:
+`sops exec-env secrets.sops.env 'pass-cli run -- tofu <cmd>'`. That needs a Proton Pass session
+(`pass-cli info`) and the GPG smartcard present; neither ever writes a value to disk.
 
 ### Node addresses
 

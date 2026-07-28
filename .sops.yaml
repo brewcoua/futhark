@@ -11,6 +11,14 @@
 # A GPG fingerprint and an age public key are neither credentials nor identifying values, so
 # unlike everything else in this repo they are committed literally.
 creation_rules:
+  # The crown-jewel reference map — operator only, and FIRST, because SOPS takes the first
+  # matching rule and the broader (infra|nodes|config) rule below would otherwise seal this to
+  # the cluster age key too. That would hand flux-system a map to the Flux deploy key and to the
+  # age key that decrypts it, which is the one boundary this repo is built around.
+  # Anchored on a path separator as well as the start, so an absolute `sops -e -i` still matches.
+  - path_regex: (^|/)config/secrets\.sops\.yaml$
+    pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
+
   # Host and cloud plane — operator only. The cluster key is deliberately absent: a compromise
   # of flux-system must not expose node addresses or provider tokens.
   - path_regex: (ansible|tofu)/.*\.sops\.(ya?ml|env)$

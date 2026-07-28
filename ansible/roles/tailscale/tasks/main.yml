@@ -33,8 +33,8 @@
     method: POST
     body_format: form-urlencoded
     body:
-      client_id: "{{ lookup('bitwarden.secrets.lookup', bws_ids.tailscale_client_id, base_url=bws_base_url) }}"
-      client_secret: "{{ lookup('bitwarden.secrets.lookup', bws_ids.tailscale_client_secret, base_url=bws_base_url) }}"
+      client_id: "{{ secrets.tailscale.client_id }}"
+      client_secret: "{{ secrets.tailscale.client_secret }}"
     status_code: 200
   register: tailscale_oauth_token
   no_log: true

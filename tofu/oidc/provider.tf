@@ -15,9 +15,9 @@ terraform {
   }
 }
 
-# base_url/api_token come from POCKETID_BASE_URL / POCKETID_API_TOKEN — POCKETID_BASE_URL from
-# this module's SOPS-encrypted secrets.sops.env, POCKETID_API_TOKEN injected by `bws run`. See
-# docs/src/tofu/oidc.md.
+# base_url/api_token come from POCKETID_BASE_URL / POCKETID_API_TOKEN, both declared in this
+# module's SOPS-encrypted secrets.sops.env — the first as a value, the second as a pass://
+# reference that `pass-cli run` resolves. See docs/src/tofu/oidc.md.
 provider "pocketid" {}
 
 # eu.infisical.com is a separate data region, not a mirror of app.infisical.com — pointing at
@@ -26,9 +26,9 @@ provider "pocketid" {}
 # hook works with nothing loaded, and it isn't secret anyway.
 #
 # The universal auth block reads INFISICAL_UNIVERSAL_AUTH_CLIENT_ID and
-# INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET, injected by `bws run`. This is the `tofu-writer`
-# machine identity — write on /nodes/kenaz/actual only, deliberately not the read-only identity
-# the cluster uses.
+# INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET, resolved from Proton Pass by `pass-cli run`. This is
+# the `tofu-writer` machine identity — write on /nodes/kenaz/actual only, deliberately not the
+# read-only identity the cluster uses.
 provider "infisical" {
   host = "https://eu.infisical.com"
   # Attribute assignment, not a block — the provider models auth as a nested object type, so

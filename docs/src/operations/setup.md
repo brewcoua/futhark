@@ -6,15 +6,16 @@ Two values cannot exist until something else is running, so they are filled in t
 node's mesh address (step 7) and the Pocket ID API token (step 10). Both are called out where
 they land.
 
-## 1. Bitwarden Secrets Manager
+## 1. Proton Pass
 
-Sign up on the **EU** region, `vault.bitwarden.eu`, enable Secrets Manager, and create a project
-`futhark`. The free tier allows unlimited secrets, 3 projects and 3 machine accounts, which is
-enough.
+Create a vault named **`futharkd`** — the same slug as the Infisical project, so the two remote
+stores are named alike. Then mint a **personal access token** in the Proton Pass web app; that
+token, plus your GPG smartcard, is everything a new operator machine needs out of band.
 
-Create one machine account with read access to that project:
-
-- `futhark-operator` — its access token becomes your `BWS_ACCESS_TOKEN`
+```bash
+PROTON_PASS_PERSONAL_ACCESS_TOKEN=pst_… pass-cli login
+pass-cli info                        # session persists from here on
+```
 
 Generate the Flux deploy key now, since it is stored here:
 
@@ -23,55 +24,45 @@ ssh-keygen -t ed25519 -f /tmp/flux-deploy -N '' -C futhark-flux
 ```
 
 Add `/tmp/flux-deploy.pub` to the repository's Deploy Keys on GitHub (read-only is enough), put
-the private half in Bitwarden as below, then `shred -u /tmp/flux-deploy*`.
+the private half in the vault as below, then `shred -u /tmp/flux-deploy*`.
 
-Now the secrets. **The first six are matched by name**: `bws run` injects every secret in the
-project as an environment variable called exactly what the secret is called, and the OpenTofu
-providers read these from the environment. Spelling is not optional.
-
-| Name                                     | Value                                                                                                                        |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `BUNNYNET_API_KEY`                       | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
-| `TAILSCALE_OAUTH_CLIENT_ID`              | OAuth client with **write on the policy file**                                                                               |
-| `TAILSCALE_OAUTH_CLIENT_SECRET`          | Secret half of that same client                                                                                              |
-| `POCKETID_API_TOKEN`                     | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
-| `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID`     | The `tofu-writer` identity from step 2                                                                                       |
-| `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET` | Secret half of that same identity                                                                                            |
-
-The rest are referenced by **UUID** from Ansible, so their names are free. They are deliberately
-lowercase-with-spaces so they cannot collide with the injected set above — see
+Now the items. Nothing is matched by name here — every consumer addresses a
+`pass://futharkd/<item>/<field>` path, and the committed files that hold those paths are what
+this table has to agree with. Item and field names are lowercase-with-spaces, per
 [Naming](../conventions/secrets.md#naming).
 
-| Name                                     | Value                                                                                 |
-| ---------------------------------------- | ------------------------------------------------------------------------------------- |
-| `git deploy key`                         | The private half generated above                                                      |
-| `age cluster private key`                | Generated at step 3                                                                   |
-| `infisical cluster-reader client id`     | From step 2                                                                           |
-| `infisical cluster-reader client secret` | Secret half of that same identity                                                     |
-| `tailscale authkey client id`            | A **second** OAuth client, scoped to auth-key creation. Not the policy-file one above |
-| `tailscale authkey client secret`        | Secret half of that same client                                                       |
-
-Every `bws run` from here on warns `secret '<name>' does not have a POSIX-compliant name` once
-per row of this second table. Expected — that warning is `bws` declining to turn a name with
-spaces into an environment variable, which is the whole reason these six are named this way.
+| Item                       | Fields                       | Value                                                                                                                        |
+| -------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `flux`                     | `deploy key`                 | The private half generated above                                                                                             |
+| `sops`                     | `age key`                    | Generated at step 3                                                                                                          |
+| `bunny`                    | `api key`                    | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
+| `pocketid`                 | `api token`                  | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
+| `tailscale-authkey`        | `client id`, `client secret` | OAuth client scoped to **auth-key creation**                                                                                 |
+| `tailscale-policy`         | `client id`, `client secret` | A **second** OAuth client, with **write on the policy file**                                                                 |
+| `infisical-cluster-reader` | `client id`, `client secret` | The `cluster-reader` identity from step 2                                                                                    |
+| `infisical-tofu-writer`    | `client id`, `client secret` | The `tofu-writer` identity from step 2                                                                                       |
 
 Two Tailscale OAuth clients, not one: `ansible/roles/tailscale` mints single-use node auth keys,
 `tofu/tailscale` rewrites the policy file. Neither needs the other's scope.
 
-Then, locally:
+Two Infisical identities, not one, for the same reason — and a sharper one: `cluster-reader` is
+seeded into the cluster, `tofu-writer` never leaves this machine. Collapsing them would hand the
+cluster a write credential.
+
+**The admin SSH private key goes in no store at all.** Ansible authenticates with your own
+`~/.ssh` identity rather than reading it; only its public half is committed, SOPS-encrypted, at
+step 4.
+
+Finally, seal the reference map that points at all of this:
 
 ```bash
-bws config server-base https://vault.bitwarden.eu
-export BWS_ACCESS_TOKEN=<futhark-operator token>
-bws secret list                      # note the UUIDs of the lowercase six
+task ops:sops -- config/secrets.sops.yaml
 ```
 
-`bws config` only affects your own shell. The region the repo's tooling uses is committed in two
-places instead, so a fresh workstation needs no per-machine state: `BWS_SERVER_URL` in
-`.taskfiles/tofu/Taskfile.yaml`, and `bws_base_url` in
-`ansible/inventory/group_vars/all/main.yml`, which every `bitwarden.secrets.lookup` call passes
-as `base_url`. Point either at the wrong region and Bitwarden answers `400 invalid_client`
-with nothing to say about why.
+The template is already filled in — the paths above are exactly what it contains — so unless you
+named the vault something other than `futharkd`, this is a save-and-encrypt with no edits. It is
+sealed to your GPG key only, never the cluster age key; the reasoning is in
+[Secrets](../conventions/secrets.md#why-the-reference-map-is-encrypted).
 
 ## 2. Infisical
 
@@ -86,7 +77,7 @@ allows:
   now; you set it at step 12, once the cluster has an egress address.
 - **`tofu-writer`** — write on `/nodes/kenaz/actual` only.
 
-Copy all four client ID/secret pairs into Bitwarden per the table above.
+Copy both client ID/secret pairs into Proton Pass per the table above.
 
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
@@ -109,8 +100,8 @@ grep -rl 'kind: InfisicalStaticSecret' infra nodes
 ```
 
 `TAILSCALE_CLIENT_ID`/`_SECRET` here are the **auth-key** OAuth client — the same credential as
-Bitwarden's `tailscale authkey *`, because the in-cluster operator and the Ansible role both
-mint node keys. `POCKETID_ENCRYPTION_KEY` is new material: `openssl rand -base64 32`.
+the vault's `tailscale-authkey`, because the in-cluster operator and the Ansible role both mint
+node keys. `POCKETID_ENCRYPTION_KEY` is new material: `openssl rand -base64 32`.
 `RCLONE_CONFIG` is a full rclone INI whose crypt section header must be `[storagebox-crypt]`, to
 match `remote:` in `infra/storage/app/storageclass.yaml`.
 
@@ -121,11 +112,12 @@ task ops:setup
 ```
 
 Installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`, `k0sctl`,
-`flux`, `tofu`, `pre-commit`, `sops`, `age`, `bws`, the GPG smartcard stack and `mdbook`;
-installs the pre-commit hooks; runs `tofu init` in every module. It needs `dnf` and `uv`.
+`flux`, `tofu`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard stack and `mdbook`;
+installs the pre-commit hooks; runs `tofu init` in every module; and checks you have a Proton
+Pass session. It needs `dnf` and `uv`.
 
-You need three things of your own: the GPG smartcard plugged in, `BWS_ACCESS_TOKEN` exported,
-and your own tailnet membership — `k0s_cluster` resolves each node's mesh address through
+You need three things of your own: the GPG smartcard plugged in, the Proton Pass session from
+step 1, and your own tailnet membership — `k0s_cluster` resolves each node's mesh address through
 MagicDNS from this machine.
 
 Then generate the cluster age key:
@@ -135,8 +127,8 @@ task ops:age-key
 ```
 
 Put the printed `age1…` recipient into `.sops.yaml`, replacing
-`AGE_CLUSTER_RECIPIENT_PLACEHOLDER`. Store the private key in Bitwarden as
-`age cluster private key`, then shred the temporary file. Why this key is separate from your GPG
+`AGE_CLUSTER_RECIPIENT_PLACEHOLDER`. Store the private key in Proton Pass as the `age key` field
+of the `sops` item, then shred the temporary file. Why this key is separate from your GPG
 key, and what it can and cannot open, is in [Secrets](../conventions/secrets.md#sops).
 
 ## 4. Node definitions
@@ -160,19 +152,22 @@ Re-run the same command later to edit one; it decrypts and re-encrypts around yo
 fails closed — an aborted edit or a failed encrypt removes the plaintext rather than leaving it
 at a `*.sops.*` path.
 
-What goes in each:
+What goes in each. The three under `tofu/` each carry two kinds of line — identifying values,
+and the `pass://` references `pass-cli run` resolves at plan time — and both templates arrive
+with the references already written, so only the identifying half needs filling in:
 
+- `config/secrets.sops.yaml` — done at step 1, and nothing to fill in beyond the vault name.
 - `ansible/inventory/group_vars/all/secrets.sops.yml` — `admin.user`, `admin.ssh_pubkey`,
-  `tailnet_domain`, and the six `bws_ids` UUIDs from step 1.
+  and `tailnet_domain`.
 - `ansible/nodes/<hostname>/host.sops.yml` — that node's public address. Leave `node_mesh_ip`
   out: the node has not joined the tailnet yet, and `roles/tailscale` writes it in at step 7.
 - `infra/edge-ips/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put a
   placeholder in `MESH_IP` for now**; the node has not joined the tailnet yet. Step 7 fills it.
 - `tofu/tailscale/secrets.sops.env` — the tailnet name.
-- `tofu/bunny/secrets.sops.env` — nothing, currently. The edge node's public address is
-  declared in `tofu/bunny/node-refs.env` and read from `ansible/nodes/<hostname>/host.sops.yml`
-  at plan/apply time, rather than kept as a second encrypted copy here. Create the file empty;
-  `sops exec-env` still reads it.
+- `tofu/bunny/secrets.sops.env` — no identifying values at all. The edge node's public address
+  is declared in `tofu/bunny/node-refs.env` and read from
+  `ansible/nodes/<hostname>/host.sops.yml` at plan/apply time, rather than kept as a second
+  encrypted copy here, so the template's `pass://` line is the whole file.
 - `tofu/oidc/secrets.sops.env` — the Pocket ID base URL and the Infisical project ID.
 
 Nothing builds until the two under `infra/` exist: both are referenced by a
@@ -227,7 +222,7 @@ The first apply needs an import, because the resource owns the entire policy doc
 
 ```bash
 cd tofu/tailscale
-bws run -- 'sops exec-env secrets.sops.env "tofu import tailscale_acl.this acl"'
+sops exec-env secrets.sops.env 'pass-cli run -- tofu import tailscale_acl.this acl'
 cd ../..
 task tf:plan -- tailscale && task tf:apply -- tailscale
 ```

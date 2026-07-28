@@ -28,7 +28,7 @@ task tf:apply -- bunny
 
 Fill in `secrets.sops.env` (from its `.example`) with `TF_VAR_tailnet_domain` — the same value
 as `tofu/tailscale`'s `TAILSCALE_TAILNET`; the edge node's addresses come from
-`node-refs.env`, not from here. Then store a Bunny API key in Bitwarden named
-`BUNNYNET_API_KEY`. The API key needs
+`node-refs.env`, not from here. Then store a Bunny API key in Proton Pass and reference it from
+the same file as `BUNNYNET_API_KEY=pass://futharkd/bunny/api key`. The API key needs
 the same permissions as the one already used by `infra/cert-manager`'s DNS-01 webhook — Bunny
 API keys are account-wide, not zone-scoped.

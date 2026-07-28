@@ -17,15 +17,14 @@ schema and how to add one.
 `ansible/inventory/group_vars/all/` holds what is shared — `main.yml` in the clear,
 `secrets.sops.yml` encrypted:
 
-| Variable                                       | Notes                                                        |
-| ---------------------------------------------- | ------------------------------------------------------------ |
-| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted   |
-| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so encrypted     |
-| `bws_ids`                                      | Bitwarden secret IDs the roles resolve at runtime. Encrypted |
-| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to             |
-| `k0s_pod_cidr`, `k0s_service_cidr`             | k0s's own defaults, pinned here as a single source of truth  |
-| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                                |
-| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed   |
+| Variable                                       | Notes                                                       |
+| ---------------------------------------------- | ----------------------------------------------------------- |
+| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted  |
+| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so encrypted    |
+| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to            |
+| `k0s_pod_cidr`, `k0s_service_cidr`             | k0s's own defaults, pinned here as a single source of truth |
+| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                               |
+| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed  |
 
 Three of those deserve explanation.
 
@@ -148,8 +147,11 @@ Identifying values are decrypted transparently by the `community.sops` vars plug
 point of use and no task mentions SOPS at all. `host_group_vars` has to stay listed alongside
 it: naming any plugin there replaces the default set rather than adding to it.
 
-Crown-jewel values come from Bitwarden through `bitwarden.secrets.lookup`, keyed by the IDs in
-`bws_ids`. Those calls sit in `flux_bootstrap` and `tailscale`, both `no_log: true`. The lookup
-needs `BWS_ACCESS_TOKEN` in the environment.
+Crown-jewel values come from Proton Pass, but not through a lookup plugin. `task
+ans:render-secrets` decrypts `config/secrets.sops.yaml` and pipes it through `pass-cli inject`
+into `ansible/.generated/secrets.yml`; the playbooks load that with `vars_files`, so the roles
+that need one — `flux_bootstrap` and `tailscale`, both `no_log: true` — reference an ordinary
+variable like `secrets.flux.deploy_key`. `ans:setup` and `ans:k0s` depend on that render, so it
+is not a step you run by hand. It needs a Proton Pass session; `pass-cli info` checks.
 
 Which store a given value belongs in is [Secrets](../conventions/secrets.md).

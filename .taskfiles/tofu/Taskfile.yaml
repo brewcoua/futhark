@@ -26,13 +26,6 @@ vars:
       done < "$f"
     fi
 
-env:
-  # The organisation is on Bitwarden's EU cloud; bws defaults to the US one and rejects an
-  # EU access token with a bare `400 invalid_client`. Set here rather than via
-  # `bws config server-base` so a fresh workstation needs no per-machine state. Mirrors
-  # `bws_base_url` in ansible/inventory/group_vars/all/main.yml.
-  BWS_SERVER_URL: https://vault.bitwarden.eu
-
 tasks:
   init:
     desc: "Init tofu module(s) [-- <module>] (no secrets needed: provider download only)"
@@ -42,10 +35,15 @@ tasks:
         (cd "$d" && tofu init -input=false)
       done
 
-  # Both stores, composed. `bws run` injects the Bitwarden project's secrets as environment
-  # variables named after the secrets themselves, so credentials need no committed pointer at
-  # all; `sops exec-env` then layers on the module's identifying values. Neither ever writes a
-  # value to disk. Needs BWS_ACCESS_TOKEN in the environment and the GPG card for sops.
+  # Both stores, composed, in this order and no other. `sops exec-env` puts the module's whole
+  # secrets.sops.env into the environment — identifying values as themselves, credentials as
+  # bare `pass://` URIs — and `pass-cli run` then rewrites every variable whose value is such a
+  # URI into the real secret before exec'ing tofu. Neither ever writes a value to disk. Needs a
+  # Proton Pass session (`pass-cli info`) and the GPG card for sops.
+  #
+  # Braces are deliberately absent here, unlike config/secrets.sops.yaml: `run` resolves bare
+  # URIs and ignores braced ones, which is the exact inverse of `inject`. Getting it backwards
+  # fails by passing the literal string through to the provider, which reads as a bad credential.
   #
   # A third source, for node addresses only: ansible/nodes/<host>/host.sops.yml is canonical
   # (the tailscale role writes node_mesh_ip back into it after each join), so a module that
@@ -57,14 +55,14 @@ tasks:
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
     cmd: |
       {{.NODE_REFS}}
-      bws run -- 'sops exec-env secrets.sops.env "tofu plan"'
+      sops exec-env secrets.sops.env 'pass-cli run -- tofu plan'
 
   apply:
     desc: "Apply a tofu module -- <module>"
     dir: "{{.TOFU_DIR}}/{{.CLI_ARGS}}"
     cmd: |
       {{.NODE_REFS}}
-      bws run -- 'sops exec-env secrets.sops.env "tofu apply"'
+      sops exec-env secrets.sops.env 'pass-cli run -- tofu apply'
 
   validate:
     desc: "Validate a tofu module -- <module>"

@@ -24,7 +24,7 @@ optional one.
 
 `ops:age-key` is not part of `ops:setup`: it mints key material, so it is deliberately explicit.
 It prints the public recipient for `.sops.yaml` and leaves the private key in a temporary file
-for you to store in Bitwarden and shred.
+for you to store in Proton Pass and shred.
 
 `ops:sops` takes either name — `foo.sops.yaml` or `foo.sops.yaml.example` — and always edits the
 real file. If it does not exist yet, the template is copied, opened, and encrypted on save. It
@@ -83,16 +83,17 @@ you do not need it in your environment.
 
 ## `tf:` — the cloud plane
 
-| Task                      | Does                                                    |
-| ------------------------- | ------------------------------------------------------- |
-| `tf:init [-- <module>]`   | All modules if no argument. No secrets needed           |
-| `tf:plan -- <module>`     | Plan, through `bws run` and `sops exec-env` — see below |
-| `tf:apply -- <module>`    | Apply                                                   |
-| `tf:validate -- <module>` | `tofu validate`                                         |
+| Task                      | Does                                                         |
+| ------------------------- | ------------------------------------------------------------ |
+| `tf:init [-- <module>]`   | All modules if no argument. No secrets needed                |
+| `tf:plan -- <module>`     | Plan, through `sops exec-env` and `pass-cli run` — see below |
+| `tf:apply -- <module>`    | Apply                                                        |
+| `tf:validate -- <module>` | `tofu validate`                                              |
 
-`plan` and `apply` need `BWS_ACCESS_TOKEN` in your environment and the GPG smartcard plugged in.
-There is no editing secrets from here — secret values live in Bitwarden, identifying ones in
-each module's `secrets.sops.env`, which you edit with `sops`.
+`plan` and `apply` need a Proton Pass session and the GPG smartcard plugged in. There is no
+editing secrets from here — secret values live in Proton Pass, and each module's
+`secrets.sops.env` holds only identifying values and the `pass://` references that point at
+them. Edit it with `sops`.
 
 ## `docs:` — this book
 

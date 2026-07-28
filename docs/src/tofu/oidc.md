@@ -22,18 +22,20 @@ task tf:apply -- oidc
 ## Prerequisites
 
 A **Pocket ID admin API key**, created at Settings → Admin → API Keys on `auth.$DOMAIN`, stored
-in Bitwarden under the name `POCKETID_API_TOKEN` so `bws run` injects it.
+in Proton Pass and referenced from `secrets.sops.env` as
+`POCKETID_API_TOKEN=pass://futharkd/pocketid/api token`.
 
 An **Infisical machine identity** with write access scoped to the folder this module targets —
 `/nodes/<hostname>/<app>` — and nothing else. Deliberately not the read-only identity the
 cluster authenticates with: this one writes, that one reads, and neither should substitute for
-the other. Store its Universal Auth credentials in Bitwarden as
+the other. Store its Universal Auth credentials in Proton Pass as the `client id` / `client
+secret` fields of `infisical-tofu-writer`, and reference them from `secrets.sops.env` as
 `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`; the provider
-reads both straight from the environment, so no `secrets.sops.env` entry points at them.
+reads both from the environment, where `pass-cli run` has already resolved them.
 
 The project ID goes in `secrets.sops.env` as `TF_VAR_infisical_project_id`. It identifies an
-account rather than granting anything, which is why it is SOPS-encrypted rather than held in
-Bitwarden — see [Secrets](../conventions/secrets.md).
+account rather than granting anything, which is why it sits there as a literal value rather than
+as a `pass://` reference — see [Secrets](../conventions/secrets.md).
 
 Note the host: the provider is pinned to `https://eu.infisical.com`. That is a separate data
 region, not a mirror of `app.infisical.com` — pointing at the wrong one authenticates against a

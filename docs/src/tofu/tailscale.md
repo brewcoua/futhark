@@ -18,7 +18,8 @@ It is keyed on tags and autogroups, not on people or addresses: architecture, wh
 already publishes in far more detail, rather than values. Keep it that way — no user emails,
 no `100.x` node addresses, no tailnet name. The tailnet name and the OAuth credentials are
 identifying — the tailnet name lives SOPS-encrypted in `secrets.sops.env`, the OAuth
-credentials in Bitwarden. If a rule ever genuinely needs a literal user, switch `acl.tf` to
+credentials in Proton Pass, referenced from that same file. If a rule ever genuinely needs a
+literal user, switch `acl.tf` to
 `templatefile()` and pass it as a `TF_VAR`, the same pattern as [`bunny`](bunny.md).
 
 ## First apply
@@ -34,8 +35,8 @@ apply until the live policy has been imported:
 ```bash
 cd tofu/tailscale
 tofu init
-bws run -- 'sops exec-env secrets.sops.env "tofu import tailscale_acl.this acl"'
-bws run -- 'sops exec-env secrets.sops.env "tofu plan"'
+sops exec-env secrets.sops.env 'pass-cli run -- tofu import tailscale_acl.this acl'
+sops exec-env secrets.sops.env 'pass-cli run -- tofu plan'
 ```
 
 Read the plan before applying. If the tailnet has been edited in the admin console since, the
@@ -84,10 +85,11 @@ takes strict JSON, so strip the comments and trailing commas from `policy.hujson
 
 ## Before the first apply
 
-Fill in `secrets.sops.env` (from its `.example`) with the tailnet name, and store an OAuth
-client in Bitwarden as `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_CLIENT_SECRET`. Create
-it in the admin console under Settings → OAuth clients with **write** access to the policy
-file.
+Fill in `secrets.sops.env` (from its `.example`) with the tailnet name and the two `pass://`
+references to the OAuth client, `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_CLIENT_SECRET`.
+Create the client in the admin console under Settings → OAuth clients with **write** access to
+the policy file. It is a second, separate client from the auth-key one `ansible/roles/tailscale`
+mints node keys with — neither needs the other's scope.
 
 Then, in the admin console's policy file management page, set **External reference** to this
 directory's URL and enable **Prevent edits in the admin console**. The former is only a link

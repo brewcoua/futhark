@@ -6,6 +6,3 @@ collections:
   # Decrypts *.sops.yml under group_vars/host_vars via its vars plugin — enabled in
   # ansible/ansible.cfg. Also provides the community.sops.sops lookup.
   - name: community.sops
-  # bitwarden.secrets.lookup, resolving crown-jewel secrets from Bitwarden Secrets Manager
-  # against BWS_ACCESS_TOKEN. See docs/src/conventions/secrets.md.
-  - name: bitwarden.secrets

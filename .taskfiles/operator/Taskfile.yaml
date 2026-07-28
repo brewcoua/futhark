@@ -13,10 +13,25 @@ tasks:
       - task: collections
       - task: hooks
       - task: ":tf:init"
+      - task: pass-session
+
+  # The one credential a new operator machine needs out of band, alongside the GPG smartcard
+  # that opens SOPS. pass-cli persists a session after login, so this is a once-per-machine
+  # step and not a per-command prompt.
+  pass-session:
+    desc: Check this machine has a Proton Pass session, and explain how to get one if not
+    silent: true
+    cmd: |
+      pass-cli info > /dev/null 2>&1 && { echo "Proton Pass session OK"; exit 0; }
+      echo "No Proton Pass session. Mint a personal access token in the Proton Pass"
+      echo "web app, then:"
+      echo
+      echo "  PROTON_PASS_PERSONAL_ACCESS_TOKEN=pst_… pass-cli login"
+      exit 1
 
   deps:
     desc: >-
-      Install required packages (ansible-core, ansible-lint, yamllint, sops, age, bws,
+      Install required packages (ansible-core, ansible-lint, yamllint, sops, age, pass-cli,
       pre-commit, kubectl, helm, kustomize, k0sctl, flux, tofu, mdbook)
     vars:
       # Bump these deliberately, not implicitly via `master`/`latest` — see the kustomize and
@@ -25,7 +40,7 @@ tasks:
       K0SCTL_VERSION: v0.20.0
       MDBOOK_VERSION: v0.5.4
       SOPS_VERSION: v3.13.3
-      BWS_VERSION: 2.1.0
+      PASS_CLI_VERSION: 2.2.3
     cmds:
       # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
       # ships a same-path conflicting package literally named `tofu`, don't use it here.
@@ -33,32 +48,29 @@ tasks:
       # gnupg2/pcsc-lite/pinentry are the smartcard path: the SOPS operator recipient is a GPG
       # key whose encryption subkey lives on a token, so every `sops -d` goes through gpg-agent
       # to the card reader. age is only ever used to generate/hold the *cluster* recipient.
-      - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry unzip
+      - sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry
       - sudo systemctl enable --now pcscd.socket
       # kubernetes.core.helm's idempotency check shells out to this plugin if present.
       - helm plugin list | grep -q ^diff || helm plugin install --verify=false https://github.com/databus23/helm-diff
       - uv tool install --upgrade ansible-lint
       - uv tool install --upgrade pre-commit
       # kubernetes.core's modules (flux_bootstrap) import `kubernetes` directly, not the kubectl
-      # binary above. bitwarden-sdk backs the bitwarden.secrets.lookup plugin, which — like every
-      # lookup — runs on the controller, not the target host, so it belongs here and not in a
-      # host-side role. Both go into /usr/bin/python3's site-packages, since that is the
-      # interpreter ansible-core actually runs plugins and modules with, not a uv tool's
-      # isolated venv.
-      - sudo uv pip install --python /usr/bin/python3 kubernetes bitwarden-sdk
-      # Pinned release binaries. sops decrypts everything committed here; bws resolves the
-      # crown-jewel secrets that are deliberately not committed at all.
+      # binary above. It goes into /usr/bin/python3's site-packages, since that is the interpreter
+      # ansible-core actually runs modules with, not a uv tool's isolated venv.
+      - sudo uv pip install --python /usr/bin/python3 kubernetes
+      # Pinned release binaries. sops decrypts everything committed here; pass-cli resolves the
+      # crown-jewel secrets that are deliberately not committed at all, in either order depending
+      # on the plane — see docs/src/conventions/secrets.md.
       - >-
         command -v sops > /dev/null ||
         (curl -fsSL -o /tmp/sops
         https://github.com/getsops/sops/releases/download/{{.SOPS_VERSION}}/sops-{{.SOPS_VERSION}}.linux.amd64 &&
         sudo install -m 755 /tmp/sops /usr/local/bin/sops)
       - >-
-        command -v bws > /dev/null ||
-        (curl -fsSL -o /tmp/bws.zip
-        https://github.com/bitwarden/sdk-sm/releases/download/bws-v{{.BWS_VERSION}}/bws-x86_64-unknown-linux-gnu-{{.BWS_VERSION}}.zip &&
-        unzip -oq /tmp/bws.zip -d /tmp/bws.d &&
-        sudo install -m 755 /tmp/bws.d/bws /usr/local/bin/bws)
+        command -v pass-cli > /dev/null ||
+        (curl -fsSL -o /tmp/pass-cli
+        https://github.com/protonpass/pass-cli/releases/download/{{.PASS_CLI_VERSION}}/pass-cli-linux-x86_64 &&
+        sudo install -m 755 /tmp/pass-cli /usr/local/bin/pass-cli)
       # Pinned release binary, not curl-to-sudo-bash of the installer script tracking master.
       - >-
         command -v kustomize > /dev/null ||
@@ -95,9 +107,10 @@ tasks:
       echo "Public recipient — put this in .sops.yaml under the (infra|nodes|config) rule:"
       grep -o 'age1[a-z0-9]*' "$out" | head -1
       echo
-      echo "Private key is at $out and is NOT in the repo. Store it in Bitwarden Secrets"
-      echo "Manager as 'age cluster private key', then shred it:  shred -u $out"
-      echo "ansible/roles/flux_bootstrap reads it from there to create flux-system/sops-age."
+      echo "Private key is at $out and is NOT in the repo. Store it in Proton Pass as the"
+      echo "'age key' field of the 'sops' item in the futharkd vault, then shred it:"
+      echo "  shred -u $out"
+      echo "config/secrets.sops.yaml points at it; flux_bootstrap creates flux-system/sops-age."
 
   sops:
     desc: "Edit an encrypted file, creating it from its .example if absent -- <file>"
