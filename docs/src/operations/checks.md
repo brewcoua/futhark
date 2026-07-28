@@ -53,7 +53,10 @@ cancel-in-progress concurrency. Two jobs:
   `ansible-playbook --syntax-check playbooks/*.yml`.
 
 **`docs.yml`** builds this book with mdbook on every pull request and push, and deploys it to
-GitHub Pages only from `master`.
+GitHub Pages only from `master`. It then asserts that every ` ```d2 ` fence in `docs/src`
+became a rendered diagram. That check is not redundant: if `d2` or `mdbook-d2` is missing,
+mdbook leaves the fence as a code block and still exits 0, so the diagrams would silently
+stop shipping.
 
 **`mirror.yml`** pushes a full mirror to Codeberg on every push to `master`, daily on a cron,
 and on demand. It is disaster recovery, not a second remote you push to. It uses

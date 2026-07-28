@@ -12,6 +12,39 @@ assembled per namespace from shared templates in
 | `netpol-allow-from-ingress-internal` | Only if the namespace ships an `Ingress` with `ingressClassName: internal` |
 | `netpol-allow-from-ingress-edge`     | Only if the namespace ships an `Ingress` with `ingressClassName: edge`     |
 
+What that composes to, for one namespace — a wall with named holes in it, and one path that
+goes around the wall entirely:
+
+```d2
+direction: down
+
+ns: "any namespace" {
+  pods: its pods
+}
+
+same: pods in the\nsame namespace
+mon: monitoring\n(scrape)
+int: "ingress-internal\n(traefik-internal)"
+edge: "ingress-edge\n(traefik-edge, hostNetwork)"
+other: everything else { style.stroke-dash: 3 }
+
+same -> ns.pods: netpol-allow-same-namespace
+mon -> ns.pods: netpol-allow-from-monitoring
+int -> ns.pods: netpol-allow-from-ingress-internal
+edge -> ns.pods: "netpol-allow-from-ingress-edge\nmatches kenaz's mesh IP, not a pod identity"
+other -> ns.pods: "netpol-default-deny" {
+  style: { stroke-dash: 4; stroke: "#888" }
+  target-arrowhead.shape: cf-many
+}
+
+ns.pods -> anywhere: egress is never denied
+
+firewalld: "firewalld + Traefik rate limiting\nCNI policy never sees traefik-edge's sockets" {
+  style: { stroke-dash: 4; fill: transparent }
+}
+firewalld -> edge: { style.stroke-dash: 4 }
+```
+
 Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace rather
 than one file. Egress is left open everywhere — the secret operators call out to their APIs,
 cert-manager calls ACME,

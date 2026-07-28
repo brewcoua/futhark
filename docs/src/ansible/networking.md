@@ -14,6 +14,44 @@ This is not a hypothetical case. `konnectivity-agent` does exactly that — it d
 controller's `konnectivity-server` over the mesh — so while it is broken, `kubectl exec`,
 `logs` and `port-forward` are down cluster-wide.
 
+Two paths leave a pod for another node, and they fail for different reasons — which is why the
+two fixes below are not interchangeable:
+
+```d2
+direction: down
+
+a: node A {
+  pod: pod\nsrc = pod IP
+  tun: kube-router\nIPIP tunnel
+  ts: tailscaled\nmesh IP
+  pod -> tun: to a peer *pod* IP
+  pod -> ts: to a peer *node's own* mesh IP
+  tun -> ts: outer header\nsrc = node mesh IP
+}
+
+b: node B {
+  bpod: pod
+  bts: "tailscaled\nkonnectivity-server, traefik…"
+}
+
+a.ts -> b.bts: tailnet
+b.bts -> b.bpod
+
+fix1: "1. ip rule per peer /32 at mesh_route_priority\nkube-router's rule would send this into the tunnel\nwhose endpoint IS that address" {
+  style: { stroke-dash: 4; fill: transparent }
+}
+fix2: "2. SNAT to the node's mesh IP\ntailscaled drops foreign source addresses —\nfails as 'no route to host'" {
+  style: { stroke-dash: 4; fill: transparent }
+}
+acl: "tailnet ACL must allow ip-in-ip (proto 4)\nor the tunnel blackholes silently" {
+  style: { stroke-dash: 4; fill: transparent }
+}
+
+fix1 -> a.ts: { style.stroke-dash: 4 }
+fix2 -> a.ts: { style.stroke-dash: 4 }
+acl -> a.tun: { style.stroke-dash: 4 }
+```
+
 ## 1. Routing
 
 kube-router installs `from <node's pod /24> lookup 77` and puts the peer's mesh IP into table

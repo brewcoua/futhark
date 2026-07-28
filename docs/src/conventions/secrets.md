@@ -21,7 +21,51 @@ secret, rotatable without touching anything else — that is Infisical.
 **The cluster holds no Proton Pass credential at all.** That is the whole tier boundary, and it
 rests on absence rather than on a console-side path grant that could be misconfigured or drift: a
 compromise of the cluster cannot reach the keys that rebuild it, because there is nothing in the
-cluster to reach them with.
+cluster to reach them with. Drawn out, the boundary is the arrow that is not there:
+
+```d2
+direction: down
+
+operator: operator machine {
+  gpg: GPG smartcard
+  pat: Proton Pass token
+}
+
+pass: "Proton Pass — futharkd\ndeploy key, age key, OAuth clients, API keys" {
+  style.stroke-width: 3
+}
+sops: SOPS in git\nnode addresses, tailnet suffix, account IDs
+infisical: "Infisical Cloud (EU)\nper-app runtime secrets"
+
+cluster: k0s cluster {
+  flux: Flux
+  infop: Infisical operator
+  pods: pods
+  infop -> pods: Secret
+}
+
+tofu: OpenTofu
+ansible: Ansible
+
+operator.pat -> pass: pass-cli
+operator.gpg -> sops: decrypts
+
+ansible -> pass: inject
+ansible -> sops
+ansible -> cluster: seeds age key,\ndeploy key, universal-auth
+
+tofu -> pass: run
+tofu -> sops
+tofu -> infisical: writes
+
+cluster.flux -> sops: decrypts, with the age key only
+cluster.infop -> infisical: reads
+
+pass -> cluster: "no credential, no path" {
+  style: { stroke-dash: 4; stroke: "#888" }
+  target-arrowhead.shape: cf-many
+}
+```
 
 ## SOPS
 

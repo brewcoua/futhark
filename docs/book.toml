@@ -5,6 +5,12 @@ authors = ["Brewen Couaran"]
 language = "en"
 src = "src"
 
+# Renders ```d2 fences to SVG at build time. `inline` is the default and is what we want: the
+# SVG lands in the HTML rather than in src/, so nothing generated is ever written back into the
+# tracked tree. Needs the `d2` binary on PATH — `task ops:deps` and .github/workflows/docs.yml
+# both install it from the same pin in config/versions.env.
+[preprocessor.d2]
+
 [output.html]
 git-repository-url = "https://github.com/brewcoua/futhark"
 edit-url-template = "https://github.com/brewcoua/futhark/edit/master/docs/{path}"

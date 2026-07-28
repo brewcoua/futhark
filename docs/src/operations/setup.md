@@ -6,6 +6,29 @@ Two values cannot exist until something else is running, so they are filled in t
 node's mesh address (step 7) and the Pocket ID API token (step 10). Both are called out where
 they land.
 
+```d2
+direction: down
+
+stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and folders"
+repo: "3-6. This machine and this repo\nops:setup, age key, node definitions,\nthe encrypted files, push"
+hosts: "7-8. The hosts and the tailnet\nans:setup, then tf:apply -- tailscale"
+cluster: "9. The cluster\nans:k0s — k0sctl, local-path, Flux"
+cloud: "10. The cloud plane\ntf:apply -- bunny, oidc"
+after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps"
+
+stores -> repo -> hosts -> cluster -> cloud -> after
+
+hosts -> repo: "MESH_IP was a placeholder in step 5 —\nthe node had not joined the tailnet yet" {
+  style: { stroke-dash: 4; stroke: "#c00" }
+}
+cloud -> stores: "POCKETID_API_TOKEN was a placeholder in step 1 —\nPocket ID did not exist yet" {
+  style: { stroke-dash: 4; stroke: "#c00" }
+}
+```
+
+The two red edges are the only backward ones, and they are why the phases are not simply a
+list: both values are produced by a step that needs a file written several steps earlier.
+
 ## 1. Proton Pass
 
 Create a vault named **`futharkd`** — the same slug as the Infisical project, so the two remote
@@ -112,7 +135,8 @@ task ops:setup
 ```
 
 Installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`, `k0sctl`,
-`flux`, `tofu`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard stack and `mdbook`;
+`flux`, `tofu`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard stack, and `mdbook`
+with `d2`/`mdbook-d2` for the diagrams;
 installs the pre-commit hooks; runs `tofu init` in every module; and checks you have a Proton
 Pass session. It needs `dnf` and `uv`.
 

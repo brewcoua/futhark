@@ -96,3 +96,35 @@ touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a fil
 | [`bunny`](bunny.md)         | Public DNS records in the existing Bunny DNS zone                                 |
 | [`oidc`](oidc.md)           | Pocket ID OIDC clients, writing the minted secret into Infisical                  |
 | [`tailscale`](tailscale.md) | The tailnet policy file, including the `ip-in-ip` rule the pod overlay depends on |
+
+What each touches. Every arrow into a secret store is a read, except the one marked — that is
+the whole read-only rule, and its single exception:
+
+```d2
+direction: down
+
+pass: Proton Pass
+sops: SOPS in git
+infisical: Infisical
+
+modules: "tofu/" {
+  bunny
+  oidc
+  tailscale
+}
+
+pass -> modules: provider tokens\n(pass-cli run)
+sops -> modules: identifying values\n(sops exec-env, refs.env)
+
+modules.bunny -> bunny-api: DNS records
+modules.tailscale -> ts-api: policy file + tests
+modules.oidc -> pocketid: OIDC clients
+
+bunny-api: Bunny DNS API
+ts-api: Tailscale API
+pocketid: "Pocket ID API\n(a Flux-managed workload)"
+
+modules.oidc -> infisical: "WRITES the minted secret\nseparate identity, scoped to /nodes/<host>/<app>" {
+  style: { bold: true; stroke: "#c00" }
+}
+```

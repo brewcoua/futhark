@@ -13,6 +13,47 @@ The tree splits along three planes, and almost every question about the repo res
 | Cluster | Everything reconcilable from git: controllers, apps, namespaces, policy           | Flux             | [`flux/`, `infra/`, `nodes/`](gitops/flux.md) |
 | Cloud   | Provider APIs no Kustomization can express: DNS, OIDC clients, the tailnet policy | OpenTofu         | [`tofu/`](tofu/index.md)                      |
 
+The table says who owns what. What it cannot say is how the three meet: each plane hands off to
+the next exactly once, and nothing reaches back the other way.
+
+```d2
+direction: down
+
+operator: operator machine {
+  ansible: Ansible
+  tofu: OpenTofu
+  pass: pass-cli -> Proton Pass
+}
+
+hosts: the machines {
+  kenaz
+  ogma
+}
+
+cluster: k0s cluster {
+  flux: Flux
+  workloads: controllers + apps
+  flux -> workloads: reconciles
+}
+
+git: this repository { style.stroke-width: 3 }
+
+cloud: provider APIs {
+  bunny: Bunny DNS
+  tailscale: Tailscale
+  pocketid: Pocket ID
+}
+
+operator.ansible -> hosts: provisions, then k0sctl installs k0s
+operator.ansible -> cluster.flux: bootstraps once
+operator.tofu -> cloud: applies
+operator.pass -> operator.ansible: crown jewels, never committed
+
+git -> cluster.flux: the only writer after bootstrap
+hosts -> cluster: run
+cluster.workloads -> cloud.pocketid: OIDC at runtime
+```
+
 If you are setting a machine up from nothing, start at [Cold bootstrap](operations/setup.md).
 If something is broken, start at [Troubleshooting](operations/troubleshooting.md). If you are
 adding to the tree, the rules you have to follow are under

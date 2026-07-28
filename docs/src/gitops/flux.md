@@ -34,7 +34,36 @@ Run by `task ans:k0s` (`ansible/playbooks/k0s.yml`):
    5. Wait for the Flux Operator to be ready.
    6. Apply `flux/cluster.yaml`. Flux takes over from here.
 
-There is no follow-up step. Everything past `flux/cluster.yaml` is Flux reconciling git.
+There is no follow-up step. Everything past `flux/cluster.yaml` is Flux reconciling git. The
+handoff, and the one line it never crosses back over:
+
+```d2
+direction: down
+
+ansible: "ansible/playbooks/k0s.yml" {
+  k0s: k0s_cluster\nk0sctl apply
+  lpp: local_path_provisioner\nlocal-path StorageClass
+  boot: flux_bootstrap {
+    op: Flux Operator\n(Helm)
+    seeds: "git-deploy-key, sops-age,\ninfisical-universal-auth"
+    inst: "apply flux/cluster.yaml\n(FluxInstance)"
+  }
+  k0s -> lpp -> boot.op
+  boot.op -> boot.seeds -> boot.inst
+}
+
+flux: Flux { style.stroke-width: 3 }
+git: this repository
+
+ansible.boot.inst -> flux: hands over
+git -> flux: sync.path flux/
+flux -> infra: "flux/infra/ks.yaml -> ./infra"
+flux -> nodes: "flux/nodes/ks.yaml -> ./nodes"
+
+cluster: "flux/cluster.yaml is applied, never reconciled —\nFlux would otherwise watch its own bootstrap" {
+  style: { stroke-dash: 4; fill: transparent; stroke: "#888" }
+}
+```
 
 Every Kustomization carries a `decryption` block naming `flux-system/sops-age`, patched in once
 via `infra/kustomization.yaml` and `nodes/kustomization.yaml`. `flux/infra/ks.yaml` and

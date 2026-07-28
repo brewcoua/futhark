@@ -6,22 +6,64 @@ controller either. A substitution target has to exist before any consumer reconc
 cannot wait on anything. The two controllers that need nothing else from the cluster —
 `infisical-operator` and `cert-manager` — sit directly behind `namespaces`.
 
-The real graph, as declared in each `ks.yaml`:
+The real graph, as declared in each `ks.yaml` — thick borders are the roots and the two
+sinks, the dashed edge is the one inversion:
 
-```text
-namespaces ─┬─> cert-manager ───────────────────────────────────────────┐
-            │                                                           ├─> cert-manager-config ─┐
-            ├─> infisical-operator ─> infisical-operator-config ─┬──────┘                        │
-            │                                                    │                               ├─> traefik-internal ─> traefik-edge ─> auth
-            │                                                    ├─> tailscale-operator-config   │
-            │                                                    │      └─> tailscale-operator ──┘
-            │                                                    ├─> storage
-            │                                                    └─> monitoring (also needs traefik-internal)
+```d2
+direction: down
 
-substitutions ───────────────────────────────> traefik-internal, traefik-edge, monitoring,
-                                               infra-policies, actual
+namespaces: namespaces\n(no dependsOn) { style.stroke-width: 3 }
+substitutions: substitutions\n(no dependsOn) { style.stroke-width: 3 }
 
-everything above ──> infra-policies ──> nodes
+infisical-operator-config: infisical-operator-config
+cert-manager-config: cert-manager-config
+tailscale-operator-config: tailscale-operator-config
+
+nodes: nodes { style.stroke-width: 3 }
+actual: nodes/kenaz.k0s/actual
+
+namespaces -> cert-manager
+namespaces -> infisical-operator
+
+infisical-operator -> infisical-operator-config
+cert-manager -> cert-manager-config
+
+infisical-operator-config -> cert-manager-config
+infisical-operator-config -> tailscale-operator-config
+infisical-operator-config -> storage
+infisical-operator-config -> monitoring
+infisical-operator-config -> auth
+infisical-operator-config -> actual
+
+tailscale-operator-config -> tailscale-operator: inverted { style.stroke-dash: 3 }
+tailscale-operator -> traefik-internal
+cert-manager-config -> traefik-internal
+cert-manager-config -> auth
+
+traefik-internal -> traefik-edge
+traefik-internal -> monitoring
+traefik-internal -> actual
+traefik-edge -> auth
+
+storage -> actual
+
+substitutions -> traefik-internal
+substitutions -> traefik-edge
+substitutions -> monitoring
+substitutions -> actual
+substitutions -> infra-policies
+
+cert-manager -> infra-policies
+infisical-operator -> infra-policies
+tailscale-operator -> infra-policies
+traefik-internal -> infra-policies
+traefik-edge -> infra-policies
+storage -> infra-policies
+monitoring -> infra-policies
+auth -> infra-policies
+
+infra-policies -> nodes
+infra-policies -> actual
 ```
 
 Only those two name `namespaces` in their `dependsOn`; everything else reaches it
