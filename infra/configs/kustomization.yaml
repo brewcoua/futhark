@@ -6,7 +6,6 @@ resources:
   - namespaces/actual
   - namespaces/auth
   - namespaces/cert-manager
-  - namespaces/external-secrets
   - namespaces/monitoring
   - namespaces/csi-rclone
   - namespaces/ingress-internal

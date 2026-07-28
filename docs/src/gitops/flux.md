@@ -28,10 +28,9 @@ Run by `task ans:k0s` (`ansible/playbooks/k0s.yml`):
       published host keys rather than a blind `ssh-keyscan`.
    3. Create the namespaces the next step writes into, since Flux does not exist yet to declare
       them. Flux takes ownership of all of them on its first reconcile.
-   4. Apply the three Secrets that exist to seed what Flux resolves for itself, and so cannot
-      come from Flux: `flux-system/sops-age`, `infisical-universal-auth` in each tier namespace,
-      and `external-secrets/bitwarden-access-token`. All four values come from Bitwarden — see
-      [Secrets](../conventions/secrets.md#the-three-secrets-outside-gitops).
+   4. Apply the two Secrets that exist to seed what Flux resolves for itself, and so cannot
+      come from Flux: `flux-system/sops-age` and `infisical-universal-auth` in each tier
+      namespace. See [Secrets](../conventions/secrets.md#the-secrets-outside-gitops).
    5. Wait for the Flux Operator to be ready.
    6. Apply `flux/cluster.yaml`. Flux takes over from here.
 

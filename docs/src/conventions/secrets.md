@@ -9,7 +9,7 @@ Three stores, chosen by what a value can _do_ rather than by who consumes it.
 | Store                         | Holds                                                                                              | Read by                                  |
 | ----------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | **SOPS**, encrypted in git    | Identifying but non-granting: node addresses, the tailnet MagicDNS suffix, account and project IDs | Ansible, OpenTofu, Flux                  |
-| **Bitwarden Secrets Manager** | Anything that can bootstrap or re-key the system                                                   | `bws` (Ansible, OpenTofu), ESO           |
+| **Bitwarden Secrets Manager** | Anything that can bootstrap or re-key the system                                                   | `bws` (Ansible, OpenTofu)                |
 | **Infisical Cloud** (EU)      | Per-app runtime secrets                                                                            | the Infisical operator, OpenTofu (write) |
 
 The dividing line: publishing a node's IP would tie this repo to a machine, but the IP grants
@@ -61,19 +61,14 @@ Ansible resolves these with `bitwarden.secrets.lookup` against secret IDs held i
 injects a project's secrets as environment variables named after the secrets themselves — so no
 committed pointer is needed at all.
 
-`bws run` warns `secret '<name>' does not have a POSIX-compliant name` for each of the seven
+`bws run` warns `secret '<name>' does not have a POSIX-compliant name` for each of the six
 lowercase-with-spaces entries. That is the design working, not a defect: a name with spaces
 cannot become an environment variable, so `bws run` skips it, and the Ansible-facing crown
 jewels stay out of OpenTofu's environment. Renaming them to silence the warning would inject all
-seven into every `tofu` process. See [Naming](#naming).
+six into every `tofu` process. See [Naming](#naming).
 
-In-cluster, ESO reads Bitwarden through a `ClusterSecretStore` whose `conditions` list starts
-empty, which makes it unusable from every namespace. Add one only when something genuinely needs
-a crown-jewel secret, and say why in the same commit. Reading Bitwarden from a cluster requires
-the `bitwarden-sdk-server` sidecar (the Bitwarden SDK is Rust/CGO, too heavy to link into ESO);
-its HTTPS certificate comes from a `SelfSigned` issuer in `infra/external-secrets/certs/`,
-deliberately not from the ACME path, which would need the Bunny token that a secret store is
-supposed to deliver.
+Nothing in the cluster reads this tier. It is operator-machine only, which is the whole point of
+the boundary: a compromise of the cluster cannot reach the keys that rebuild it.
 
 ## Infisical, and how tier isolation is enforced
 
@@ -142,7 +137,7 @@ key charset is narrower than Kubernetes', and a hyphen that works in one may not
 Most of these values end up as environment variables anyway, where the shape is not a choice.
 And a single rule means you never have to remember which store spells a thing which way.
 
-The exception is Bitwarden's seven Ansible-facing entries, which are referenced by UUID rather
+The exception is Bitwarden's six Ansible-facing entries, which are referenced by UUID rather
 than by name and are deliberately lowercase-with-spaces — see
 [Bitwarden Secrets Manager](#bitwarden-secrets-manager). Naming them in the convention's style
 would risk colliding with the entries `bws run` injects as environment variables, which are
@@ -171,14 +166,13 @@ Three manifests need this today: `cert-manager` (`api-key`), `storage` (`configD
 name in Infisical — the constraint belongs to the chart, so it should be visible next to the
 chart, not encoded as a mystery in a remote UI.
 
-## The three secrets outside GitOps
+## The secrets outside GitOps
 
-These exist to seed what Flux resolves for itself, so none of them can come from Flux.
-`ansible/roles/flux_bootstrap` creates all three:
+These exist to seed what Flux resolves for itself, so neither can come from Flux.
+`ansible/roles/flux_bootstrap` creates both:
 
-- `flux-system/sops-age` — without it Flux cannot decrypt anything, including the store above.
+- `flux-system/sops-age` — without it Flux cannot decrypt anything.
 - `infisical-universal-auth` — one copy per tier namespace.
-- `external-secrets/bitwarden-access-token` — ESO's Bitwarden machine-account token.
 
 Plus `flux-system/git-deploy-key`, which is how Flux reaches the repo at all.
 

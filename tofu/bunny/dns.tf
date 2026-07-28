@@ -20,8 +20,7 @@ data "bunnynet_dns_zone" "internal" {
 
 # One record per edge-exposed hostname — add one bunnynet_dns_record block per additional edge
 # app as they land. auth.DOMAIN routes through kenaz/traefik-edge to infra/auth (Pocket ID),
-# a Flux-managed workload pinned to ogma — see docs/src/conventions/ordering.md
-# (openbao -> external-secrets -> auth -> rest).
+# a Flux-managed workload pinned to ogma — see docs/src/conventions/ordering.md.
 resource "bunnynet_dns_record" "auth" {
   zone  = data.bunnynet_dns_zone.this.id
   name  = "auth"

@@ -6,7 +6,7 @@ resources:
   - pvc-server-files.yaml
   - pvc-user-files.yaml
   - configmap.yaml
-  - externalsecret.yaml
+  - infisicalsecret.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml

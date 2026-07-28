@@ -12,10 +12,9 @@ Sign up on the **EU** region, `vault.bitwarden.eu`, enable Secrets Manager, and 
 `futhark`. The free tier allows unlimited secrets, 3 projects and 3 machine accounts, which is
 enough.
 
-Create two machine accounts, both with read access to that project:
+Create one machine account with read access to that project:
 
 - `futhark-operator` — its access token becomes your `BWS_ACCESS_TOKEN`
-- `futhark-eso` — its access token is what the cluster authenticates with
 
 Generate the Flux deploy key now, since it is stored here:
 
@@ -49,13 +48,12 @@ lowercase-with-spaces so they cannot collide with the injected set above — see
 | `age cluster private key`                | Generated at step 3                                                                   |
 | `infisical cluster-reader client id`     | From step 2                                                                           |
 | `infisical cluster-reader client secret` | Secret half of that same identity                                                     |
-| `bitwarden eso access token`             | The `futhark-eso` access token                                                        |
 | `tailscale authkey client id`            | A **second** OAuth client, scoped to auth-key creation. Not the policy-file one above |
 | `tailscale authkey client secret`        | Secret half of that same client                                                       |
 
 Every `bws run` from here on warns `secret '<name>' does not have a POSIX-compliant name` once
 per row of this second table. Expected — that warning is `bws` declining to turn a name with
-spaces into an environment variable, which is the whole reason these seven are named this way.
+spaces into an environment variable, which is the whole reason these six are named this way.
 
 Two Tailscale OAuth clients, not one: `ansible/roles/tailscale` mints single-use node auth keys,
 `tofu/tailscale` rewrites the policy file. Neither needs the other's scope.
@@ -65,7 +63,7 @@ Then, locally:
 ```bash
 bws config server-base https://vault.bitwarden.eu
 export BWS_ACCESS_TOKEN=<futhark-operator token>
-bws secret list                      # note the UUIDs of the lowercase seven
+bws secret list                      # note the UUIDs of the lowercase six
 ```
 
 `bws config` only affects your own shell. The region the repo's tooling uses is committed in two
@@ -99,7 +97,7 @@ Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout
 | `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                              | `infra/storage/app/secret.yaml`               |
 | `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/secret.yaml`            |
 | `/infra/tailscale`    | `TAILSCALE_CLIENT_ID`, `TAILSCALE_CLIENT_SECRET`                             | `infra/tailscale-operator/config/secret.yaml` |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/externalsecret.yaml`          |
+| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/infisicalsecret.yaml`         |
 | `/nodes/kenaz/actual` | none — leave empty                                                           | written by `task tf:apply -- oidc`            |
 
 That table goes stale as apps are added. The authoritative version is the tree itself: every
@@ -165,13 +163,11 @@ at a `*.sops.*` path.
 What goes in each:
 
 - `ansible/inventory/group_vars/all/secrets.sops.yml` — `admin.user`, `admin.ssh_pubkey`,
-  `tailnet_domain`, and the seven `bws_ids` UUIDs from step 1.
+  `tailnet_domain`, and the six `bws_ids` UUIDs from step 1.
 - `ansible/nodes/<hostname>/host.sops.yml` — that node's public address. Leave `node_mesh_ip`
   out: the node has not joined the tailnet yet, and `roles/tailscale` writes it in at step 7.
 - `infra/edge-ips/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put a
   placeholder in `MESH_IP` for now**; the node has not joined the tailnet yet. Step 7 fills it.
-- `infra/external-secrets/config/clustersecretstore-bitwarden.sops.yaml` — the Bitwarden
-  organisation and project UUIDs.
 - `tofu/tailscale/secrets.sops.env` — the tailnet name.
 - `tofu/bunny/secrets.sops.env` — nothing, currently. The edge node's public address is
   declared in `tofu/bunny/node-refs.env` and read from `ansible/nodes/<hostname>/host.sops.yml`

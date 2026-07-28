@@ -10,11 +10,6 @@ tofu/**/.terraform/
 tofu/**/*.tfstate*
 # OpenTofu dumps provider state into this on a crash — can carry the same secrets state does.
 tofu/**/crash.log
-tofu/oidc/openbao-ca.crt
-
-# Python bytecode cache (ansible/plugins/lookup/protonpass.py)
-__pycache__/
-*.pyc
 
 # mdbook build output
 docs/book/

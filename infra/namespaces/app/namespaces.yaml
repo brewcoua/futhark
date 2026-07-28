@@ -28,13 +28,6 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: external-secrets
-  labels:
-    futk.eu/tier: infra
----
 # cert-manager and csi-rclone are also created implicitly by their HelmRelease's
 # install.createNamespace: true (a harmless no-op once these exist) — declared here so Flux
 # tracks/prunes them and they can carry labels.

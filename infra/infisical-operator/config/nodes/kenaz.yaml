@@ -5,7 +5,7 @@
 # The credential here is the same Infisical machine identity the infra tier uses — the free tier
 # caps identities at five, so there is only one. What differs is reach: this copy lives in a
 # namespace only the node-kenaz operator has RBAC in, that operator can only write Secrets into
-# `actual`, and the ValidatingAdmissionPolicy in infra/configs/policies confines this tier's
+# `actual`, and the ValidatingAdmissionPolicy in infra/infisical-operator/config confines this tier's
 # InfisicalStaticSecrets to /nodes/kenaz. See docs/src/conventions/secrets.md.
 apiVersion: secrets.infisical.com/v1beta1
 kind: InfisicalConnection

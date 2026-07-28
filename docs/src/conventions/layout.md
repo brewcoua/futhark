@@ -17,7 +17,7 @@ If you are naming a Kubernetes YAML file something else, you are naming it wrong
 - `infra/<component>/{ks.yaml, app/}` — one Flux `Kustomization` per component.
 - `infra/<component>/{config-ks.yaml, config/}` — only when that component's CRs need CRDs
   its own `ks.yaml` cannot guarantee exist yet. This is a chicken-and-egg on first apply, and
-  it is why `cert-manager`'s `ClusterIssuer` and `external-secrets`'s `ClusterSecretStore`
+  it is why `cert-manager`'s `ClusterIssuer` and `infisical-operator`'s `InfisicalConnection`
   each sit behind a second Kustomization.
 - `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}` — one directory per node app. See
   [Node apps](../gitops/nodes.md).
@@ -51,6 +51,5 @@ itself into reconciliation.
 4. Add the ingress-bridge template only if `app/` ships an `Ingress`.
 5. If `app/` ships an `InfisicalStaticSecret`, add its namespace to the right tier's
    `scopedNamespaces` in `infra/infisical-operator/app/` — the operator has no RBAC there
-   otherwise. `rbac-eso-writer` is only for the rare namespace with a Bitwarden
-   `ExternalSecret`.
+   otherwise.
 6. Add the new overlay directory to `infra/configs/kustomization.yaml`.

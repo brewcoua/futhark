@@ -10,4 +10,4 @@ flux_bootstrap_infisical_namespaces:
 # Namespaces this role must create before Flux exists, because it writes Secrets into them.
 # Flux re-declares and takes ownership of all of these on its first reconcile; creating them
 # here is only about ordering.
-flux_bootstrap_seed_namespaces: "{{ flux_bootstrap_infisical_namespaces + ['external-secrets'] }}"
+flux_bootstrap_seed_namespaces: "{{ flux_bootstrap_infisical_namespaces }}"

@@ -106,15 +106,6 @@ Check in this order:
 4. Does the path actually hold the secret? Check the Infisical UI at that folder and
    environment.
 
-## A Bitwarden `ExternalSecret` never syncs
-
-Check the store is usable from that namespace at all — `conditions` on the `bitwarden`
-`ClusterSecretStore` starts empty by design, so the answer is usually "the namespace was never
-added". See [Secrets](../conventions/secrets.md#bitwarden-secrets-manager).
-
-Then check `bitwarden-sdk-server` is up and its certificate issued: ESO talks to it over HTTPS
-and reports a connection error, not a Bitwarden error, when it is not.
-
 ## A Kustomization is stuck, and its dependency is fine
 
 Check for a namespace that does not exist yet. Every overlay under `infra/configs/` sets

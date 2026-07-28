@@ -10,9 +10,6 @@ resources:
   - int-domain/ks.yaml
   - infisical-operator/ks.yaml
   - infisical-operator/config-ks.yaml
-  - external-secrets/certs-ks.yaml
-  - external-secrets/ks.yaml
-  - external-secrets/config-ks.yaml
   - auth/ks.yaml
   - cert-manager/ks.yaml
   - cert-manager/config-ks.yaml

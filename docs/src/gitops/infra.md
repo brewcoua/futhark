@@ -7,7 +7,6 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 | Component            | What it is                                                                                                                                |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `infisical-operator` | Runtime secrets. Two namespace-scoped installs, one per tier, plus the admission policy that confines each. See below                     |
-| `external-secrets`   | External Secrets Operator, and only the Bitwarden `ClusterSecretStore`. See below                                                         |
 | `edge-ips`           | Not a controller: one SOPS-encrypted Secret holding the edge node's addresses, consumed by `postBuild.substituteFrom`                     |
 | `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once |
 | `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                  |
@@ -87,14 +86,3 @@ defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-iso
    `InfisicalConnection` + `InfisicalAuth`, and list it in that `kustomization.yaml`.
 4. Add the new namespace to `flux_bootstrap_infisical_namespaces` in
    `ansible/roles/flux_bootstrap/defaults/main.yml`, so the credential gets seeded there.
-
-## External Secrets Operator
-
-ESO's only remaining job is Bitwarden Secrets Manager, which has no operator of its own. It
-reads through `bitwarden-sdk-server`, a sidecar the chart deploys because the Bitwarden SDK is
-Rust/CGO and too heavy to link into ESO; `infra/external-secrets/certs/certificate.yaml` issues
-that sidecar's HTTPS certificate from a `SelfSigned` issuer.
-
-The store's `conditions` list is empty, which makes it unusable from every namespace. That is
-the intended resting state — see [Secrets](../conventions/secrets.md#bitwarden-secrets-manager).
-The RBAC ESO itself runs under is deliberately narrow; same page.
