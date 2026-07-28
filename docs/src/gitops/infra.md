@@ -16,7 +16,7 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 | `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                                  |
 | `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters                                                                                          |
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                  |
-| `configs`            | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                          |
+| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                          |
 
 ## The two ingresses
 
@@ -39,7 +39,7 @@ node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sock
 The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
 `postBuild.substituteFrom` from the SOPS-encrypted `edge-ips` Secret in `infra/substitutions/`.
 That Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
-consumers reconcile, and `infra-configs` — the obvious home for it — depends on `traefik-edge`.
+consumers reconcile, and `infra-policies` — the obvious home for it — depends on `traefik-edge`.
 
 ## Host logs
 
@@ -84,6 +84,9 @@ defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-iso
    sibling `kustomization.yaml`.
 3. Add `infra/infisical-operator/config/nodes/<hostname>.yaml` for the tier's
    `InfisicalConnection` + `InfisicalAuth`, and list it in that `kustomization.yaml`.
-4. Set `app_tier: true` in `ansible/nodes/<hostname>/host.yml`, so `flux_bootstrap` seeds the
+4. Copy `infra/policies/namespaces/infisical-node-kenaz/` to the new tier's namespace and
+   register it in `infra/policies/kustomization.yaml`. The tier namespace holds that tier's copy
+   of the universal-auth credential, so it is the last place to leave without a baseline.
+5. Set `app_tier: true` in `ansible/nodes/<hostname>/host.yml`, so `flux_bootstrap` seeds the
    credential into the new namespace. The list of tiers is derived from that flag rather than
    written out, so there is nothing to keep in step with step 1.

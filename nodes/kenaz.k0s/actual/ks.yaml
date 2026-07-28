@@ -7,11 +7,11 @@ metadata:
 spec:
   path: ./nodes/kenaz.k0s/actual/app
   dependsOn:
-    - name: infra-configs
+    - name: infra-policies
     - name: traefik-internal
     - name: infisical-operator-config
     # app/pvc-user-files.yaml uses storageClassName: storagebox-crypt — previously reached
-    # only transitively via infra-configs.
+    # only transitively via infra-policies.
     - name: storage
     - name: substitutions
   # INT_DOMAIN (ingress host, OIDC hostname) is committed SOPS-encrypted in infra/substitutions;

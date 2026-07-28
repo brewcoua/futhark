@@ -40,16 +40,16 @@ itself into reconciliation.
 ## Adding a node app
 
 1. Create `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}`. The `ks.yaml` needs
-   `dependsOn: [infra-configs]`, plus whatever the app itself needs — usually
+   `dependsOn: [infra-policies]`, plus whatever the app itself needs — usually
    `traefik-internal` and `infisical-operator-config`. `nodes/kenaz.k0s/actual/ks.yaml` is the
    worked example.
 2. Add the directory to the sibling `kustomization.yaml`'s `resources:`.
 3. Add the namespace to `infra/namespaces/app/namespaces.yaml`, labeled `futk.eu/tier: node`
-   and `futk.eu/node: <hostname>`. Then create `infra/configs/namespaces/<app>/` with the
+   and `futk.eu/node: <hostname>`. Then create `infra/policies/namespaces/<app>/` with the
    default-deny, same-namespace and from-monitoring [network policy](network-policy.md)
    templates.
 4. Add the ingress-bridge template only if `app/` ships an `Ingress`.
 5. If `app/` ships an `InfisicalStaticSecret`, add its namespace to the right tier's
    `scopedNamespaces` in `infra/infisical-operator/app/` — the operator has no RBAC there
    otherwise.
-6. Add the new overlay directory to `infra/configs/kustomization.yaml`.
+6. Add the new overlay directory to `infra/policies/kustomization.yaml`.

@@ -108,7 +108,7 @@ Check in this order:
 
 ## A Kustomization is stuck, and its dependency is fine
 
-Check for a namespace that does not exist yet. Every overlay under `infra/configs/` sets
+Check for a namespace that does not exist yet. Every overlay under `infra/policies/` sets
 kustomize's top-level `namespace:` field, so the whole overlay fails to apply if the target
 `Namespace` is missing — as does any chart that writes into a namespace it does not create,
 which is how `infisical-operator` fails when `scopedNamespaces` names one. Add it to

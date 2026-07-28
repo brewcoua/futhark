@@ -5,7 +5,7 @@ kind: Kustomization
 namespace: flux-system
 resources:
   - namespaces/ks.yaml
-  - configs-ks.yaml
+  - policies-ks.yaml
   - substitutions/ks.yaml
   - infisical-operator/ks.yaml
   - infisical-operator/config-ks.yaml
@@ -46,5 +46,5 @@ patches:
         # Explicit rather than relying on the API's default: a dependsOn edge is only a
         # readiness guarantee (not just an apply-ordering one) if the upstream Kustomization
         # actually health-checks what it reconciled — e.g. traefik-internal's HelmRelease
-        # reporting Ready before infra-configs (which needs its Middleware CRD) reconciles.
+        # reporting Ready before infra-policies (which needs its Middleware CRD) reconciles.
         wait: true

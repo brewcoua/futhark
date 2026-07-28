@@ -5,7 +5,7 @@ Kustomization, which depends on nothing. Components do not declare their own —
 whose chart writes into a namespace it does not own would otherwise deadlock against the
 component that does. See [Startup ordering](ordering.md).
 
-What stays per-namespace is the policy attached to it: `infra/configs/namespaces/<namespace>/`
+What stays per-namespace is the policy attached to it: `infra/policies/namespaces/<namespace>/`
 holds that namespace's [NetworkPolicy and RBAC](network-policy.md), not its `Namespace`.
 
 Every non-control-plane namespace carries `futk.eu/tier: infra` or `futk.eu/tier: node`, and

@@ -1,7 +1,7 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
-# Deliberately dependency-free, and deliberately not part of infra-configs: a
-# postBuild.substituteFrom target must exist before any consumer reconciles, and infra-configs
+# Deliberately dependency-free, and deliberately not part of infra-policies: a
+# postBuild.substituteFrom target must exist before any consumer reconciles, and infra-policies
 # depends on traefik-edge, which is itself a consumer.
 #
 # One Kustomization for all three sources. A consumer still names the individual Secret or

@@ -10,7 +10,7 @@ spec:
   prune: true
   wait: true
   dependsOn:
-    - name: infra-configs
+    - name: infra-policies
   sourceRef:
     kind: GitRepository
     name: flux-system

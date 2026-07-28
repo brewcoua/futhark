@@ -19,9 +19,9 @@ namespaces ─┬─> cert-manager ───────────────
             │                                                    └─> monitoring (also needs traefik-internal)
 
 substitutions ───────────────────────────────> traefik-internal, traefik-edge, monitoring,
-                                               infra-configs, actual
+                                               infra-policies, actual
 
-everything above ──> infra-configs ──> nodes
+everything above ──> infra-policies ──> nodes
 ```
 
 Only those two name `namespaces` in their `dependsOn`; everything else reaches it
@@ -50,13 +50,28 @@ Four edges are less obvious than they look:
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
   cluster: the `edge-ips` and `int-domain` Secrets, and the `domain` ConfigMap. A substitution
   target must exist before the Kustomization that substitutes from it reconciles, and the obvious
-  home — `infra-configs` — is downstream of `traefik-edge`, one of those consumers.
+  home — `infra-policies` — is downstream of `traefik-edge`, one of those consumers.
 
-`infra-configs` sits behind every infra controller. Its overlays attach policy to namespaces
+`infra-policies` sits behind every infra controller. Its overlays attach policy to namespaces
 that are already there, so the ordering it needs is the controllers': `middleware-ratelimit`
 wants Traefik's `Middleware` CRD registered, and the point of the edges as a whole is that a
 namespace's default-deny policy lands before anything worth denying. `nodes` then depends on
-`infra-configs`.
+`infra-policies`.
+
+## What `wait: true` already buys, and why there are no `healthChecks`
+
+Every Kustomization in the tree sets `wait: true` — patched in once by `infra/kustomization.yaml`
+— and none sets `healthChecks`. That is deliberate, and the two are alternatives rather than
+complements: `wait: true` health-checks **every** resource the Kustomization applied, and Flux
+**ignores `healthChecks` entirely when it is set**. Adding a `healthChecks` list would be config
+that never runs; getting it to run means `wait: false`, which checks only the resources you
+remembered to name.
+
+The gap `healthChecks` would seem to close — "the HelmRelease is Ready but its pods are still
+starting" — is closed further upstream. helm-controller's `install.disableWait` and
+`upgrade.disableWait` both default to `false`, so it polls the chart's workloads with kstatus and
+only then reports the `HelmRelease` Ready. So a `dependsOn` edge onto a chart-based component
+already means that chart's Deployments and DaemonSets are up.
 
 `local-path` is the one piece that cannot come from Flux at all: monitoring, `auth` and
 `nodes/kenaz.k0s/actual` bind PVCs on their first reconcile, and nothing in the Flux-managed
@@ -74,6 +89,6 @@ during [Cold bootstrap](../operations/setup.md) step 6.
   cert or an ingress, and both have prerequisites.
 
 Whatever you pick, add the component's namespace to `infra/namespaces/app/namespaces.yaml` —
-nothing else declares it. If anything under `infra/configs/namespaces/` targets that namespace,
-add the component to `infra/configs-ks.yaml`'s `dependsOn` too, so the policy lands with the
+nothing else declares it. If anything under `infra/policies/namespaces/` targets that namespace,
+add the component to `infra/policies-ks.yaml`'s `dependsOn` too, so the policy lands with the
 workload rather than ahead of it.

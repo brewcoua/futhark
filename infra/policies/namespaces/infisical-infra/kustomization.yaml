@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+#
+# The tier namespaces were the last two without a baseline, and the worst two to leave without
+# one: each holds its tier's copy of the universal-auth credential. Nothing outside needs to
+# reach the operator, so the triad is the whole policy — no ingress opt-in beyond monitoring's
+# scrape. The operator's own traffic is egress (Infisical's API, the apiserver), which this
+# baseline leaves open; see docs/src/conventions/network-policy.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: infisical-infra
+resources:
+  - ../_templates/netpol-default-deny
+  - ../_templates/netpol-allow-same-namespace
+  - ../_templates/netpol-allow-from-monitoring

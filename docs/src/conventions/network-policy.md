@@ -2,7 +2,7 @@
 
 Every non-control-plane namespace gets a default-deny baseline plus explicit opt-in bridges,
 assembled per namespace from shared templates in
-`infra/configs/namespaces/_templates/`:
+`infra/policies/namespaces/_templates/`:
 
 | Template                             | When                                                                       |
 | ------------------------------------ | -------------------------------------------------------------------------- |
