@@ -17,6 +17,8 @@ resources:
   - traefik-internal/ks.yaml
   - traefik-edge/ks.yaml
   - storage/ks.yaml
+  - backup/ks.yaml
+  - backup/config-ks.yaml
   - monitoring/ks.yaml
 # Every Flux Kustomization CR under infra/ shares interval/prune/sourceRef/wait — patched in
 # here so each ks.yaml only states name, path, dependsOn. See docs/src/conventions/layout.md.

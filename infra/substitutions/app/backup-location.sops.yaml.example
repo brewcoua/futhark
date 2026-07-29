@@ -1,0 +1,31 @@
+---
+# Template. Copy to backup-location.sops.yaml, fill in, encrypt:
+#
+#   cp backup-location.sops.yaml.example backup-location.sops.yaml
+#   $EDITOR backup-location.sops.yaml
+#   sops -e -i backup-location.sops.yaml
+#
+# Which Backblaze B2 bucket Velero writes to, consumed as ${B2_BUCKET}/${B2_REGION} via
+# postBuild.substituteFrom in infra/backup/ks.yaml. The endpoint is not a third value — it
+# derives as https://s3.${B2_REGION}.backblazeb2.com.
+#
+# These are here rather than in Infisical, where the B2 keys themselves live, because a
+# BackupStorageLocation is a CR: its bucket and region are fixed when the manifest renders, and
+# Velero has no runtime Secret input for them. Reaching them from Infisical would mean writing a
+# Secret into flux-system — the only namespace substituteFrom reads — which the
+# ValidatingAdmissionPolicy in infra/infisical-operator/config forbids and no tier has RBAC for.
+# The split follows docs/src/conventions/secrets.md either way: identifying values in SOPS,
+# credentials in Infisical.
+#
+# A Secret rather than a ConfigMap, same reasoning as edge-ips.sops.yaml.example: substituteFrom
+# accepts either, and SOPS encrypting a ConfigMap's data would be conspicuous mislabelling of
+# something that is, in fact, hidden.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backup-location
+  namespace: flux-system
+type: Opaque
+stringData:
+  B2_BUCKET: example-cluster-backups
+  B2_REGION: eu-central-003

@@ -20,5 +20,6 @@ configMapGenerator:
       - alerting/watchdog.yaml
       - alerting/node-health.yaml
       - alerting/kubernetes.yaml
+      - alerting/backup.yaml
 generatorOptions:
   disableNameSuffixHash: true

@@ -82,6 +82,20 @@ config:
     # traefik-internal has no hostNetwork/hostIP anymore (it's exposed via the Tailscale
     # operator instead — see infra/traefik-internal/app/helmrelease.yaml), so its metrics
     # port is just an ordinary in-cluster Service.
+    # The chart names the metrics Service `velero` in its own namespace. node-agent exposes its
+    # own metrics on the pods, but the backup/restore counters the alerts read are the server's.
+    - job_name: velero
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names: [velero]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: velero
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: http-monitoring
     - job_name: traefik-internal
       static_configs:
         - targets: ["traefik-internal.ingress-internal.svc.cluster.local:9180"]

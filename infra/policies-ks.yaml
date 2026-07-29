@@ -15,6 +15,7 @@ spec:
     - name: cert-manager
     - name: monitoring
     - name: storage
+    - name: backup
     - name: auth
     - name: tailscale-operator
     - name: traefik-internal

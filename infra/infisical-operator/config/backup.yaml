@@ -1,0 +1,36 @@
+---
+# The backup tier's own credential binding, and the one place in this tree where a *second*
+# machine identity appears. The other tiers share `cluster_reader`; this one authenticates as
+# `backup_reader`, which is granted /infra/velero in the Infisical console and nothing else —
+# and cluster_reader is denied that path in return. Without that second half the separation is
+# cosmetic, since the ValidatingAdmissionPolicy already lets any infra namespace name /infra/*.
+# See docs/src/conventions/secrets.md.
+#
+# infisical-universal-auth here is seeded by ansible/roles/flux_bootstrap, same as every tier's.
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalConnection
+metadata:
+  name: infisical
+  namespace: infisical-backup
+spec:
+  address: https://eu.infisical.com
+---
+apiVersion: secrets.infisical.com/v1beta1
+kind: InfisicalAuth
+metadata:
+  name: infisical
+  namespace: infisical-backup
+spec:
+  method: universal
+  infisicalConnectionRef:
+    name: infisical
+    namespace: infisical-backup
+  universal:
+    clientIdRef:
+      name: infisical-universal-auth
+      namespace: infisical-backup
+      key: clientId
+    clientSecretRef:
+      name: infisical-universal-auth
+      namespace: infisical-backup
+      key: clientSecret

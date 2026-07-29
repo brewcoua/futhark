@@ -5,6 +5,7 @@
 # Operations
 
 - [Cold bootstrap](operations/setup.md)
+- [Backup and recovery](operations/recovery.md)
 - [Task reference](operations/tasks.md)
 - [Checks and CI](operations/checks.md)
 - [Troubleshooting](operations/troubleshooting.md)

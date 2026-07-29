@@ -76,6 +76,14 @@ tasks:
       - curl -fsSL https://github.com/k0sproject/k0sctl/releases/download/${K0SCTL_VERSION}/k0sctl-linux-amd64 -o /tmp/k0sctl && sudo install -m 755 /tmp/k0sctl /usr/local/bin/k0sctl
       # Every fx:* task and k0s:status (via flux get) needs this; nothing else here installed it.
       - command -v flux > /dev/null || curl -fsSL https://fluxcd.io/install.sh | sudo bash
+      # Every bak:* task shells out to this. Not needed on the cluster — the server side is the
+      # HelmRelease in infra/backup — only on the operator machine driving a restore.
+      - >-
+        command -v velero > /dev/null ||
+        (curl -fsSL -o /tmp/velero.tar.gz
+        https://github.com/velero-io/velero/releases/download/${VELERO_VERSION}/velero-${VELERO_VERSION}-linux-amd64.tar.gz &&
+        tar -xzf /tmp/velero.tar.gz -C /tmp &&
+        sudo install -m 755 /tmp/velero-${VELERO_VERSION}-linux-amd64/velero /usr/local/bin/velero)
       # Same pin .github/workflows/docs.yml reads, so a local `task docs:build` renders what CI publishes.
       - >-
         command -v mdbook > /dev/null ||

@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Split from ks.yaml: the Schedule here needs the velero.io CRDs to already exist, which their
+# own Kustomization can't guarantee for itself — same chicken-and-egg as cert-manager/config-ks.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: backup-config
+spec:
+  path: ./infra/backup/config
+  dependsOn:
+    - name: backup

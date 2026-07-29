@@ -1,6 +1,8 @@
 ---
 # Uploaded attachments. storagebox-crypt is off-node and Retain-reclaimed — safe to use here
-# since it's plain blob storage, not SQLite (see pvc-server-files.yaml).
+# since it's plain blob storage, not SQLite (see pvc-server-files.yaml). Not in Velero's backup,
+# and that is the tiering rather than an omission: the box takes its own snapshots, so copying
+# this to B2 would be a second offsite copy of the same bytes.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

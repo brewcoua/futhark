@@ -28,6 +28,16 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
+# The backup tier is not a node tier: it exists so the B2 credentials sit behind a machine
+# identity no other tier can authenticate as. Its operator's RBAC reaches only here and `velero`.
+# See docs/src/conventions/secrets.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infisical-backup
+  labels:
+    futk.eu/tier: infra
+---
 # cert-manager and csi-rclone are also created implicitly by their HelmRelease's
 # install.createNamespace: true (a harmless no-op once these exist) — declared here so Flux
 # tracks/prunes them and they can carry labels.
@@ -56,6 +66,13 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: tailscale
+  labels:
+    futk.eu/tier: infra
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: velero
   labels:
     futk.eu/tier: infra
 ---

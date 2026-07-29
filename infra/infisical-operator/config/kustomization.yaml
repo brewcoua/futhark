@@ -6,3 +6,4 @@ resources:
   - validatingadmissionpolicy.yaml
   - clusterconnection-infra.yaml
   - nodes/kenaz.yaml
+  - backup.yaml

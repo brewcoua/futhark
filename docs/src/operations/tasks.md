@@ -78,8 +78,25 @@ task ops:sops -- tofu/bunny/secrets.sops.env     # create it, or edit it
 | `k0s:certs`                    | Certificates and pending CertificateRequests                              |
 | `k0s:apply`                    | Re-converge with k0sctl and re-bootstrap Flux                             |
 
-Every `k0s:*` and `fx:*` task points `KUBECONFIG` at `ansible/.generated/kubeconfig` itself —
-you do not need it in your environment.
+Every `k0s:*`, `fx:*` and `bak:*` task points `KUBECONFIG` at `ansible/.generated/kubeconfig`
+itself — you do not need it in your environment.
+
+## `bak:` — backups
+
+| Task                             | Does                                                          |
+| -------------------------------- | ------------------------------------------------------------- |
+| `bak:backups`                    | Every backup and its status                                   |
+| `bak:schedules`                  | Schedules, and when each last ran                             |
+| `bak:describe -- <backup>`       | What a backup contains, including which volumes it copied     |
+| `bak:logs -- <backup>`           | A backup's log                                                |
+| `bak:now`                        | Run the daily schedule immediately                            |
+| `bak:restore -- <ns>[/<backup>]` | **Wipes** the namespace's `local-path` PVCs and restores them |
+
+`bak:restore` deletes data. It prints which PVCs it will destroy and which it will leave alone —
+`storagebox-crypt` volumes are never touched — and requires you to type the namespace back before
+it proceeds. It is deliberately not reachable from any other task.
+[Backup and recovery](recovery.md) covers what it does behind that prompt, and why a hand-run
+`velero restore` is not equivalent.
 
 ## `tf:` — the cloud plane
 

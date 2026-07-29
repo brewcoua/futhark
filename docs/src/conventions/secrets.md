@@ -107,8 +107,14 @@ Three resolvers, one per plane:
 
 The crown-jewel tier, in one vault named `futharkd` — the same slug as the Infisical project, so
 the two remote stores are named alike. It holds the Flux git deploy key, the cluster age private
-key, both Infisical machine identities, the Tailscale OAuth client, the Bunny API key and the
-Pocket ID admin token.
+key, all three Infisical machine identities, the Tailscale OAuth client, the Bunny API key and
+the Pocket ID admin token.
+
+It also holds the two keys that encrypt the backups — the Kopia repository password and the
+SSE-C key. Those are the one deliberate duplication in this scheme: they are runtime secrets, so
+Velero reads them from Infisical like everything else, but a copy lives here because losing
+access to Infisical must not also mean losing the ability to decrypt B2. There is no recovery
+path if both go, by construction. See [Backup and recovery](../operations/recovery.md#encryption).
 
 **The admin SSH private key is not in it, and never will be.** It is the operator's own identity,
 it already lives in `~/.ssh` on the machine doing the connecting, and Ansible never reads it — it
@@ -198,36 +204,56 @@ Three things the repo cannot express, in the order they bite:
    operator, and as `ProjectMembershipNotFound` from the API — a membership problem wearing a
    permissions error's clothes. Granting an org-level role does not fix it; the identity has to
    be assigned to the project.
-2. **Its role and paths.** Read on `/infra/*` and `/nodes/*` in the `prod` environment.
-3. **`accessTokenTrustedIps`**, the third isolation layer below. Scoped to the cluster's egress
-   address, so it fails whenever that changes — after a node rebuild, or when a pod is
-   rescheduled onto a node whose address was never listed.
+2. **Its role and paths.** `cluster-reader` gets read on `/infra/*` and `/nodes/*` in the `prod`
+   environment, **minus `/infra/velero`**. `backup-reader` gets `/infra/velero` and nothing else.
+   Both halves matter: the admission policy below already lets any infra namespace name an
+   `/infra/*` path, so if `cluster-reader` keeps `/infra/velero` the backup tier's separate
+   identity buys nothing.
+3. **`accessTokenTrustedIps`**, the third isolation layer below. Set on both identities, scoped
+   to the cluster's egress address, so it fails whenever that changes — after a node rebuild, or
+   when a pod is rescheduled onto a node whose address was never listed.
 
 None of this is reconciled. Nothing drifts back. When secrets stop resolving and the manifests
 look right, check these before reading any more YAML.
 
-Infisical's free tier caps identities at five, humans included, so the whole cluster shares one
-machine identity. Kubernetes auth is not an option either: Infisical would have to reach the k0s
-API server for a `TokenReview`, and that API server is tailnet-only. So a single credential can,
-by itself, read the entire project — and the isolation OpenBao used to enforce server-side has
-to be rebuilt in the cluster.
+Infisical's free tier caps identities at five, humans included, so identities are rationed rather
+than minted per tier: `cluster-reader` is shared by the infra and every node tier. Kubernetes
+auth is not an option either — Infisical would have to reach the k0s API server for a
+`TokenReview`, and that API server is tailnet-only. So one credential can, by itself, read almost
+the entire project, and the isolation OpenBao used to enforce server-side has to be rebuilt in
+the cluster.
 
 Three layers do that, none of them relying on a controller's good behaviour:
 
-1. **Kubernetes RBAC.** The operator is installed twice, once per tier, each with
-   `scopedRBAC: true` and its own `scopedNamespaces`. The chart then emits a `Role`/`RoleBinding`
-   per scoped namespace and no cluster-wide secrets `ClusterRole` at all. The node tier's
-   ServiceAccount therefore has zero permissions in `infisical-infra` or any infra namespace — it
-   cannot read the infra tier's `InfisicalAuth`, let alone write a Secret next to it. Each tier
-   keeps its own copy of the credential in its own namespace for the same reason.
+1. **Kubernetes RBAC.** The operator is installed once per tier, each with `scopedRBAC: true` and
+   its own `scopedNamespaces`. The chart then emits a `Role`/`RoleBinding` per scoped namespace
+   and no cluster-wide secrets `ClusterRole` at all. The node tier's ServiceAccount therefore has
+   zero permissions in `infisical-infra` or any infra namespace — it cannot read the infra tier's
+   `InfisicalAuth`, let alone write a Secret next to it. Each tier keeps its own copy of the
+   credential in its own namespace for the same reason.
 2. **A `ValidatingAdmissionPolicy`.** RBAC governs where a Secret may land, not which path may be
    read, so `infra/infisical-operator/config/validatingadmissionpolicy.yaml` pins
    `spec.sources[].secretPath` to the namespace's own tier, using the `futk.eu/tier` and
    `futk.eu/node` labels from [Namespaces](namespaces.md), and pins every target to the
    object's own namespace. It is evaluated by the API server, so a violating object is never
    persisted — no extra controller, no Kyverno.
-3. **Trusted IPs.** The `cluster-reader` identity has `accessTokenTrustedIps` set to the
-   cluster's egress address in Infisical itself.
+3. **Trusted IPs.** Both identities have `accessTokenTrustedIps` set to the cluster's egress
+   address in Infisical itself.
+
+### The one path that gets its own identity
+
+`/infra/velero` holds the Backblaze application key, the Kopia repository password and the SSE-C
+key — between them, everything needed to read every backup this cluster has ever taken. Layer 2
+is not enough for that: the admission policy pins an `InfisicalStaticSecret` to its namespace's
+_tier_, so any infra namespace may legitimately name any `/infra/*` path, `/infra/velero`
+included.
+
+So the backup tier spends one of the five identities. `infisical-backup` is its own operator
+install scoped to itself and `velero`, authenticating as `backup-reader`, which is granted
+`/infra/velero` and nothing else — and `cluster-reader` is denied that path in return. The second
+half is what makes it real, and it exists only in the Infisical console; skip it and the tier is
+decoration. `ansible/roles/flux_bootstrap` seeds this credential in its own task, separate from
+the loop that seeds the shared one.
 
 What still defeats it: a cluster-admin who can edit the policy or the HelmReleases. Flux
 reconciles and prunes all three every 10 minutes, so drift reverts within one interval, but that

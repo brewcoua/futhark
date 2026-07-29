@@ -1,7 +1,8 @@
 ---
 # Primary dashboard + alerting UI. Datasources are provisioned here (editable: false); contact
 # points, notification policies and alert rules are in alerting/, delivered by the chart's
-# alerts sidecar. Dashboards stay UI-managed; backups deferred.
+# alerts sidecar. Dashboards stay UI-managed, which is why the volume is backed up — grafana.db
+# is the only copy of anything drawn in the UI.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -43,6 +44,12 @@ spec:
       enabled: true
       storageClassName: local-path
       size: ${GRAFANA_STORAGE}
+    # Opts grafana.db into Velero's nightly backup. The chart names the volume `storage`.
+    # VictoriaMetrics and VictoriaLogs deliberately carry no equivalent: both already expire
+    # their own data (${VM_RETENTION}/${VL_RETENTION}), and metrics worth B2 egress is not a
+    # trade this cluster makes. See docs/src/operations/recovery.md.
+    podAnnotations:
+      backup.velero.io/backup-volumes: storage
     # local-path is single-node hostPath; a rolling update can schedule the new pod before the
     # old one releases the volume. Recreate avoids two grafana.db writers.
     strategy:

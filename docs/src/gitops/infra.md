@@ -4,19 +4,20 @@
 `Kustomization`. Layout rules are in [Layout and naming](../conventions/layout.md); the order
 they come up in is [Startup ordering](../conventions/ordering.md).
 
-| Component            | What it is                                                                                                                                                                |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `infisical-operator` | Runtime secrets. Two namespace-scoped installs, one per tier, plus the admission policy that confines each. See below                                                     |
-| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `edge-ips` and `int-domain` Secrets, `monitoring-sizing`, and `${DOMAIN}` from `config/domain/domain.env` |
-| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once                                 |
-| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                                  |
-| `tailscale-operator` | Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass: tailscale`                                                                       |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. Exposed through the Tailscale operator                                                                             |
-| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                               |
-| `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                                                       |
-| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters. One `app/` subdirectory per workload — see below                                                             |
-| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                                       |
-| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                               |
+| Component            | What it is                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                              |
+| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `edge-ips`, `int-domain` and `backup-location` Secrets, `monitoring-sizing`, and `${DOMAIN}` |
+| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once                    |
+| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                     |
+| `tailscale-operator` | Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass: tailscale`                                                          |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. Exposed through the Tailscale operator                                                                |
+| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                  |
+| `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                                          |
+| `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                 |
+| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters. One `app/` subdirectory per workload — see below                                                |
+| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                          |
+| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                  |
 
 ## The two ingresses
 
@@ -48,9 +49,9 @@ One Flux `Kustomization`, five workloads, one directory each under `infra/monito
 `headlamp/`. Only `helmrepositories.yaml` stays flat, since every one of them draws on it.
 
 **Alert rules are in `grafana/alerting/`**, one file per group — `watchdog.yaml`,
-`node-health.yaml`, `kubernetes.yaml` — plus `contactpoints.yaml` and `policies.yaml`. They are
-ordinary Grafana provisioning YAML: write `{{ $labels.instance }}` as you would in the UI. Nothing
-escapes it, because nothing templates it. `kustomization.yaml` generates them into one ConfigMap
+`node-health.yaml`, `kubernetes.yaml`, `backup.yaml` — plus `contactpoints.yaml` and
+`policies.yaml`. They are ordinary Grafana provisioning YAML: write `{{ $labels.instance }}` as
+you would in the UI. Nothing escapes it, because nothing templates it. `kustomization.yaml` generates them into one ConfigMap
 labelled `grafana_alert: "1"`, and the chart's alerts sidecar copies it into
 `/etc/grafana/provisioning/alerting/` and POSTs Grafana's reload endpoint — so an edit lands on
 the next reconcile without restarting Grafana.
@@ -103,9 +104,9 @@ The other half — the jails, and why fail2ban logs to a file at all — is in
 
 ## Infisical operator
 
-The operator is installed **twice**, once per tier, and that is the isolation mechanism rather
-than a deployment detail. Each install sets `scopedRBAC: true` with its own `scopedNamespaces`,
-so the chart emits a `Role`/`RoleBinding` per listed namespace and no cluster-wide secrets
+The operator is installed **once per tier**, and that is the isolation mechanism rather than a
+deployment detail. Each install sets `scopedRBAC: true` with its own `scopedNamespaces`, so the
+chart emits a `Role`/`RoleBinding` per listed namespace and no cluster-wide secrets
 `ClusterRole`. A tier's ServiceAccount has no permissions anywhere outside its own list.
 
 - **infra tier** — `infra/infisical-operator/app/helmrelease-infra.yaml`, release namespace
@@ -113,13 +114,18 @@ so the chart emits a `Role`/`RoleBinding` per listed namespace and no cluster-wi
 - **node tier** — `helmrelease-node-<hostname>.yaml`, release namespace
   `infisical-node-<hostname>`, `installCRDs: false` and `dependsOn` the infra release, because
   two installs racing to own the same CRDs is the documented failure mode.
+- **backup tier** — `helmrelease-backup.yaml`, release namespace `infisical-backup`, scoped to
+  itself and `velero`. Not per-host, and the only tier with a machine identity of its own.
 
 Each tier's namespace appears first in its own `scopedNamespaces`, and not by accident: that is
 what lets the operator read the `InfisicalAuth` and credential Secret it authenticates with.
-Both tiers share one Infisical machine identity — the free tier caps identities at five — so
-what separates them is RBAC plus the `ValidatingAdmissionPolicy` in `config/`, which pins each
-`InfisicalStaticSecret`'s `secretPath` to its namespace's tier. The reasoning, and what still
-defeats it, is in [Secrets](../conventions/secrets.md#infisical-and-how-tier-isolation-is-enforced).
+The infra and node tiers share one Infisical machine identity — the free tier caps identities at
+five — so what separates _them_ is RBAC plus the `ValidatingAdmissionPolicy` in `config/`, which
+pins each `InfisicalStaticSecret`'s `secretPath` to its namespace's tier. The backup tier goes
+further and authenticates as a second identity, because the admission policy alone would let any
+infra namespace read `/infra/velero` and those are the keys that decrypt every backup. The
+reasoning, and what still defeats it, is in
+[Secrets](../conventions/secrets.md#infisical-and-how-tier-isolation-is-enforced).
 
 ### Adding a node tier
 

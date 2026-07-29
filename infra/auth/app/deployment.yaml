@@ -16,6 +16,10 @@ spec:
     metadata:
       labels:
         app: pocketid
+      annotations:
+        # Users, passkeys and OIDC clients. Small, and the thing tofu/oidc's state assumes still
+        # exists. See docs/src/operations/recovery.md.
+        backup.velero.io/backup-volumes: data
     spec:
       nodeSelector:
         kubernetes.io/hostname: ogma

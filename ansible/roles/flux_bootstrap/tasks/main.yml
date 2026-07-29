@@ -103,6 +103,25 @@
   loop: "{{ flux_bootstrap_infisical_namespaces }}"
   no_log: true
 
+# Same Secret name and shape, different identity. backup_reader is the only one granted
+# /infra/velero in the Infisical console, and cluster_reader is denied it — that pairing is what
+# keeps the keys protecting every backup out of reach of the credential every other tier holds.
+- name: Bridge the backup tier's Infisical credential
+  kubernetes.core.k8s:
+    kubeconfig: "{{ generated_dir }}/kubeconfig"
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: infisical-universal-auth
+        namespace: "{{ flux_bootstrap_backup_namespace }}"
+      type: Opaque
+      stringData:
+        clientId: "{{ secrets.infisical.backup_reader.client_id }}"
+        clientSecret: "{{ secrets.infisical.backup_reader.client_secret }}"
+  no_log: true
+
 - name: Wait for the Flux Operator to be ready
   kubernetes.core.k8s_info:
     kubeconfig: "{{ generated_dir }}/kubeconfig"

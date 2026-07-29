@@ -4,6 +4,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - helmrepository.yaml
-  - helmrelease-infra.yaml
-  - helmrelease-node-kenaz.yaml
-  - helmrelease-backup.yaml
+  - helmrelease.yaml
+  - secret.yaml
+  - secret-repo.yaml

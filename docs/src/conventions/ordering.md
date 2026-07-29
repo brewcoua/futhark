@@ -18,6 +18,7 @@ substitutions: substitutions\n(no dependsOn) { style.stroke-width: 3 }
 infisical-operator-config: infisical-operator-config
 cert-manager-config: cert-manager-config
 tailscale-operator-config: tailscale-operator-config
+backup-config: backup-config
 
 nodes: nodes { style.stroke-width: 3 }
 actual: nodes/kenaz.k0s/actual
@@ -31,6 +32,7 @@ cert-manager -> cert-manager-config
 infisical-operator-config -> cert-manager-config
 infisical-operator-config -> tailscale-operator-config
 infisical-operator-config -> storage
+infisical-operator-config -> backup
 infisical-operator-config -> monitoring
 infisical-operator-config -> auth
 infisical-operator-config -> actual
@@ -46,10 +48,12 @@ traefik-internal -> actual
 traefik-edge -> auth
 
 storage -> actual
+backup -> backup-config
 
 substitutions -> traefik-internal
 substitutions -> traefik-edge
 substitutions -> monitoring
+substitutions -> backup
 substitutions -> actual
 substitutions -> infra-policies
 
@@ -59,6 +63,7 @@ tailscale-operator -> infra-policies
 traefik-internal -> infra-policies
 traefik-edge -> infra-policies
 storage -> infra-policies
+backup -> infra-policies
 monitoring -> infra-policies
 auth -> infra-policies
 
@@ -90,9 +95,10 @@ Four edges are less obvious than they look:
   name the operator and not the config ahead of it. `traefik-internal` names
   `tailscale-operator` for exactly that reason.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
-  cluster: the `edge-ips` and `int-domain` Secrets, and the `domain` ConfigMap. A substitution
-  target must exist before the Kustomization that substitutes from it reconciles, and the obvious
-  home — `infra-policies` — is downstream of `traefik-edge`, one of those consumers.
+  cluster: the `edge-ips`, `int-domain` and `backup-location` Secrets, and the `domain`
+  ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
+  reconciles, and the obvious home — `infra-policies` — is downstream of `traefik-edge`, one of
+  those consumers.
 
 `infra-policies` sits behind every infra controller. Its overlays attach policy to namespaces
 that are already there, so the ordering it needs is the controllers': `middleware-ratelimit`

@@ -1,7 +1,8 @@
 ---
 # SQLite budget DBs. local-path is node-local hostPath storage — avoids the locking issues
-# a network filesystem (storagebox-crypt) can cause for SQLite. No off-node durability yet;
-# backups are separate future work.
+# a network filesystem (storagebox-crypt) can cause for SQLite. Node-local means this disk dying
+# takes the data with it, so the volume is opted into Velero's nightly backup by the annotation
+# on deployment.yaml. See docs/src/operations/recovery.md.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

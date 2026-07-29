@@ -1,0 +1,29 @@
+---
+# The only backup schedule. Resource manifests are collected cluster-wide because they are cheap
+# and make a backup self-describing; volume data is opt-in per pod, so adding an app never means
+# editing this file — the backup.velero.io/backup-volumes annotation is the only switch.
+#
+# Secrets are excluded deliberately. Velero writes resource manifests to the bucket under SSE-C
+# but with no client-side encryption of its own, and nothing would be lost by leaving them out:
+# Infisical is the source of truth for every runtime secret and git owns the rest, so no Secret
+# in a backup would ever be the only copy. See docs/src/operations/recovery.md.
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: daily
+  namespace: velero
+spec:
+  schedule: "0 3 * * *"
+  # Skip a run rather than stack one on top of a backup still copying volumes.
+  skipImmediately: false
+  useOwnerReferencesInBackup: false
+  template:
+    ttl: 720h # 30d
+    includedNamespaces:
+      - "*"
+    excludedResources:
+      - secrets
+    # Opt-in, not opt-out: without this every storagebox-crypt volume would be dragged back
+    # through rclone and re-uploaded to B2, which the Storage Box's own snapshots already cover.
+    defaultVolumesToFsBackup: false
+    snapshotVolumes: false

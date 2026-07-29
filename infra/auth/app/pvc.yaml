@@ -1,7 +1,8 @@
 ---
 # Pocket ID's SQLite DB + app data. local-path is node-local hostPath storage — avoids the
 # locking issues a network filesystem (storagebox-crypt) can cause for SQLite, same
-# reasoning as nodes/kenaz.k0s/actual's pvc-server-files.yaml. No off-node durability yet.
+# reasoning as nodes/kenaz.k0s/actual's pvc-server-files.yaml. Node-local, so the volume is
+# opted into Velero's nightly backup by the annotation on deployment.yaml.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

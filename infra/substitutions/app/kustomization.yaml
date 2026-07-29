@@ -5,7 +5,7 @@
 # and each holding a single object — three roots to express one idea.
 #
 # The Component generates the `domain` ConfigMap from config/domain/domain.env, which stays the
-# single source; this only publishes it. The two Secrets are SOPS-encrypted and sealed to the
+# single source; this only publishes it. The three Secrets are SOPS-encrypted and sealed to the
 # cluster age key as well as the operator's, since Flux decrypts them in-cluster.
 # monitoring-sizing is a plain ConfigMap — its values are tuning knobs, not identifying ones.
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -13,6 +13,7 @@ kind: Kustomization
 resources:
   - edge-ips.sops.yaml
   - int-domain.sops.yaml
+  - backup-location.sops.yaml
   - monitoring-sizing.yaml
 components:
   - ../../../config/domain

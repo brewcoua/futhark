@@ -1,0 +1,100 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
+# Off-node durability for the local-path PVCs. Which volumes those are is not decided here: a
+# volume is backed up only if its pod carries backup.velero.io/backup-volumes naming it, so the
+# storagebox-crypt tier is excluded by never opting in. See docs/src/operations/recovery.md.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: velero
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: velero
+  targetNamespace: velero
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: velero
+      version: "12.1.*" # chart 12.1.x -> Velero 1.18.1
+      sourceRef:
+        kind: HelmRepository
+        name: velero
+        namespace: flux-system
+  values:
+    # The object-store plugin. The chart ships no provider, and refuses to start without one.
+    initContainers:
+      - name: velero-plugin-for-aws
+        image: velero/velero-plugin-for-aws:v1.13.1
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - name: plugins
+            mountPath: /target
+
+    # Neither storage class has a CSI snapshotter — local-path is hostPath, storagebox-crypt is
+    # rclone — so volume data moves as a filesystem copy through the node-agent, and there is no
+    # VolumeSnapshotLocation to create.
+    deployNodeAgent: true
+    snapshotsEnabled: false
+    nodeAgent:
+      # k0s runs kubelet under its own root, the same override infra/storage's chart needs for
+      # kubeletDir. Left at the chart default these point at /var/lib/kubelet, which exists but
+      # holds no pods — and the failure is silent: every backup completes successfully having
+      # copied nothing. `velero backup describe --details` showing zero podvolumebackups is the
+      # symptom.
+      podVolumePath: /var/lib/k0s/kubelet/pods
+      pluginVolumePath: /var/lib/k0s/kubelet/plugins
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 1Gi
+
+    configuration:
+      uploaderType: kopia
+      backupStorageLocation:
+        - name: default
+          provider: aws
+          bucket: ${B2_BUCKET}
+          default: true
+          config:
+            region: ${B2_REGION}
+            s3Url: https://s3.${B2_REGION}.backblazeb2.com
+            s3ForcePathStyle: "true"
+            # B2's S3 API rejects the AWS SDK's default trailing checksum, which surfaces as the
+            # BackupStorageLocation going Unavailable with an opaque 400.
+            checksumAlgorithm: ""
+            # SSE-C: the key never leaves the cluster, so Backblaze holds ciphertext it cannot
+            # read. This covers the resource tarballs, which Velero would otherwise upload as
+            # plain gzip — volume data is separately encrypted by Kopia under the repository
+            # password. The chart mounts the whole credentials Secret at /credentials, so this
+            # path is the `customer-key` entry of velero-b2. See docs/src/operations/recovery.md.
+            customerKeyEncryptionFile: /credentials/customer-key
+
+    credentials:
+      existingSecret: velero-b2
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Scraped by vmagent from infra/monitoring/app/metrics/scrape-configs.yaml, like everything
+    # else here — the chart's ServiceMonitor would need an operator this cluster does not run.
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: false
+        autodetect: false
+      prometheusRule:
+        enabled: false
