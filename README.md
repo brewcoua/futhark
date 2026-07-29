@@ -5,10 +5,10 @@ cluster from this repository, and OpenTofu manages what lives outside it.
 
 **Documentation: <https://brewcoua.github.io/futhark/>** — source in [`docs/`](docs/).
 
-Everything an operator runs goes through `task`:
+Everything an operator runs goes through [`just`](https://just.systems):
 
 ```bash
-task --list
+just --list
 ```
 
 ## License

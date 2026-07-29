@@ -25,9 +25,9 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  # The crown jewels, resolved from Proton Pass by `task ans:render-secrets` before this runs.
+  # The crown jewels, resolved from Proton Pass by `just ans render-secrets` before this runs.
   # Read from here rather than from group_vars because the un-rendered template holds `{{ }}`
-  # references that Jinja would try to evaluate — see .taskfiles/ansible/Taskfile.yaml.
+  # references that Jinja would try to evaluate — see .just/ansible.just.
   vars_files:
     - "{{ playbook_dir }}/../.generated/secrets.yml"
   roles:

@@ -62,7 +62,7 @@ adding to the tree, the rules you have to follow are under
 Everything an operator runs goes through `task`:
 
 ```bash
-task --list
+just --list
 ```
 
 ## What runs where

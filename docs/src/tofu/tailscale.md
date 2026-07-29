@@ -44,7 +44,7 @@ diff shows it — reconcile the change into `policy.hujson` rather than letting 
 it. Then:
 
 ```bash
-task tf:apply -- tailscale
+just tf apply tailscale
 ```
 
 `prevent_destroy` is set on the resource, because `overwrite_existing_content` only guards the

@@ -72,8 +72,8 @@ sops -e -i ansible/nodes/<hostname>/host.sops.yml
 ln -s ../../../nodes/<hostname>/host.yml      ansible/inventory/host_vars/<hostname>/host.yml
 ln -s ../../../nodes/<hostname>/host.sops.yml ansible/inventory/host_vars/<hostname>/host.sops.yml
 # then add `<hostname>: {}` under all.hosts in ansible/inventory/hosts.yml
-task ans:setup -- <hostname>
-task ans:k0s
+just ans setup <hostname>
+just ans k0s
 ```
 
 If the node will run its own tenant apps under `nodes/<hostname>.k0s/`, it also needs its own

@@ -10,10 +10,10 @@ they land.
 direction: down
 
 stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and folders"
-repo: "3-6. This machine and this repo\nops:setup, age key, node definitions,\nthe encrypted files, push"
-hosts: "7-8. The hosts and the tailnet\nans:setup, then tf:apply -- tailscale"
-cluster: "9. The cluster\nans:k0s — k0sctl, local-path, Flux"
-cloud: "10. The cloud plane\ntf:apply -- bunny, oidc"
+repo: "3-6. This machine and this repo\njust ops setup, age key, node definitions,\nthe encrypted files, push"
+hosts: "7-8. The hosts and the tailnet\njust ans setup, then just tf apply tailscale"
+cluster: "9. The cluster\njust ans k0s — k0sctl, local-path, Flux"
+cloud: "10. The cloud plane\njust tf apply bunny, oidc"
 after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps"
 
 stores -> repo -> hosts -> cluster -> cloud -> after
@@ -79,7 +79,7 @@ step 4.
 Finally, seal the reference map that points at all of this:
 
 ```bash
-task ops:sops -- config/secrets.sops.yaml
+just ops sops config/secrets.sops.yaml
 ```
 
 The template is already filled in — the paths above are exactly what it contains — so unless you
@@ -112,7 +112,7 @@ Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout
 | `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/grafana/secret.yaml`    |
 | `/infra/tailscale`    | `TAILSCALE_CLIENT_ID`, `TAILSCALE_CLIENT_SECRET`                             | `infra/tailscale-operator/config/secret.yaml` |
 | `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/infisicalsecret.yaml`         |
-| `/nodes/kenaz/actual` | none — leave empty                                                           | written by `task tf:apply -- oidc`            |
+| `/nodes/kenaz/actual` | none — leave empty                                                           | written by `just tf apply oidc`               |
 
 That table goes stale as apps are added. The authoritative version is the tree itself: every
 `InfisicalStaticSecret` names its `secretPath`, and any that remaps a key names the Infisical
@@ -130,8 +130,11 @@ match `remote:` in `infra/storage/app/storageclass.yaml`.
 
 ## 3. The operator machine
 
+`just` runs everything else here, so it has to come first — nothing can install its own runner:
+
 ```bash
-task ops:setup
+sudo dnf install just
+just ops setup
 ```
 
 Installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`, `k0sctl`,
@@ -147,7 +150,7 @@ MagicDNS from this machine.
 Then generate the cluster age key:
 
 ```bash
-task ops:age-key
+just ops age-key
 ```
 
 Put the printed `age1…` recipient into `.sops.yaml`, replacing
@@ -168,8 +171,8 @@ Every `*.sops.*` file ships as a `.example` template. Ask which are still missin
 through them:
 
 ```bash
-task ops:sops                    # lists what has no real file yet
-task ops:sops -- <file>          # copies the template, opens it, encrypts on save
+just ops sops                    # lists what has no real file yet
+just ops sops <file>   # copies the template, opens it, encrypts on save
 ```
 
 Re-run the same command later to edit one; it decrypts and re-encrypts around your editor. It
@@ -217,16 +220,16 @@ unpushed commit is invisible to the cluster.
 ## 7. Host provisioning
 
 ```bash
-task ans:setup
+just ans setup
 ```
 
-Update, admin user, SSH hardening, mesh join, firewall. Add `-- <host>` to limit it to one
+Update, admin user, SSH hardening, mesh join, firewall. Add `<host>` to limit it to one
 machine. Safe to re-run; `ssh_identity` picks whichever login currently answers. After the first
 run each host answers only as the admin user on the hardened port. Provisioning nodes one at a
 time is fine — the mesh-peer resolution in `roles/tailscale` retries while MagicDNS catches up.
 
 Each host's mesh address is read back with `tailscale ip -4` and written into
-`ansible/nodes/<hostname>/host.sops.yml` as `node_mesh_ip` by the same run, so `task ans:setup`
+`ansible/nodes/<hostname>/host.sops.yml` as `node_mesh_ip` by the same run, so `just ans setup`
 leaves those files modified. Commit them — `playbooks/k0s.yml` reads the value from there, and
 `tofu/bunny` gets the public address from the same file.
 
@@ -251,7 +254,7 @@ The first apply needs an import, because the resource owns the entire policy doc
 cd tofu/tailscale
 sops exec-env secrets.sops.env 'pass-cli run -- tofu import tailscale_acl.this acl'
 cd ../..
-task tf:plan -- tailscale && task tf:apply -- tailscale
+just tf plan tailscale && just tf apply tailscale
 ```
 
 The policy tests only run on `apply` — a green `plan` is not evidence they pass, because plan
@@ -260,7 +263,7 @@ never submits the document.
 ## 9. Cluster and Flux
 
 ```bash
-task ans:k0s
+just ans k0s
 ```
 
 Renders `k0sctl.yaml` from inventory, converges the cluster, installs the `local-path`
@@ -268,12 +271,12 @@ StorageClass, then bootstraps Flux — including the four Secrets that cannot co
 because Flux needs them to resolve anything else. The full sequence is in
 [Bootstrap and reconciliation](../gitops/flux.md#bootstrap-sequence).
 
-The kubeconfig lands at `ansible/.generated/kubeconfig`, mode 0600, gitignored. Every `k0s:*`
-and `fx:*` task points at it automatically.
+The kubeconfig lands at `ansible/.generated/kubeconfig`, mode 0600, gitignored. Every `ks:*`
+and every `fx` recipe points at it automatically.
 
 ```bash
-task k0s:status
-task fx:failing
+just ks status
+just fx failing
 ```
 
 Expect several minutes. Certificate issuance in particular waits on DNS-01 propagation. Anything
@@ -288,8 +291,8 @@ Pocket ID is running now, so create its admin API key at Settings → Admin → 
 goes last.
 
 ```bash
-task tf:plan -- bunny && task tf:apply -- bunny
-task tf:plan -- oidc  && task tf:apply -- oidc
+just tf plan bunny && just tf apply bunny
+just tf plan oidc  && just tf apply oidc
 ```
 
 Each has its own prerequisites — see [bunny](../tofu/bunny.md) and [oidc](../tofu/oidc.md).

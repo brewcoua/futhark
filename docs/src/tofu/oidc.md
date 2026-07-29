@@ -14,9 +14,9 @@ Each app owns its own non-secret OIDC config — client ID, discovery URL, hostn
 ConfigMap. This module only produces the one thing that cannot be committed: the client secret.
 
 ```bash
-task tf:init -- oidc
-task tf:plan -- oidc
-task tf:apply -- oidc
+just tf init oidc
+just tf plan oidc
+just tf apply oidc
 ```
 
 ## Prerequisites

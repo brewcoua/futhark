@@ -21,8 +21,8 @@ jobs:
         with:
           persist-credentials: false
       # config/versions.env is already in the KEY=value shape $GITHUB_ENV wants, so the pins CI
-      # uses are the same ones `task ops:deps` installs, with no parsing step. See
-      # .taskfiles/operator/Taskfile.yaml.
+      # uses are the same ones `just ops deps` installs, with no parsing step. See
+      # .just/operator.just.
       - name: Load pinned tool versions
         run: grep -v '^#' config/versions.env | grep . >> "$GITHUB_ENV"
       - name: Install mdbook

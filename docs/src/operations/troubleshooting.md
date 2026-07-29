@@ -3,17 +3,17 @@
 Start here:
 
 ```bash
-task k0s:status    # nodes, unhealthy pods, Flux sync state
-task fx:failing    # only what isn't Ready
+just ks status     # nodes, unhealthy pods, Flux sync state
+just fx failing    # only what isn't Ready
 ```
 
 Then narrow down:
 
 ```bash
-task k0s:describe -- <ns>/<pod>    # events, usually says why it won't schedule or mount
-task k0s:previous -- <ns>/<pod>    # a crashlooper's last words
-task k0s:warnings                  # Warning events cluster-wide
-task fx:logs                       # kustomize-controller, or -- helm-controller
+just ks describe <ns> <pod>    # events, usually says why it won't schedule or mount
+just ks previous <ns> <pod>    # a crashlooper's last words
+just ks warnings               # Warning events cluster-wide
+just fx logs                   # kustomize-controller, or name another
 ```
 
 The rest of this page is the failure shapes that have actually happened here, and what each
@@ -120,13 +120,13 @@ which is how `infisical-operator` fails when `scopedNamespaces` names one. Add i
 `flux reconcile` will not reinstall a release whose chart version has not changed. Force it:
 
 ```bash
-task fx:redeploy -- <name>
+just fx redeploy <name>
 ```
 
 ## A certificate never issues
 
 ```bash
-task k0s:certs
+just ks certs
 kubectl describe certificaterequest -n <ns> <name>
 ```
 
@@ -146,7 +146,7 @@ document. See [tailscale](../tofu/tailscale.md#tests).
 The module was never initialized locally. The hook deliberately does not run `init`:
 
 ```bash
-task tf:init
+just tf init
 ```
 
 See [Checks and CI](checks.md#pre-commit).

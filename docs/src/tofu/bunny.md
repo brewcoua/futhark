@@ -19,9 +19,9 @@ wildcard dead-ends; on-tailnet, a hostname with no matching Traefik router gets 
 `traefik-internal`.
 
 ```bash
-task tf:init -- bunny
-task tf:plan -- bunny
-task tf:apply -- bunny
+just tf init bunny
+just tf plan bunny
+just tf apply bunny
 ```
 
 ## Before the first apply

@@ -71,7 +71,7 @@ the cluster-reader every other namespace uses. See
 ## Restore a namespace
 
 ```bash
-task bak:restore -- actual
+just bak restore actual
 ```
 
 This **deletes** the namespace's `local-path` PVCs and recreates them from a backup, so it prints
@@ -81,18 +81,18 @@ newest completed one.
 
 What it does that a hand-run `velero restore create` does not: suspend the Flux Kustomization
 that owns the namespace first. Flux recreates a deleted PVC within its reconcile interval, which
-races the restore and wins often enough to matter. The task also scales the namespace's
+races the restore and wins often enough to matter. The recipe also scales the namespace's
 workloads to zero — a PVC with a running pod on it stays `Terminating` forever — and `flux resume`
 at the end is what puts the replica counts back.
 
 Before that, look at what you have:
 
 ```bash
-task bak:backups                  # every backup and its status
-task bak:describe -- <backup>     # which volumes it actually copied, with sizes
+just bak backups                  # every backup and its status
+just bak describe <backup>   # which volumes it actually copied, with sizes
 ```
 
-`bak:describe` is the one to check after any change to the node-agent: a backup that copied
+`bak describe` is the one to check after any change to the node-agent: a backup that copied
 nothing still reports `Completed`.
 
 ## Rebuild a wiped node
@@ -100,12 +100,12 @@ nothing still reports `Completed`.
 A corrupted host gets reinstalled, which destroys every `local-path` volume on it. Both nodes
 hold some: Pocket ID is pinned to `ogma`, Actual to `kenaz`, and the monitoring stack floats.
 
-1. Reinstall the OS, then `task ans:setup -- <host>`. The `tailscale` role registers the node
+1. Reinstall the OS, then `just ans setup <host>`. The `tailscale` role registers the node
    again and writes the new mesh IP back into `ansible/nodes/<host>/host.sops.yml`.
-2. `task ans:k0s` — rejoins the node, reinstalls the local-path provisioner, re-seeds the Flux
+2. `just ans k0s` — rejoins the node, reinstalls the local-path provisioner, re-seeds the Flux
    and Infisical credentials.
-3. Wait for Flux: `task fx:failing` should come back empty. The apps return with empty PVCs.
-4. `task bak:restore -- <ns>` for each namespace that had data on that node.
+3. Wait for Flux: `just fx failing` should come back empty. The apps return with empty PVCs.
+4. `just bak restore <ns>` for each namespace that had data on that node.
 
 Step 4 is per namespace on purpose. There is no restore-everything task, because a restore is a
 destructive operation and the set of namespaces that actually lost data is a judgement the
@@ -115,7 +115,7 @@ operator makes, not one a script should guess.
 
 [Cold bootstrap](setup.md) gets you a running, empty cluster. Velero comes back with it — the
 `BackupStorageLocation` is in git, the credentials are in Infisical — and re-syncs the bucket on
-its own, so existing backups reappear in `task bak:backups` within a minute or so of the pod
+its own, so existing backups reappear in `just bak backups` within a minute or so of the pod
 starting. Then restore per namespace as above.
 
 What you need out of band is unchanged from the cold bootstrap: the GPG smartcard that opens
@@ -130,7 +130,7 @@ the Kopia repository password and the SSE-C key, since without them the bucket i
 | The nightly `Schedule`                     | `infra/backup/config/schedule.yaml`                 |
 | Which bucket, which region                 | `infra/substitutions/app/backup-location.sops.yaml` |
 | The B2 keys and both encryption keys       | Infisical, `/infra/velero`                          |
-| Restore and inspection tasks               | `.taskfiles/velero/Taskfile.yaml`                   |
+| Restore and inspection tasks               | `.just/velero.just`                                 |
 | Failure alerts                             | `infra/monitoring/app/grafana/alerting/backup.yaml` |
 
 The alerts are the part that makes the rest trustworthy: one fires on a failed or partially
@@ -145,4 +145,4 @@ points at `/var/lib/kubelet`. k0s puts it at `/var/lib/k0s/kubelet` — the same
 
 The failure mode is silent, which is the reason it is worth knowing. Left at the default, the
 path exists but holds no pods, so every backup completes successfully having copied nothing. The
-symptom is `task bak:describe -- <backup>` listing zero volumes.
+symptom is `just bak describe <backup>` listing zero volumes.

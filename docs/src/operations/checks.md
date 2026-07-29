@@ -2,7 +2,7 @@
 
 ## Pre-commit
 
-`task ops:hooks` installs them; `pre-commit run --all-files` runs everything by hand.
+`just ops hooks` installs them; `pre-commit run --all-files` runs everything by hand.
 
 | Hook                              | Scope                                                                                |
 | --------------------------------- | ------------------------------------------------------------------------------------ |
@@ -14,10 +14,16 @@
 | `check-executables-have-shebangs` |                                                                                      |
 | `ansible-lint`                    | `ansible/` only                                                                      |
 | `kustomize-build`                 | Every `kustomization.yaml` under `flux/`, `infra/`, `nodes/`, with `--enable-helm`   |
+| `just-fmt`                        | `just --fmt --check` on the root `justfile` and each `.just/*.just`                  |
 | `tofu-validate`                   | `tofu fmt -check -diff` and `tofu validate` per module                               |
 | `sops-encrypted`                  | Every `*.sops.{yaml,yml,env,json}` actually contains ciphertext                      |
 
-Four of these have a wrinkle worth knowing.
+Five of these have a wrinkle worth knowing.
+
+**`just-fmt` checks each file as its own root.** `just --fmt` formats one file at a time and
+does not follow `mod`, so the hook passes every justfile explicitly. It is still gated behind
+`--unstable`, and `validate.yml` installs the `JUST_VERSION` pin because the runner image ships
+no `just`.
 
 **`sops-encrypted` greps, it does not decrypt.** It looks for an `ENC[` marker and nothing else,
 so it needs no key and runs identically on a runner and on your laptop. It exists for one
@@ -28,7 +34,7 @@ since SOPS ciphertext otherwise trips the entropy rules on every commit.
 
 **`tofu-validate` deliberately does not run `tofu init`.** `init` can touch
 `.terraform.lock.hcl`, and pre-commit treats a hook that modifies a tracked file as a failure.
-So run `task tf:init` once locally before committing a `.tf` change, or validate fails on an
+So run `just tf init` once locally before committing a `.tf` change, or validate fails on an
 uninitialized module. CI runs init as its own step instead.
 
 **`ansible-lint` needs `always_run: false` set explicitly.** Upstream's own hook manifest sets
@@ -65,12 +71,13 @@ authenticated equivalent to GitHub's `api.github.com/meta`. The blast radius is 
 push only, not the live Flux deploy-key channel.
 
 All three workflows check out with `persist-credentials: false`, and every version they install
-is pinned — in `config/versions.env`, the same file `task ops:deps` reads, so a local
-`task docs:build` renders with the mdbook CI publishes and pre-commit runs the kustomize CI
-installs. Both sides consume it natively: go-task via `dotenv:` in the root `Taskfile.yaml`, the
-workflows via `grep -v '^#' config/versions.env >> "$GITHUB_ENV"`. It is dotenv rather than YAML
-for the same reason `config/domain/domain.env` is — nothing in it nests, and parsing YAML would
-mean a `yq` dependency inside the very task whose job is installing dependencies.
+is pinned — in `config/versions.env`, the same file `just ops deps` reads, so a local
+`just docs build` renders with the mdbook CI publishes and pre-commit runs the kustomize CI
+installs. Both sides consume it natively: just via `set dotenv-path` in the root `justfile`,
+whose values every submodule inherits, and the workflows via
+`grep -v '^#' config/versions.env >> "$GITHUB_ENV"`. It is dotenv rather than YAML for the same
+reason `config/domain/domain.env` is — nothing in it nests, and parsing YAML would mean a `yq`
+dependency inside the very recipe whose job is installing dependencies.
 
 CI holds no decryption key and must never need one. Nothing above decrypts: `kustomize build`
 parses SOPS output fine, because SOPS encrypts values and leaves keys alone, and

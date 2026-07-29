@@ -41,13 +41,13 @@ first apply.
 ## Running a module
 
 ```bash
-task tf:init [-- <module>]   # no secrets needed, provider download only
-task tf:plan -- <module>
-task tf:apply -- <module>
+just tf init [<module>]   # no secrets needed, provider download only
+just tf plan <module>
+just tf apply <module>
 ```
 
-`task tf:init` with no module argument inits every module under `tofu/`, and runs as part of
-`task ops:setup`. `plan` and `apply` compose both stores, in this order:
+`just tf init` with no module argument inits every module under `tofu/`, and runs as part of
+`just ops setup`. `plan` and `apply` compose both stores, in this order:
 `sops exec-env secrets.sops.env 'pass-cli run -- tofu <cmd>'`. That needs a Proton Pass session
 (`pass-cli info`) and the GPG smartcard present; neither ever writes a value to disk.
 
@@ -86,7 +86,7 @@ deliberately keeps that key away from everything under `ansible/` and `tofu/`.
 
 The pre-commit `tofu-validate` hook only runs `fmt` and `validate`, never `init` — a hook that
 touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
-`task tf:init` once locally before committing. CI runs init as its own step first; see
+`just tf init` once locally before committing. CI runs init as its own step first; see
 [Checks and CI](../operations/checks.md).
 
 ## Modules

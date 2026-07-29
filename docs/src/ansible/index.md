@@ -4,8 +4,8 @@ Ansible owns everything below Kubernetes: the user you log in as, the SSH config
 firewall, the mesh join, and the k0s install itself. Once Flux is running, Ansible's job is
 done — the only reasons to come back are adding a node and re-converging the cluster.
 
-Run everything through `task ans:*` rather than `ansible-playbook` directly; the tasks set the
-working directory `ansible.cfg` expects. See [Task reference](../operations/tasks.md).
+Run everything through `just ans …` rather than `ansible-playbook` directly; the recipes set the
+working directory `ansible.cfg` expects. See [Recipe reference](../operations/recipes.md).
 
 ## Inventory
 
@@ -61,10 +61,10 @@ play-scoped rather than host-scoped.
 
 ## Playbooks
 
-| Playbook    | Task                         | Does                                                                                               |
-| ----------- | ---------------------------- | -------------------------------------------------------------------------------------------------- |
-| `setup.yml` | `task ans:setup [-- <host>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
-| `k0s.yml`   | `task ans:k0s`               | `k0sctl apply` across the whole fleet, the `local-path` StorageClass, then the Flux bootstrap      |
+| Playbook    | Recipe                    | Does                                                                                               |
+| ----------- | ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `setup.yml` | `just ans setup [<host>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
+| `k0s.yml`   | `just ans k0s`            | `k0sctl apply` across the whole fleet, the `local-path` StorageClass, then the Flux bootstrap      |
 
 `setup.yml` runs per host and is gated by the node's own flags — the `tailscale` role only
 runs when `node.mesh` is true, `firewall_ingress` only when `node.public_ingress` is. Nothing
@@ -200,11 +200,11 @@ Identifying values are decrypted transparently by the `community.sops` vars plug
 point of use and no task mentions SOPS at all. `host_group_vars` has to stay listed alongside
 it: naming any plugin there replaces the default set rather than adding to it.
 
-Crown-jewel values come from Proton Pass, but not through a lookup plugin. `task
-ans:render-secrets` decrypts `config/secrets.sops.yaml` and pipes it through `pass-cli inject`
+Crown-jewel values come from Proton Pass, but not through a lookup plugin.
+`just ans render-secrets` decrypts `config/secrets.sops.yaml` and pipes it through `pass-cli inject`
 into `ansible/.generated/secrets.yml`; the playbooks load that with `vars_files`, so the roles
 that need one — `flux_bootstrap` and `tailscale`, both `no_log: true` — reference an ordinary
-variable like `secrets.flux.deploy_key`. `ans:setup` and `ans:k0s` depend on that render, so it
+variable like `secrets.flux.deploy_key`. `ans setup` and `ans k0s` depend on that render, so it
 is not a step you run by hand. It needs a Proton Pass session; `pass-cli info` checks.
 
 Which store a given value belongs in is [Secrets](../conventions/secrets.md).

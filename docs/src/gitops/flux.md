@@ -14,7 +14,7 @@ itself into reconciliation. The rest of the naming and layout rules are in
 
 ## Bootstrap sequence
 
-Run by `task ans:k0s` (`ansible/playbooks/k0s.yml`):
+Run by `just ans k0s` (`ansible/playbooks/k0s.yml`):
 
 1. **`k0s_cluster`** — render `k0sctl.yaml` from inventory, `k0sctl apply`, fetch the
    kubeconfig into `ansible/.generated/`.
@@ -72,10 +72,10 @@ via `infra/kustomization.yaml` and `nodes/kustomization.yaml`. `flux/infra/ks.ya
 ## Day-to-day
 
 ```bash
-task fx:get        # every Kustomization and its sync status
-task fx:failing    # only what isn't Ready
-task fx:reconcile  # force-reconcile everything, or `-- <name>` for one
-task fx:logs       # tail kustomize-controller
+just fx get        # every Kustomization and its sync status
+just fx failing    # only what isn't Ready
+just fx reconcile  # force-reconcile everything, or `<name>` for one
+just fx logs       # tail kustomize-controller
 ```
 
-The full list is in [Task reference](../operations/tasks.md).
+The full list is in [Recipe reference](../operations/recipes.md).
