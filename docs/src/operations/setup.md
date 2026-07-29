@@ -109,7 +109,7 @@ Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout
 | --------------------- | ---------------------------------------------------------------------------- | --------------------------------------------- |
 | `/infra/cert-manager` | `BUNNY_API_KEY`                                                              | `infra/cert-manager/config/secret.yaml`       |
 | `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                              | `infra/storage/app/secret.yaml`               |
-| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/secret.yaml`            |
+| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/grafana/secret.yaml`    |
 | `/infra/tailscale`    | `TAILSCALE_CLIENT_ID`, `TAILSCALE_CLIENT_SECRET`                             | `infra/tailscale-operator/config/secret.yaml` |
 | `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/infisicalsecret.yaml`         |
 | `/nodes/kenaz/actual` | none — leave empty                                                           | written by `task tf:apply -- oidc`            |

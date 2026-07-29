@@ -19,6 +19,14 @@ If you are naming a Kubernetes YAML file something else, you are naming it wrong
   its own `ks.yaml` cannot guarantee exist yet. This is a chicken-and-egg on first apply, and
   it is why `cert-manager`'s `ClusterIssuer` and `infisical-operator`'s `InfisicalConnection`
   each sit behind a second Kustomization.
+- `infra/<component>/app/<workload>/` — subdivide `app/` when a component reconciles several
+  distinct workloads. One directory per workload, each a plain `kustomization.yaml` resource
+  list; the component still has exactly one Flux `Kustomization`, one `dependsOn` set and one
+  `postBuild`. `monitoring` is the case here — five workloads that start together and share a
+  namespace, but are read and edited one at a time. Anything genuinely shared by all of them
+  (its `HelmRepository` list) stays flat in `app/`. Each subdirectory has to `kustomize build`
+  on its own — pre-commit builds every directory holding a `kustomization.yaml`, which is also
+  why a reusable Component cannot live under `infra/`; `config/` is where those go.
 - `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}` — one directory per node app. See
   [Node apps](../gitops/nodes.md).
 

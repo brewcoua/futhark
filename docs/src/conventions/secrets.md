@@ -253,7 +253,7 @@ different items, and the names say nothing about that — the paths do.
 
 Kubernetes Secret **keys** are a separate question, because the consumer often dictates them and
 upstream charts do not follow this convention. Where the consumer is configurable, point it at
-the conforming name — `infra/monitoring/app/grafana.yaml` sets `userKey: ADMIN_USER` rather than
+the conforming name — `infra/monitoring/app/grafana/helmrelease.yaml` sets `userKey: ADMIN_USER` rather than
 the chart's default. Where it is not, remap with a `template` block on the
 `InfisicalStaticSecret` target:
 

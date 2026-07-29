@@ -1,0 +1,96 @@
+---
+# vmagent's scrape targets, merged into its HelmRelease as `values` — see vmagent.yaml. Split out
+# because this is the one block with per-target churn: adding a target should not mean editing a
+# release. One file, not one per job: Flux merges `valuesFrom` entries with arrays replaced, so
+# two ConfigMaps each holding scrape_configs would clobber each other.
+config:
+  global:
+    # Prometheus default is 15s; 60s roughly quarters ingestion/storage load on this homelab.
+    scrape_interval: 60s
+  scrape_configs:
+    - job_name: kubernetes-pods
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: "true"
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels:
+            [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
+    # exporters/node-exporter.yaml renders the Service as `node-exporter` (fullnameOverride) in
+    # this namespace.
+    - job_name: node-exporter
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names: [monitoring]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: node-exporter
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: metrics
+        - source_labels: [__meta_kubernetes_pod_node_name]
+          target_label: instance
+    # exporters/kube-state-metrics.yaml renders the Service as `kube-state-metrics`
+    # (fullnameOverride).
+    - job_name: kube-state-metrics
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names: [monitoring]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: kube-state-metrics
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: http
+    - job_name: cadvisor
+      scheme: https
+      kubernetes_sd_configs:
+        - role: node
+      tls_config:
+        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        # $${1} (not ${1}): vmagent's own regex-capture syntax, not a Flux cluster var.
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/$${1}/proxy/metrics/cadvisor
+      metric_relabel_configs:
+        - source_labels: [__name__]
+          action: drop
+          regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
+    # traefik-internal has no hostNetwork/hostIP anymore (it's exposed via the Tailscale
+    # operator instead — see infra/traefik-internal/app/helmrelease.yaml), so its metrics
+    # port is just an ordinary in-cluster Service.
+    - job_name: traefik-internal
+      static_configs:
+        - targets: ["traefik-internal.ingress-internal.svc.cluster.local:9180"]
+          labels:
+            instance: traefik-internal
+    # traefik-edge is still hostNetwork-bound (kenaz's public IP), so its metrics port is
+    # only reachable over the mesh IP — see infra/monitoring/ks.yaml.
+    - job_name: traefik-edge
+      static_configs:
+        - targets: ["${MESH_IP}:9181"]
+          labels:
+            instance: traefik-edge

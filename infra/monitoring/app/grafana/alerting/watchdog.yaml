@@ -1,0 +1,35 @@
+---
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: watchdog
+    folder: System
+    interval: 1m
+    rules:
+      # Dead-man's-switch: pings healthchecks.io every minute.
+      - uid: watchdog-deadmansswitch
+        title: Watchdog
+        condition: A
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange:
+              from: 600
+              to: 0
+            model:
+              refId: A
+              expr: vector(1)
+              instant: true
+        for: 0m
+        noDataState: Alerting
+        execErrState: Alerting
+        notification_settings:
+          receiver: healthchecks
+          # The rule evaluating every 1m only keeps the alert *firing*; re-notification is
+          # policy-side, and the inherited defaults (group_interval 5m, repeat_interval 4h) mean
+          # a permanently-firing watchdog pings roughly every 4h05m — a dead-man's switch that
+          # only notices death after four hours. Alertmanager flushes on group_interval ticks and
+          # requires repeat_interval >= group_interval, so both go to 1m to match the rule.
+          group_wait: 0s
+          group_interval: 1m
+          repeat_interval: 1m

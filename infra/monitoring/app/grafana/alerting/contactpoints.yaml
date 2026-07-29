@@ -1,0 +1,24 @@
+---
+# $${VAR} (not ${VAR}): Flux's postBuild substitution runs over the generated ConfigMap and would
+# blank an undefined ${SLACK_WEBHOOK_URL}. `$$` escapes it to the literal ${VAR} that Grafana's
+# own env expansion then reads, from the secret mounted by helmrelease.yaml's envFromSecret.
+apiVersion: 1
+contactPoints:
+  - orgId: 1
+    name: slack
+    receivers:
+      - uid: slack1
+        type: slack
+        settings:
+          url: $${SLACK_WEBHOOK_URL}
+          title: "{{ .Status | toUpper }} {{ .CommonLabels.alertname }}"
+          text: |-
+            {{ range .Alerts }}• {{ .Status }}: {{ .Annotations.summary }}
+            {{ end }}
+  - orgId: 1
+    name: healthchecks
+    receivers:
+      - uid: healthchecks1
+        type: webhook
+        settings:
+          url: $${HEALTHCHECKS_PING_URL}

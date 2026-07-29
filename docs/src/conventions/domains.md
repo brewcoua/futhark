@@ -69,9 +69,9 @@ individual object this manifest reads.
 
 and references `${INT_DOMAIN}` directly in its manifests — no `replacements` block needed,
 `postBuild.substituteFrom` reaches `HelmRelease.spec.values` fine (see
-`infra/traefik-edge/app/helmrelease.yaml`'s `${PUBLIC_IP}`/`${MESH_IP}`). `infra/monitoring/ks.yaml`
-and `infra/monitoring/app/{grafana,headlamp,vlsingle,vmsingle}.yaml` are the reference
-implementation.
+`infra/traefik-edge/app/helmrelease.yaml`'s `${PUBLIC_IP}`/`${MESH_IP}`). `infra/monitoring/ks.yaml` and the four releases that take an ingress under
+`infra/monitoring/app/` — `grafana/helmrelease.yaml`, `headlamp/helmrelease.yaml`,
+`metrics/vmsingle.yaml`, `logs/vlsingle.yaml` — are the reference implementation.
 
 Tofu needs the same value for the Bunny DNS wildcard record (`tofu/bunny/dns.tf`), and
 `tofu/oidc` for its internal redirect URIs. Neither keeps a copy: both declare it in their

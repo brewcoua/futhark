@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - vmsingle.yaml
+  - vmagent.yaml
+# Read by helm-controller as vmagent's valuesFrom, so it sits in flux-system next to the
+# HelmRelease, not in monitoring with the workload.
+configMapGenerator:
+  - name: vmagent-scrape
+    namespace: flux-system
+    files:
+      - values.yaml=scrape-configs.yaml
+generatorOptions:
+  disableNameSuffixHash: true

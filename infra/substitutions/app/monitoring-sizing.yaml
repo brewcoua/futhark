@@ -1,0 +1,26 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/configmap-v1.json
+#
+# What the monitoring stack is allowed to keep, and on how much disk. Retention and volume size
+# are one decision per store and the two stores share a single local-path disk, so they are set
+# together here rather than in five places across infra/monitoring/app/.
+#
+# Not SOPS-encrypted, unlike its two neighbours: nothing here identifies the deployment. It is a
+# ConfigMap for the same reason — see edge-ips.sops.yaml.example on why those are Secrets.
+#
+# A postBuild.substituteFrom source has to exist in-cluster before its consumer reconciles, which
+# is why this cannot live inside infra/monitoring/ and reference itself.
+#
+# CPU/memory requests and limits are deliberately not here: those are per-workload, not a shared
+# dial, and they stay next to the release that sets them.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-sizing
+  namespace: flux-system
+data:
+  VM_RETENTION: "14d"
+  VM_STORAGE: 5Gi
+  VL_RETENTION: "7d"
+  VL_STORAGE: 10Gi
+  GRAFANA_STORAGE: 2Gi

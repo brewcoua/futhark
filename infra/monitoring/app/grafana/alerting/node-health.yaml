@@ -1,0 +1,73 @@
+---
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: node-health
+    folder: System
+    interval: 1m
+    rules:
+      - uid: node-down
+        title: Node down
+        condition: A
+        for: 5m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 600, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: up{job=~"node-exporter"} == 0
+        # Grafana can't tell "empty result" from "no data" for a bare `== 0` query.
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} node-exporter unreachable"
+      - uid: node-cpu-high
+        title: Node CPU > 90%
+        condition: A
+        for: 15m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} CPU sustained > 90% for 15m"
+      - uid: node-mem-high
+        title: Node memory > 90%
+        condition: A
+        for: 15m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.9
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} memory sustained > 90% for 15m"
+      - uid: node-disk-low
+        title: Root disk < 15% free
+        condition: A
+        for: 15m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"} < 0.15
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} root filesystem < 15% free — local-path PVCs live here too"

@@ -1,0 +1,90 @@
+---
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: kubernetes
+    folder: System
+    interval: 1m
+    rules:
+      - uid: pod-crashlooping
+        title: Pod crash-looping
+        condition: A
+        for: 0m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: increase(kube_pod_container_status_restarts_total[15m]) > 3
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} restarted >3x in 15m"
+      - uid: pod-oomkilled
+        title: Pod OOMKilled
+        condition: A
+        for: 0m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} container {{ $labels.container }} was OOMKilled"
+      - uid: deployment-replicas-mismatch
+        title: Deployment replicas mismatch
+        condition: A
+        for: 15m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: kube_deployment_status_replicas_available != kube_deployment_spec_replicas
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.deployment }} available replicas != desired for 15m"
+      - uid: pod-not-ready
+        title: Pod stuck not-ready
+        condition: A
+        for: 15m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 900, to: 0 }
+            model:
+              refId: A
+              instant: true
+              # kube_pod_status_ready{condition="false"} matches finished CronJob pods
+              # forever — gate on phase=Running so only pods that should be serving count.
+              expr: kube_pod_status_ready{condition="false"} == 1 and on (namespace, pod) kube_pod_status_phase{phase="Running"} == 1
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.pod }} not Ready for 15m"
+      - uid: kube-job-failed
+        title: Kubernetes Job failed
+        condition: A
+        for: 0m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 300, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: kube_job_status_failed > 0
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.job_name }} failed"

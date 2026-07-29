@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - helmrelease.yaml
+  - secret.yaml
+# One ConfigMap for all of alerting/, labelled for the chart's alerts sidecar, which drops each
+# key into /etc/grafana/provisioning/alerting/ and POSTs Grafana's provisioning reload endpoint.
+# Editing a rule therefore lands without restarting Grafana.
+configMapGenerator:
+  - name: grafana-alerting
+    namespace: monitoring
+    options:
+      labels:
+        grafana_alert: "1"
+    files:
+      - alerting/contactpoints.yaml
+      - alerting/policies.yaml
+      - alerting/watchdog.yaml
+      - alerting/node-health.yaml
+      - alerting/kubernetes.yaml
+generatorOptions:
+  disableNameSuffixHash: true

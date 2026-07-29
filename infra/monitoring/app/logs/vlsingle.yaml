@@ -1,13 +1,13 @@
 ---
-# The metrics DB (vmsingle). Fallback UI only — Grafana is the primary dashboard.
+# The logs DB (vlsingle). Fallback UI only — Grafana is the primary consumer.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: vmsingle
+  name: vlsingle
   namespace: flux-system
 spec:
   interval: 1h
-  releaseName: vmsingle
+  releaseName: vlsingle
   targetNamespace: monitoring
   install:
     remediation:
@@ -17,46 +17,38 @@ spec:
       retries: 3
   chart:
     spec:
-      chart: victoria-metrics-single
-      version: "0.13.*" # chart 0.13.x -> VictoriaMetrics v1.106.x
+      chart: victoria-logs-single
+      version: "0.13.*" # chart 0.13.x -> VictoriaLogs v1.x
       sourceRef:
         kind: HelmRepository
         name: victoria-metrics
         namespace: flux-system
   values:
     server:
-      retentionPeriod: "14d"
-      extraArgs:
-        search.maxMemoryPerQuery: 100MB
-        dedup.minScrapeInterval: 60s
-        memory.allowedPercent: "40"
-      # local-path PVCs are hostPath-backed and can't move nodes.
-      strategy:
-        type: Recreate
+      # Raw text at a far higher daily byte rate than 60s-scraped metrics; short retention is the
+      # main lever to keep disk bounded. Chart default is StatefulSet mode. Both values are set
+      # in infra/substitutions/app/monitoring-sizing.yaml, alongside vmsingle's.
+      retentionPeriod: "${VL_RETENTION}"
       persistentVolume:
         enabled: true
         storageClassName: local-path
-        size: 5Gi
+        size: ${VL_STORAGE}
       resources:
         requests:
           cpu: 50m
           memory: 128Mi
         limits:
           cpu: 500m
-          memory: 768Mi
+          memory: 1Gi
       ingress:
         enabled: true
         ingressClassName: internal
         annotations:
-          # infra/auth (Pocket ID) has landed, but unlike Authelia it's a plain OIDC provider
-          # with no forwardAuth/verify endpoint of its own — fronting this with SSO needs an
-          # oauth2-proxy (or similar) bridge wired to Pocket ID first. Unauthenticated on the
-          # tailnet until that lands; see the same note on grafana.yaml/headlamp.yaml.
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
           traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
         hosts:
-          - name: metrics.${INT_DOMAIN}
+          - name: logs.${INT_DOMAIN}
             path:
               - /
             port: http

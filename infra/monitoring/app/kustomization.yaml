@@ -1,17 +1,17 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# One directory per workload — see docs/src/conventions/layout.md. Still one Flux Kustomization:
+# these are plain kustomize resource lists, not further reconcile units.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # Shared by every element below, so it stays flat rather than picking one to live in.
   - helmrepositories.yaml
-  - vmsingle.yaml
-  - vmagent.yaml
-  - vlsingle.yaml
-  - vlagent.yaml
-  - exporters.yaml
-  - headlamp.yaml
-  - grafana.yaml
-  - secret.yaml
+  - metrics
+  - logs
+  - exporters
+  - grafana
+  - headlamp
 
 components:
   - ../../../config/infisical

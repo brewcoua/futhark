@@ -1,0 +1,119 @@
+---
+# Primary dashboard + alerting UI. Datasources are provisioned here (editable: false); contact
+# points, notification policies and alert rules are in alerting/, delivered by the chart's
+# alerts sidecar. Dashboards stay UI-managed; backups deferred.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: grafana
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: grafana
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: grafana
+      version: "8.5.*" # chart 8.5.x -> Grafana 11.3.0
+      sourceRef:
+        kind: HelmRepository
+        name: grafana
+        namespace: flux-system
+  values:
+    # Grafana's image is Alpine/musl: under ndots:5 it can't resolve Service DNS reliably.
+    # Chart exposes dnsConfig, so fix via values instead of a postRenderer.
+    dnsConfig:
+      options:
+        - name: ndots
+          value: "1"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    persistence:
+      enabled: true
+      storageClassName: local-path
+      size: ${GRAFANA_STORAGE}
+    # local-path is single-node hostPath; a rolling update can schedule the new pod before the
+    # old one releases the volume. Recreate avoids two grafana.db writers.
+    strategy:
+      type: Recreate
+    admin:
+      existingSecret: grafana
+      userKey: ADMIN_USER
+      passwordKey: ADMIN_PASSWORD
+    # Slack/healthchecks webhook URLs, expanded by Grafana into alerting/contactpoints.yaml.
+    envFromSecret: grafana
+    # Community datasource plugin — VictoriaLogs isn't a built-in Prometheus-compatible source.
+    plugins:
+      - victoriametrics-logs-datasource
+    datasources:
+      datasources.yaml:
+        apiVersion: 1
+        datasources:
+          - name: VictoriaMetrics
+            uid: victoriametrics
+            type: prometheus
+            access: proxy
+            url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428
+            isDefault: true
+            editable: false
+          - name: VictoriaLogs
+            uid: victorialogs
+            type: victoriametrics-logs-datasource
+            access: proxy
+            url: http://vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local:9428
+            isDefault: false
+            editable: false
+    # Alert rules, contact points and notification policies come from alerting/*.yaml via the
+    # chart's sidecar (ConfigMap labelled grafana_alert, generated in kustomization.yaml). Kept
+    # out of `values` deliberately: the chart runs the whole `alerting:` block through Helm's
+    # `tpl`, which re-parses a literal Grafana template like `{{ $labels.x }}` as a Helm action.
+    # The sidecar copies the files in verbatim, so they stay readable.
+    sidecar:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+      alerts:
+        enabled: true
+        # Chart default is "both", which also watches Secrets. searchNamespace stays unset, so
+        # the sidecar only looks in its own namespace.
+        resource: configmap
+    rbac:
+      # Chart default (namespaced: false) hands the sidecar configmaps+secrets read across the
+      # whole cluster. Namespaced instead — but the chart's Role omits the read rule for the
+      # alerts sidecar (templates/role.yaml only tests dashboards/datasources/plugins), so it
+      # has to be supplied here.
+      namespaced: true
+      extraRoleRules:
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs: ["get", "watch", "list"]
+    # No dashboardProviders/dashboards block: dashboards stay UI-managed, not git.
+    # infra/auth (Pocket ID) has landed, but it's a plain OIDC provider with no
+    # forwardAuth/verify endpoint of its own — see the same note on metrics/vmsingle.yaml. Grafana can
+    # do OIDC login directly (auth.generic_oauth), which is the more natural fit here anyway;
+    # unauthenticated on the tailnet until that's configured.
+    ingress:
+      enabled: true
+      ingressClassName: internal
+      annotations:
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        traefik.ingress.kubernetes.io/router.tls: "true"
+        traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
+      hosts:
+        - dash.${INT_DOMAIN}
+      path: /

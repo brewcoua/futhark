@@ -1,0 +1,34 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-state-metrics
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: kube-state-metrics
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: kube-state-metrics
+      version: "5.27.*" # chart 5.27.x -> kube-state-metrics v2.14.x
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system
+  values:
+    # Fixes the rendered Service name to `kube-state-metrics` for metrics/scrape-configs.yaml.
+    fullnameOverride: kube-state-metrics
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi

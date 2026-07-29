@@ -1,0 +1,42 @@
+---
+# Singleton scraper (not a per-node DaemonSet) — fine while kenaz is the only node.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vmagent
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: vmagent
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: victoria-metrics-agent
+      version: "0.13.*" # chart 0.13.x -> VictoriaMetrics v1.106.x
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  # Scrape targets live in scrape-configs.yaml, generated into this ConfigMap by
+  # kustomization.yaml. helm-controller watches it, so an edit triggers an upgrade.
+  valuesFrom:
+    - kind: ConfigMap
+      name: vmagent-scrape
+      valuesKey: values.yaml
+  values:
+    resources:
+      requests:
+        cpu: 30m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    remoteWrite:
+      # Couples to the vmsingle release name in vmsingle.yaml (releaseName: vmsingle).
+      - url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/write
