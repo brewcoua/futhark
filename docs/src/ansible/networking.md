@@ -1,6 +1,6 @@
 # Pod to mesh networking
 
-Read this before touching `ansible/roles/tailscale`. It was diagnosed the hard way twice.
+Read this before touching `ansible/roles/tailscale`.
 
 kubelet's `--node-ip` is pinned to each node's Tailscale mesh IP, on purpose: the Kubernetes
 API, etcd and kubelet are then only ever bound to mesh addresses and are never publicly

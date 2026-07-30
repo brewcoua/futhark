@@ -17,7 +17,7 @@ resource "pocketid_client" "actual" {
 }
 
 # /nodes/kenaz/actual in the prod environment — the path
-# nodes/kenaz.k0s/actual/app/externalsecret.yaml reads as its InfisicalStaticSecret source, and
+# nodes/kenaz.k0s/actual/app/infisicalsecret.yaml reads as its InfisicalStaticSecret source, and
 # the only path the tofu-writer identity may write. Only the client secret goes here; every
 # non-secret value already lives in that app's ConfigMap.
 resource "infisical_secret" "actual_openid_client_secret" {

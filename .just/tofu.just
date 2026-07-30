@@ -1,22 +1,11 @@
 import '_common.just'
 
-# Resolves a module's refs.env, if it has one. Each line maps an environment variable to a
-# value living in someone else's SOPS file:
-#
-#   <variable>=<repo-relative path to a .sops file>#<sops --extract expression>
-#
-# This is how a value that two planes both need stays in one place. The plane that owns it
-# keeps the only copy; tofu reads it at plan/apply time. `sops --extract` takes the expression
-# verbatim, so the same line shape reaches a node fact, an Ansible group_var and a Flux Secret
-# alike — no per-source special casing, and this file never needs to know which modules or
-# which variables exist.
-#
-# The file holds only references, never values, so it is committed in the clear while every
-# source it names is encrypted. A module opts in by creating one.
+# Resolves a module's refs.env, if it has one — see
+# docs/src/tofu/index.md#values-another-plane-owns for the format and who owns what.
 #
 # `< "$f"` rather than a pipe on purpose: a pipeline would run the loop in a subshell and the
-# exports would not survive it. Reading the whole line and splitting by hand, rather than
-# `IFS='='`, because an extract expression may itself contain `=`.
+# exports would not survive it. Splitting by hand rather than `IFS='='`, because an extract
+# expression may itself contain `=`.
 #
 # A raw string, so the shell's own `$` and `\` reach the recipe untouched; `$root` is set by
 # each recipe before the splice, since the loop runs from inside the module's directory.

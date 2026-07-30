@@ -7,10 +7,6 @@ import '_common.just'
 # Fully set up this machine as a futhark operator (packages + collections + hooks + tofu)
 setup: deps collections hooks _tf-init pass-session
 
-# The one credential a new operator machine needs out of band, alongside the GPG smartcard
-# that opens SOPS. pass-cli persists a session after login, so this is a once-per-machine
-# step and not a per-command prompt.
-
 # Check this machine has a Proton Pass session, and explain how to get one if not
 [no-exit-message]
 pass-session:
@@ -28,9 +24,8 @@ deps: (_require 'dnf') (_require 'uv')
     # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
     # ships a same-path conflicting package literally named `tofu`, don't use it here.
     #
-    # gnupg2/pcsc-lite/pinentry are the smartcard path: the SOPS operator recipient is a GPG
-    # key whose encryption subkey lives on a token, so every `sops -d` goes through gpg-agent
-    # to the card reader. age is only ever used to generate/hold the *cluster* recipient.
+    # gnupg2/pcsc-lite/pinentry are the smartcard path every `sops -d` takes; age only ever
+    # generates and holds the *cluster* recipient. See docs/src/conventions/secrets.md.
     #
     # just is here for completeness only — it has to already be installed for this to run.
     sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry just

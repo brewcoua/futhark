@@ -57,13 +57,8 @@ cluster.workloads -> cloud.pocketid: OIDC at runtime
 If you are setting a machine up from nothing, start at [Cold bootstrap](operations/setup.md).
 If something is broken, start at [Troubleshooting](operations/troubleshooting.md). If you are
 adding to the tree, the rules you have to follow are under
-[Conventions](conventions/layout.md).
-
-Everything an operator runs goes through `task`:
-
-```bash
-just --list
-```
+[Conventions](conventions/layout.md). Every command an operator runs is in
+[Recipes](operations/recipes.md).
 
 ## What runs where
 

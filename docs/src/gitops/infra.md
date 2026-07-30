@@ -15,7 +15,7 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 | `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                  |
 | `storage`            | `csi-driver-rclone` and the `storagebox-crypt` StorageClass — an offsite box over rclone crypt→sftp, zero-knowledge                                          |
 | `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                 |
-| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, Headlamp, exporters. One `app/` subdirectory per workload — see below                                                |
+| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload — see below                                                          |
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                          |
 | `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                  |
 
@@ -44,9 +44,9 @@ consumers reconcile, and `infra-policies` — the obvious home for it — depend
 
 ## Monitoring
 
-One Flux `Kustomization`, five workloads, one directory each under `infra/monitoring/app/`:
-`metrics/` (vmsingle + vmagent), `logs/` (vlsingle + vlagent), `exporters/`, `grafana/` and
-`headlamp/`. Only `helmrepositories.yaml` stays flat, since every one of them draws on it.
+One Flux `Kustomization`, four workloads, one directory each under `infra/monitoring/app/`:
+`metrics/` (vmsingle + vmagent), `logs/` (vlsingle + vlagent), `exporters/` and `grafana/`.
+Only `helmrepositories.yaml` stays flat, since every one of them draws on it.
 
 **Alert rules are in `grafana/alerting/`**, one file per group — `watchdog.yaml`,
 `node-health.yaml`, `kubernetes.yaml`, `backup.yaml` — plus `contactpoints.yaml` and

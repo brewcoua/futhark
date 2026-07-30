@@ -69,14 +69,27 @@ individual object this manifest reads.
 
 and references `${INT_DOMAIN}` directly in its manifests — no `replacements` block needed,
 `postBuild.substituteFrom` reaches `HelmRelease.spec.values` fine (see
-`infra/traefik-edge/app/helmrelease.yaml`'s `${PUBLIC_IP}`/`${MESH_IP}`). `infra/monitoring/ks.yaml` and the four releases that take an ingress under
-`infra/monitoring/app/` — `grafana/helmrelease.yaml`, `headlamp/helmrelease.yaml`,
-`metrics/vmsingle.yaml`, `logs/vlsingle.yaml` — are the reference implementation.
+`infra/traefik-edge/app/helmrelease.yaml`'s `${PUBLIC_IP}`/`${MESH_IP}`). `infra/monitoring/ks.yaml` and the three releases that take an ingress under
+`infra/monitoring/app/` — `grafana/helmrelease.yaml`, `metrics/vmsingle.yaml`,
+`logs/vlsingle.yaml` — are the reference implementation.
 
 Tofu needs the same value for the Bunny DNS wildcard record (`tofu/bunny/dns.tf`), and
 `tofu/oidc` for its internal redirect URIs. Neither keeps a copy: both declare it in their
 `refs.env` and `sops --extract` it out of this same file at plan/apply time. See
 [Values another plane owns](../tofu/index.md#values-another-plane-owns).
+
+## Internal ingresses are unauthenticated
+
+An `internal`-class `Ingress` is reachable by anything on the tailnet, with no login in front
+of it. `infra/auth` (Pocket ID) is a plain OIDC provider: it has no forwardAuth/verify endpoint
+of the kind Authelia exposes, so Traefik has nothing to delegate a request to. Putting SSO in
+front of an internal app needs an oauth2-proxy (or equivalent) bridge wired to Pocket ID first;
+until that lands, tailnet membership is the only access control these hosts have.
+
+An app that speaks OIDC itself needs no bridge — it registers a client in `tofu/oidc` and
+authenticates against Pocket ID directly. Grafana is the near-term case: `auth.generic_oauth`
+is the natural fit and is not configured yet. `metrics.$INT_DOMAIN` (vmsingle) has no such
+option and waits on the bridge.
 
 ## Two things that will bite you
 

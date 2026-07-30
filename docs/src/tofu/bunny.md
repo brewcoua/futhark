@@ -10,7 +10,7 @@ Two records, defined in `dns.tf`:
   is pinned to `ogma`. One `A` record per edge-exposed hostname; add a block as each app lands.
 - `*.$INT_DOMAIN` → `CNAME` to `internal.$TAILNET`, the MagicDNS name of the tailnet device the
   tailscale operator creates for `traefik-internal`. One wildcard covers every internal app
-  (`dash`, `headlamp`, `logs`, `metrics`, …), so internal apps need no apply here.
+  (`dash`, `logs`, `metrics`, …), so internal apps need no apply here.
 
 The internal side is a CNAME rather than an `A` to the device's tailnet IP because the operator
 assigns that IP and nothing in this repo holds it — an `A` record would drift the way

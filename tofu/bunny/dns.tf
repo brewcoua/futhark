@@ -33,7 +33,7 @@ resource "bunnynet_dns_record" "auth" {
   }
 }
 
-# Every internal hostname (dash, headlamp, logs, metrics, actual, …) is served by the same
+# Every internal hostname (dash, logs, metrics, actual, …) is served by the same
 # traefik-internal, which the tailscale operator exposes as one tailnet device named "internal"
 # (the tailscale.com/hostname annotation in infra/traefik-internal/app/helmrelease.yaml). So one
 # wildcard covers all of them, and an internal app landing needs no apply here.

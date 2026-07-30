@@ -1,7 +1,6 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
-# One directory per workload — see docs/src/conventions/layout.md. Still one Flux Kustomization:
-# these are plain kustomize resource lists, not further reconcile units.
+# One directory per workload — see docs/src/conventions/layout.md.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -11,7 +10,6 @@ resources:
   - logs
   - exporters
   - grafana
-  - headlamp
 
 components:
   - ../../../config/infisical
