@@ -47,19 +47,23 @@ itself into reconciliation.
 
 ## Version pins
 
-Two rules, one per kind of artifact.
+One rule, everywhere: **nothing floats.** Every chart version, image, provider constraint,
+collection and release binary names an exact version, so the commit is the record of what runs.
+A range is a version the repo cannot state.
 
-- **Container images pin an exact tag.** A floating tag is not a version: the same manifest
-  becomes a different binary, and Flux never reconciles, because nothing it watches changed.
-- **Helm charts pin `MAJOR.MINOR.*`.** Patch is chart packaging, so it floats and a template fix
-  lands without a commit. Minor and major carry values-schema changes and stay pinned.
+- **Container images pin `tag@sha256:…`.** The tag stays for readability; the digest is what
+  actually resolves. A tag alone can be repointed at a different binary, and Flux would never
+  reconcile, because nothing it watches changed.
+- **Helm charts pin `MAJOR.MINOR.PATCH`.** A chart patch is still a template change reaching the
+  cluster, and under a `MAJOR.MINOR.*` range it arrived with no commit behind it.
 
-The two meet where a chart's image tag defaults to `.Chart.AppVersion` — `csi-driver-rclone` is
-the case here. A chart patch then moves the app as well, and the exact-image rule has no way to
-reach it. That gap is accepted rather than closed: overriding `image.tag` in `values` only
-trades it for a tag that drifts from the chart shipping it. Each pin instead carries a comment
-recording the chart-to-app mapping, so what a bump changes is readable without opening the
-chart.
+Each chart pin carries a comment recording the chart-to-app mapping — `# chart 41.0.2 -> Traefik
+v3.7.6` — so what a bump changes is readable without opening the chart. Where a chart's image tag
+defaults to `.Chart.AppVersion`, as `csi-driver-rclone` does, that mapping is the only place the
+app version appears at all.
+
+Keeping this many exact pins current by hand is not the intent: Renovate opens the bumps. See
+[Dependency updates](updates.md).
 
 ## Adding a node app
 

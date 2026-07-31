@@ -1,0 +1,167 @@
+{
+  // Every version in this repo, in one place. What each manager reaches is deliberately narrow:
+  // a manager with no file patterns scans the whole tree, and this tree contains generated
+  // output (docs/book) and SOPS envelopes whose `version:` fields are not dependencies.
+  //
+  // Renovate is run by .github/workflows/renovate.yml, not by a hosted app.
+  // See docs/src/conventions/updates.md.
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", ":dependencyDashboard"],
+
+  // The dashboard issue is the notification surface: everything Renovate knows about appears
+  // there whether or not it has an open PR.
+  dependencyDashboard: true,
+  dependencyDashboardTitle: "Dependency Dashboard",
+
+  // SOPS metadata carries `version: 3.13.3` — the sops binary that encrypted the file. It is a
+  // record of the past, not a dependency to bump.
+  ignorePaths: ["**/*.sops.yaml", "**/*.sops.yml"],
+
+  // The Flux tree, and nothing else. flux reads HelmRelease chart versions, HelmRepository OCI
+  // refs and the images inside HelmRelease values; kubernetes reads the images in plain
+  // manifests. helm-values is left off: it finds only images those two already cover.
+  flux: { managerFilePatterns: ["/^(infra|nodes|flux)/.+\\.ya?ml$/"] },
+  kubernetes: { managerFilePatterns: ["/^(infra|nodes)/.+\\.ya?ml$/"] },
+  "helm-values": { enabled: false },
+
+  // .pre-commit-config.yaml's hook revs.
+  "pre-commit": { enabled: true },
+
+  // Refreshes tofu/*/.terraform.lock.hcl, whose recorded constraints already trail the .tf files.
+  lockFileMaintenance: { enabled: true },
+
+  customManagers: [
+    {
+      // config/versions.env — bare shell variables, so the upstream repo is only knowable from
+      // the annotation comment directly above each pin.
+      customType: "regex",
+      description: "Pinned release binaries in config/versions.env",
+      managerFilePatterns: ["/^config/versions\\.env$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s+\\w+=(?<currentValue>.+)",
+      ],
+    },
+    {
+      // Same annotation shape, but for YAML values no built-in manager understands: the
+      // FluxInstance distribution, the flux-operator chart, the k0s version k0sctl installs.
+      customType: "regex",
+      description: "Annotated versions in the Flux and Ansible trees",
+      managerFilePatterns: ["/^flux/.+\\.ya?ml$/", "/^ansible/.+\\.ya?ml$/"],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s+[\\w.-]+: "?(?<currentValue>[^"\\s]+)"?',
+      ],
+    },
+  ],
+
+  packageRules: [
+    // --- Grouping: things that are one decision, not N ---
+    {
+      // Same version written in two files (config/versions.env and .pre-commit-config.yaml).
+      // Ungrouped, they drift and CI installs a different gitleaks than the hook pins.
+      description: "gitleaks: binary and pre-commit hook move together",
+      groupName: "gitleaks",
+      matchPackageNames: ["gitleaks/gitleaks"],
+    },
+    {
+      // The chart's appVersion is the server; VELERO_VERSION is the client driving restores.
+      description: "velero: chart and CLI move together",
+      groupName: "velero",
+      matchPackageNames: ["velero", "velero-io/velero"],
+    },
+    {
+      description: "VictoriaMetrics stack moves together",
+      groupName: "victoria-metrics",
+      matchPackageNames: ["/^victoria-(metrics|logs)-/"],
+    },
+    {
+      description: "mdbook and its d2 preprocessor move together",
+      groupName: "mdbook",
+      matchPackageNames: ["rust-lang/mdBook", "danieleades/mdbook-d2"],
+    },
+    {
+      description: "Flux operator and the distribution it installs move together",
+      groupName: "flux",
+      matchPackageNames: [
+        "fluxcd/flux2",
+        "ghcr.io/controlplaneio-fluxcd/charts/flux-operator",
+      ],
+    },
+
+    // --- Automerge ---
+    {
+      // Actions only. An action bump cannot reach the cluster; everything else can, so
+      // everything else waits for a human. minimumReleaseAge is the yanked-release guard,
+      // ignoreTests: false makes validate.yml the gate.
+      description: "Auto-merge GitHub Actions once validate.yml passes",
+      matchManagers: ["github-actions"],
+      matchUpdateTypes: ["minor", "patch", "digest"],
+      minimumReleaseAge: "3 days",
+      automerge: true,
+      automergeType: "pr",
+      platformAutomerge: true,
+      ignoreTests: false,
+    },
+
+    // --- Labels ---
+    { matchUpdateTypes: ["major"], labels: ["type/major"] },
+    { matchUpdateTypes: ["minor"], labels: ["type/minor"] },
+    { matchUpdateTypes: ["patch"], labels: ["type/patch"] },
+    { matchUpdateTypes: ["digest"], labels: ["type/digest"] },
+    { matchDatasources: ["docker"], addLabels: ["renovate/container"] },
+    { matchDatasources: ["helm"], addLabels: ["renovate/helm"] },
+    {
+      matchDatasources: ["terraform-provider"],
+      addLabels: ["renovate/terraform"],
+    },
+    {
+      matchDatasources: ["galaxy-collection"],
+      addLabels: ["renovate/ansible"],
+    },
+    {
+      matchManagers: ["github-actions"],
+      addLabels: ["renovate/github-action"],
+    },
+    {
+      matchManagers: ["custom.regex", "pre-commit"],
+      addLabels: ["renovate/tool"],
+    },
+
+    // --- Commit messages, in this repo's conventional-commit shape ---
+    {
+      matchUpdateTypes: ["major"],
+      semanticCommitType: "feat",
+      commitMessagePrefix: "{{semanticCommitType}}({{semanticCommitScope}})!:",
+      commitMessageExtra: "( {{currentVersion}} -> {{newVersion}} )",
+    },
+    {
+      matchUpdateTypes: ["minor", "patch"],
+      commitMessageExtra: "( {{currentVersion}} -> {{newVersion}} )",
+    },
+    {
+      matchUpdateTypes: ["digest"],
+      commitMessageExtra: "( {{currentDigestShort}} -> {{newDigestShort}} )",
+    },
+    {
+      matchDatasources: ["docker"],
+      semanticCommitScope: "container",
+      commitMessageTopic: "image {{depName}}",
+    },
+    {
+      matchDatasources: ["helm"],
+      semanticCommitScope: "helm",
+      commitMessageTopic: "chart {{depName}}",
+    },
+    { matchDatasources: ["terraform-provider"], semanticCommitScope: "tofu" },
+    { matchDatasources: ["galaxy-collection"], semanticCommitScope: "ansible" },
+    {
+      matchManagers: ["custom.regex", "pre-commit"],
+      semanticCommitScope: "deps",
+    },
+    {
+      matchManagers: ["github-actions"],
+      semanticCommitType: "ci",
+      semanticCommitScope: "github-action",
+      commitMessageTopic: "action {{depName}}",
+    },
+  ],
+}

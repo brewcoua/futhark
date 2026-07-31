@@ -21,7 +21,7 @@ spec:
   chart:
     spec:
       chart: velero
-      version: "12.1.*" # chart 12.1.x -> Velero 1.18.1
+      version: "12.1.0" # chart 12.1.0 -> Velero 1.18.1
       sourceRef:
         kind: HelmRepository
         name: velero
@@ -30,7 +30,7 @@ spec:
     # The object-store plugin. The chart ships no provider, and refuses to start without one.
     initContainers:
       - name: velero-plugin-for-aws
-        image: velero/velero-plugin-for-aws:v1.13.1
+        image: velero/velero-plugin-for-aws:v1.13.1@sha256:472d0e486d5d5c23c782b1b123530c7df8645784523ec36ca661a326d47885ff
         imagePullPolicy: IfNotPresent
         volumeMounts:
           - name: plugins

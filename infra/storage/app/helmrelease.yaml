@@ -17,7 +17,7 @@ spec:
   chart:
     spec:
       chart: csi-driver-rclone
-      version: "0.4.*" # image tag defaults to v{{ .Chart.AppVersion }}, so it follows the chart
+      version: "0.4.12" # image tag defaults to v{{ .Chart.AppVersion }}, so it follows the chart
       sourceRef:
         kind: HelmRepository
         name: csi-driver-rclone

@@ -47,14 +47,16 @@ nothing, which is why `validate.yml` runs a separate full-tree `gitleaks dir .`.
 
 ## CI
 
-Three workflows, all in `.github/workflows/`.
+Four workflows, all in `.github/workflows/`.
 
 **`validate.yml`** runs on every pull request and every push to `master`, with
-cancel-in-progress concurrency. Two jobs:
+cancel-in-progress concurrency. Three jobs:
 
 - `pre-commit` — installs kustomize and helm explicitly (neither ships on the runner image,
   and both are `language: system` hooks), runs `tofu init -backend=false` per module, then
   `pre-commit run --all-files`, then the full-tree gitleaks scan described above.
+- `renovate-config` — `renovate-config-validator --strict`. A malformed `renovate.json5` is
+  otherwise silent: Renovate skips the repository at 03:00 and updates just stop arriving.
 - `ansible-syntax` — installs the galaxy collections and runs
   `ansible-playbook --syntax-check playbooks/*.yml`.
 
@@ -64,13 +66,17 @@ became a rendered diagram. That check is not redundant: if `d2` or `mdbook-d2` i
 mdbook leaves the fence as a code block and still exits 0, so the diagrams would silently
 stop shipping.
 
+**`renovate.yml`** runs Renovate at 03:00, on a change to its own config, and on demand — an
+hour before the mirror cron, so an automerged update reaches Codeberg the same night. What it
+covers and what it is allowed to merge is [Dependency updates](../conventions/updates.md).
+
 **`mirror.yml`** pushes a full mirror to Codeberg on every push to `master`, daily on a cron,
 and on demand. It is disaster recovery, not a second remote you push to. It uses
 `ssh-keyscan` for the host key, which is trust-on-first-use — Codeberg publishes no
 authenticated equivalent to GitHub's `api.github.com/meta`. The blast radius is this mirror
 push only, not the live Flux deploy-key channel.
 
-All three workflows check out with `persist-credentials: false`, and every version they install
+All four workflows check out with `persist-credentials: false`, and every version they install
 is pinned — in `config/versions.env`, the same file `just ops deps` reads, so a local
 `just docs build` renders with the mdbook CI publishes and pre-commit runs the kustomize CI
 installs. Both sides consume it natively: just via `set dotenv-path` in the root `justfile`,

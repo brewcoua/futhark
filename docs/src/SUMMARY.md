@@ -18,6 +18,7 @@
 - [Secrets](conventions/secrets.md)
 - [Domains](conventions/domains.md)
 - [Startup ordering](conventions/ordering.md)
+- [Dependency updates](conventions/updates.md)
 
 # Ansible — the host plane
 

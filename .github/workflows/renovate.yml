@@ -1,0 +1,66 @@
+---
+# Self-hosted Renovate. The alternative — the Mend-hosted GitHub App — would mean a third party
+# holding write access to this repo and its workflows; here the only credential is a GitHub App
+# of our own, minted per run and expiring in an hour.
+#
+# What it reads is .github/renovate.json5. See docs/src/conventions/updates.md.
+name: renovate
+
+on:
+  schedule:
+    # Before the 04:00 mirror push, so a merged automerge lands in the same night's mirror.
+    - cron: "0 3 * * *"
+  # A push to the config should be exercised immediately, not at 03:00 tomorrow.
+  push:
+    branches: [master]
+    paths:
+      - .github/renovate.json5
+      - .github/workflows/renovate.yml
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: Renovate log level
+        type: choice
+        options: [info, debug]
+        default: info
+      dryRun:
+        description: Extract and log only — create no branches, PRs or issues
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # GITHUB_TOKEN cannot be used: PRs it opens do not trigger `on: pull_request`, so
+      # validate.yml would never run and nothing would gate an automerge.
+      - uses: actions/create-github-app-token@v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ vars.RENOVATE_APP_ID }}
+          private-key: ${{ secrets.RENOVATE_APP_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: renovatebot/github-action@v46.2.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+        env:
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
+          RENOVATE_DRY_RUN: ${{ inputs.dryRun && 'full' || null }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # Renovate reads the config from the default branch of the repo it is onboarding, so
+          # the checkout above is only for the action itself.
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: required

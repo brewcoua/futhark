@@ -67,6 +67,18 @@ jobs:
           sudo install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
           gitleaks dir . --config .gitleaks.toml
 
+  # A malformed .github/renovate.json5 fails silently: Renovate skips the repo at 03:00 in a
+  # workflow nobody is watching, and updates simply stop arriving. Catch it on the PR instead.
+  # Unpinned on purpose — the validator that matters is the one the current Renovate ships.
+  renovate-config:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: npx --yes --package renovate -- renovate-config-validator --strict
+
   ansible-syntax:
     runs-on: ubuntu-latest
     timeout-minutes: 10

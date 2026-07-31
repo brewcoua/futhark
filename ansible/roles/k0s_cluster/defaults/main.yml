@@ -1,0 +1,10 @@
+---
+# The Kubernetes version the whole fleet runs. k0sctl defaults to "whatever k0s released most
+# recently" when spec.k0s.version is absent, which made every `just ansible k0s` a potential
+# unannounced control-plane upgrade — including runs whose intent was only to add a worker.
+# Pinned here, a cluster upgrade is a commit like any other; Renovate opens it.
+#
+# Upgrading is not free: k0sctl drains and restarts each node in turn. Read the k0s release
+# notes for skipped minors before merging that PR.
+# renovate: datasource=github-releases depName=k0sproject/k0s versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\+k0s\.(?<build>\d+)$
+k0s_cluster_version: "v1.36.3+k0s.0"

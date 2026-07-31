@@ -20,6 +20,7 @@ that argument, `[<x>]` takes an optional one.
 | `ops deps`          | Install the toolchain. Needs `dnf` and `uv`                                                               |
 | `ops collections`   | `ansible-galaxy collection install -r requirements.yml`                                                   |
 | `ops hooks`         | `pre-commit install`                                                                                      |
+| `ops labels`        | Create or update the GitHub labels Renovate applies to its PRs. Needs `gh`                                |
 | `ops age-key`       | Generate the SOPS cluster age keypair. Run once, at cold bootstrap                                        |
 | `ops sops [<file>]` | Edit an encrypted file, seeding it from its `.example` if absent. No argument lists what is still missing |
 | `ops pass-session`  | Check for a Proton Pass session, and explain how to get one                                               |

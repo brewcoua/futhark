@@ -1,4 +1,11 @@
 ---
+# The operator that owns every Flux controller in the cluster. Unpinned, this role installed
+# whatever the registry called latest at the moment it ran, so two bootstraps months apart
+# produced two different clusters from the same commit. The FluxInstance's own
+# distribution.version (flux/cluster.yaml) is pinned for the same reason.
+# renovate: datasource=docker depName=ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+flux_bootstrap_operator_chart_version: "0.57.0"
+
 # Namespaces that need a copy of the Infisical universal-auth credential — one per operator
 # tier. Each tier's operator has scoped RBAC in its own namespace only, so a shared copy in one
 # place would be unreadable by the others.

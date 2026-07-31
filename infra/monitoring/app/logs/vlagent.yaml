@@ -18,7 +18,7 @@ spec:
   chart:
     spec:
       chart: victoria-logs-collector
-      version: "0.3.*" # chart 0.3.x -> VictoriaLogs v1.5x
+      version: "0.3.7" # chart 0.3.7 -> VictoriaLogs v1.52.0
       sourceRef:
         kind: HelmRepository
         name: victoria-metrics

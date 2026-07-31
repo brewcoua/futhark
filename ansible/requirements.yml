@@ -1,8 +1,15 @@
 ---
+# Versions are pinned so a re-run installs what the last run did — unpinned, `ansible-galaxy
+# collection install` takes latest, and a collection that changed under us shows up as a
+# playbook failure with nothing in the diff to explain it. Renovate raises the bumps.
 collections:
   - name: community.general
+    version: "13.2.0"
   - name: ansible.posix
+    version: "2.2.2"
   - name: kubernetes.core
+    version: "6.5.0"
   # Decrypts *.sops.yml under group_vars/host_vars via its vars plugin — enabled in
   # ansible/ansible.cfg. Also provides the community.sops.sops lookup.
   - name: community.sops
+    version: "2.4.0"

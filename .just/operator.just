@@ -143,6 +143,31 @@ sops file='':
 hooks:
     pre-commit install
 
+# Create or update the GitHub labels Renovate applies to its PRs
+[no-exit-message]
+labels: (_require 'gh')
+    #!/usr/bin/env bash
+    # Renovate does not create labels it cannot find — it drops them silently, so an unlabelled
+    # dependency PR means this recipe has not been run here. The names are read out of the
+    # packageRules rather than repeated here, because a name that does not match them is a label
+    # nothing ever applies. Colour and description are this recipe's own business and follow from
+    # the prefix, so adding a label to renovate.json5 needs no edit on this side.
+    mapfile -t labels < <(grep -oE '"(type|renovate)/[a-z-]+"' .github/renovate.json5 |
+      tr -d '"' | sort -u)
+    (( ${#labels[@]} )) || { echo "no labels found in .github/renovate.json5"; exit 1; }
+    for label in "${labels[@]}"; do
+      case "$label" in
+        type/major) colour=f6412d ;;
+        type/minor) colour=ff9800 ;;
+        type/*) colour=ffea19 ;;
+        renovate/*) colour=027fa0 ;;
+      esac
+      # type/patch -> "patch update", renovate/helm -> "helm dependency"
+      [[ $label == type/* ]] && suffix=update || suffix=dependency
+      # --force is create-or-update. Nothing is ever deleted, so a label added by hand survives.
+      gh label create "$label" --color "$colour" --description "${label#*/} $suffix" --force
+    done
+
 # Install the Ansible collections futhark's roles depend on
 [working-directory('ansible')]
 collections:

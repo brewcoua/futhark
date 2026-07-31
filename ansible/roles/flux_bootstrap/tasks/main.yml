@@ -5,6 +5,7 @@
   kubernetes.core.helm:
     name: flux-operator
     chart_ref: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+    chart_version: "{{ flux_bootstrap_operator_chart_version }}"
     release_namespace: flux-system
     create_namespace: true
     kubeconfig: "{{ generated_dir }}/kubeconfig"
