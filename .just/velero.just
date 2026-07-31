@@ -25,7 +25,7 @@ now:
     velero backup create --from-schedule daily --wait
 
 # Restore a namespace's local-path volumes from a backup, WIPING them first. The backup defaults
-# to the newest completed one; storagebox-crypt volumes are left alone.
+# to the newest completed one; the rclone-backed classes are left alone.
 #
 # Deliberately not reachable from any aggregate recipe, and gated on typing the namespace back
 # rather than on [confirm]: this deletes PVCs, and the operator should have to look at the list

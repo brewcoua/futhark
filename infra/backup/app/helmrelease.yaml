@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
 # Off-node durability for the local-path PVCs. Which volumes those are is not decided here: a
 # volume is backed up only if its pod carries backup.velero.io/backup-volumes naming it, so the
-# storagebox-crypt tier is excluded by never opting in. See docs/src/operations/recovery.md.
+# rclone-backed tiers are excluded by never opting in. See docs/src/operations/recovery.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -36,7 +36,7 @@ spec:
           - name: plugins
             mountPath: /target
 
-    # Neither storage class has a CSI snapshotter — local-path is hostPath, storagebox-crypt is
+    # No storage class here has a CSI snapshotter — local-path is hostPath, the others are
     # rclone — so volume data moves as a filesystem copy through the node-agent, and there is no
     # VolumeSnapshotLocation to create.
     deployNodeAgent: true

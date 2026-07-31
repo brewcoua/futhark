@@ -98,5 +98,5 @@ option and waits on the bridge.
   `config/domain/kustomization.yaml` patches `flux-system` in once, since every consumer needs
   it there regardless of its own target namespace.
 - In a plain manifest reconciled by a Flux `Kustomization`, escape a literal `$` as `$$`, or
-  envsubst will eat it. `infra/storage/app/storageclass.yaml` does this for rclone's own
-  `${pvc.metadata.*}` template variables.
+  envsubst will eat it. Both files under `infra/storage/app/storageclass-*.yaml` do this for
+  rclone's own `${pvc.metadata.*}` template variables.

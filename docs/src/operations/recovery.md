@@ -7,17 +7,27 @@ reconstructed by re-running something.
 
 ## What is backed up, and what is not
 
-Three tiers, decided by where a volume already lives rather than by how important it is.
+Four tiers, decided by where a volume already lives rather than by how important it is.
 
 | Data                  | Where it lives                          | Durability                      |
 | --------------------- | --------------------------------------- | ------------------------------- |
 | SQLite and app state  | `local-path`, node-local hostPath       | Velero → Backblaze B2, nightly  |
 | Attachments and blobs | `storagebox-crypt`, offsite over rclone | The Storage Box's own snapshots |
+| Bulk media            | `gdrive-crypt`, offsite over rclone     | **None.** See below             |
 | Everything else       | git and Infisical                       | Reconciled back by Flux         |
 
 A `local-path` volume is on one node's disk. Lose that disk and the data is gone, which is why
 that tier is the one Velero carries. `storagebox-crypt` is already offsite and already
 snapshotted; copying it to B2 would be a second offsite copy of the same bytes, paid for twice.
+
+`gdrive-crypt` is excluded for a different reason, and the distinction matters because the two
+classes look alike from the cluster. Google Drive has trash and per-file version history; it has
+nothing that restores a directory tree to a point in time. A deletion that propagates through
+rclone is gone once trash expires, and `drive-use-trash=false` on that class means it does not
+even reach trash. So the class is for data you can re-fetch or afford to lose. Put anything
+irreplaceable on it and you must opt the pod into Velero explicitly, with the annotation below —
+which then pulls every byte back through rclone and up to B2, and is usually the sign it belonged
+on a different class.
 
 Nothing infers this. A volume is backed up only if its **pod** carries an annotation naming it:
 

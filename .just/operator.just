@@ -19,7 +19,7 @@ pass-session:
     exit 1
 
 # Install required packages (ansible-core, ansible-lint, yamllint, sops, age, pass-cli,
-# pre-commit, kubectl, helm, kustomize, k0sctl, flux, velero, tofu, mdbook, d2)
+# pre-commit, kubectl, helm, kustomize, k0sctl, flux, velero, rclone, tofu, mdbook, d2)
 deps: (_require 'dnf') (_require 'uv')
     # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
     # ships a same-path conflicting package literally named `tofu`, don't use it here.
@@ -28,7 +28,8 @@ deps: (_require 'dnf') (_require 'uv')
     # generates and holds the *cluster* recipient. See docs/src/conventions/secrets.md.
     #
     # just is here for completeness only — it has to already be installed for this to run.
-    sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry just
+    # bsdtar is what _fetch unpacks every release archive with, tarball or zip alike.
+    sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry just bsdtar
     sudo systemctl enable --now pcscd.socket
     # kubernetes.core.helm's idempotency check shells out to this plugin if present.
     helm plugin list | grep -q ^diff || helm plugin install --verify=false https://github.com/databus23/helm-diff
@@ -52,6 +53,10 @@ deps: (_require 'dnf') (_require 'uv')
     # Every bak recipe shells out to this. Not needed on the cluster — the server side is the
     # HelmRelease in infra/backup — only on the operator machine driving a restore.
     @just ops _fetch velero "https://github.com/velero-io/velero/releases/download/$VELERO_VERSION/velero-$VELERO_VERSION-linux-amd64.tar.gz" "velero-$VELERO_VERSION-linux-amd64/velero"
+    # Bootstrap only, and no recipe shells out to it: RCLONE_CONFIG is assembled by hand, and
+    # `rclone config`/`obscure` are the only way to mint a Drive OAuth token and encode a crypt
+    # password. See docs/src/operations/setup.md.
+    @just ops _fetch rclone "https://github.com/rclone/rclone/releases/download/$RCLONE_VERSION/rclone-$RCLONE_VERSION-linux-amd64.zip" "rclone-$RCLONE_VERSION-linux-amd64/rclone"
     # Same pin .github/workflows/docs.yml reads, so a local `just docs build` renders what CI
     # publishes. The docs draw their graphs from ```d2 fences: mdbook-d2 is the preprocessor
     # mdbook invokes, and it shells out to the `d2` binary, so both have to be present or
@@ -73,8 +78,9 @@ _fetch bin url inner='':
       curl -fsSL -o "$dir/{{ bin }}" "{{ url }}"
       src="$dir/{{ bin }}"
     else
-      curl -fsSL -o "$dir/archive.tar.gz" "{{ url }}"
-      tar -xzf "$dir/archive.tar.gz" -C "$dir"
+      # bsdtar, not tar: rclone publishes a .zip and no tarball, and libarchive reads both.
+      curl -fsSL -o "$dir/archive" "{{ url }}"
+      bsdtar -xf "$dir/archive" -C "$dir"
       src="$dir/{{ inner }}"
     fi
     sudo install -m 755 "$src" /usr/local/bin/{{ bin }}

@@ -125,8 +125,92 @@ grep -rl 'kind: InfisicalStaticSecret' infra nodes
 `TAILSCALE_CLIENT_ID`/`_SECRET` here are the **auth-key** OAuth client — the same credential as
 the vault's `tailscale-authkey`, because the in-cluster operator and the Ansible role both mint
 node keys. `POCKETID_ENCRYPTION_KEY` is new material: `openssl rand -base64 32`.
-`RCLONE_CONFIG` is a full rclone INI whose crypt section header must be `[storagebox-crypt]`, to
-match `remote:` in `infra/storage/app/storageclass.yaml`.
+`RCLONE_CONFIG` is the one entry in that table you cannot fill in yet. It is assembled by hand
+from `rclone` output, and `rclone` arrives with `just ops setup` at step 3 — so create the folder
+now, leave the secret empty, and come back after that step.
+[The rclone config](#the-rclone-config) below is the whole procedure.
+
+### The rclone config
+
+Done after step 3, and the result goes in `/infra/csi-rclone` as `RCLONE_CONFIG`.
+
+It is one INI with four sections — a backend, and a `crypt` wrapping it, for each of the two
+StorageClasses `infra/storage/app/` declares. Only the crypt section headers are fixed — each must
+match the `remote:` parameter of the class naming it, or that class provisions nothing. The
+backend names underneath are yours to pick, as long as each crypt's `remote =` points at one.
+`rclone config` writes the backend sections for you; the crypt sections are four lines each:
+
+```ini
+[storagebox]
+type = sftp
+# host, user and key material for the Storage Box, as rclone config wrote them
+
+[storagebox-crypt]
+type = crypt
+remote = storagebox:
+password = <obscured>
+password2 = <obscured>
+
+[gdrive]
+type = drive
+client_id = <your own, see below>
+client_secret = <your own, see below>
+scope = drive.file
+root_folder_id = <see below>
+token = {"access_token":"…","refresh_token":"…","expiry":"…"}
+
+[gdrive-crypt]
+type = crypt
+remote = gdrive:
+password = <obscured>
+password2 = <obscured>
+```
+
+**`password`/`password2` are not plaintext.** rclone stores them obscured, and a plaintext value
+there fails at mount time on the base64 decode rather than being read as the password. Generate
+each with:
+
+```bash
+rclone obscure "$(openssl rand -base64 32)"
+```
+
+Four values, all distinct — the two crypts do not share a password, so a leak of one does not
+read the other's data. **Copy all four into the Proton Pass vault** before they go into
+Infisical, for the same reason as Velero's encryption keys in
+[Backup and recovery](recovery.md#encryption): lose one and its data is ciphertext forever, and
+Infisical is not a backup of itself.
+
+### The Google Drive credential
+
+`[gdrive]` needs its own GCP project and OAuth client — rclone's built-in client ID is shared and
+heavily rate limited. Two settings on that client decide whether the mount survives:
+
+- **Publishing status must be `In production`.** An external app left in `Testing` is issued
+  refresh tokens that expire after **7 days**. The CSI driver mounts the config Secret read-only,
+  so rclone cannot write a rotated token back — a stable refresh token is a hard requirement, and
+  the failure is silent until the eighth day.
+- **Scope `drive.file`, not `drive`.** It grants access only to files the app itself created,
+  which is the folder boundary the cluster is supposed to have, enforced by Google rather than by
+  convention. It is also not a sensitive scope, so publishing needs no verification review —
+  `drive` triggers one.
+
+A personal Google account rules out a service account, which is the usual answer for unattended
+access: a service account has no Drive quota of its own, and files it creates in a shared folder
+fail. So this is a user OAuth token, minted once, interactively.
+
+The consequence of `drive.file` is that the cluster's folder must be **created by rclone**, not in
+the Drive web UI — anything dragged into it from a browser afterwards is invisible to the cluster.
+Run `rclone config` on the operator machine, choose `drive`, give it the client ID and secret from
+the GCP project, and take the default `drive.file` scope. Then:
+
+```bash
+rclone mkdir gdrive:futhark
+rclone lsf --dirs-only --format pi --separator ' ' gdrive:
+```
+
+That id is `root_folder_id`, and `rclone config file` prints where rclone wrote the `token` line
+to copy across. Shred that file once the secret is in Infisical — it holds the refresh token in
+the clear, and nothing on the operator machine reads it again.
 
 ## 3. The operator machine
 
@@ -138,10 +222,13 @@ just ops setup
 ```
 
 Installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`, `k0sctl`,
-`flux`, `tofu`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard stack, and `mdbook`
-with `d2`/`mdbook-d2` for the diagrams;
+`flux`, `rclone`, `tofu`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard stack, and
+`mdbook` with `d2`/`mdbook-d2` for the diagrams;
 installs the pre-commit hooks; runs `tofu init` in every module; and checks you have a Proton
 Pass session. It needs `dnf` and `uv`.
+
+`rclone` is the one there purely for bootstrap: nothing in `just` calls it, and it exists so you
+can go back and finish [The rclone config](#the-rclone-config) from step 2.
 
 You need three things of your own: the GPG smartcard plugged in, the Proton Pass session from
 step 1, and your own tailnet membership — `k0s_cluster` resolves each node's mesh address through

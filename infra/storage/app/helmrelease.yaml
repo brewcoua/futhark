@@ -1,6 +1,6 @@
 ---
-# Provides the storagebox-crypt StorageClass. The node DaemonSet is left UNPINNED so a
-# box-backed PVC can mount wherever its pod lands.
+# Provides the storagebox-crypt and gdrive-crypt StorageClasses. The node DaemonSet is left
+# UNPINNED so a remote-backed PVC can mount wherever its pod lands.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

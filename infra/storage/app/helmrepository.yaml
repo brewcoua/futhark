@@ -1,5 +1,6 @@
 ---
-# rclone CSI driver — mounts the Hetzner Storage Box as encrypted PVCs (OCI chart).
+# rclone CSI driver — mounts the Hetzner Storage Box and Google Drive as encrypted PVCs
+# (OCI chart).
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:

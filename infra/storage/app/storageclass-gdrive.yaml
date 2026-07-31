@@ -1,0 +1,46 @@
+---
+# Second rclone class, for write-once media and blobs. Same driver and same Secret as
+# storagebox-crypt — the INI in configData carries both remotes.
+#
+# `remote` MUST match the crypt section header in that configData INI ([gdrive-crypt]).
+#
+# Drive is not a filesystem: no locking, and a flush rewrites the whole object. Databases and
+# anything edited in place belong on local-path, not here. Durability is also a step down from
+# the Storage Box, which snapshots itself — see docs/src/operations/recovery.md.
+#
+# ${pvc.metadata.*} are rclone-CSI template vars, NOT Flux vars — written $${...} so envsubst
+# emits them literally (a dotted ${...} hard-errors).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gdrive-crypt
+provisioner: rclone.csi.veloxpack.io
+parameters:
+  remote: "gdrive-crypt"
+  remotePath: "$${pvc.metadata.namespace}/$${pvc.metadata.name}"
+  csi.storage.k8s.io/node-publish-secret-name: storagebox-secret
+  csi.storage.k8s.io/node-publish-secret-namespace: csi-rclone
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+# rclone mount flags (flag=value, no leading --). Drive has no connection cap — the box's whole
+# pain point — so the tuning here is against API quota and request pacing instead.
+mountOptions:
+  # Media readers seek; `writes` caches only the write path and leaves reads near-sequential.
+  - vfs-cache-mode=full
+  # The cache is node-local container storage, so it is bounded twice. The node's ceiling is
+  # this size times the number of mounts landing on it.
+  - vfs-cache-max-size=2G
+  - vfs-cache-max-age=1h
+  # Cluster-owned bucket, nothing else writes to it, so a long TTL is free request reduction.
+  - dir-cache-time=24h
+  # Quota is the scarce resource. Trashed files still consume it, so deleting a PV would not
+  # actually free space.
+  - drive-use-trash=false
+  # Costs this much RAM per concurrent transfer.
+  - drive-chunk-size=64M
+  # Back off ahead of `403 User rate limit exceeded` rather than after it.
+  - drive-pacer-min-sleep=10ms
+  - drive-pacer-burst=200
+  - checkers=8
+  - transfers=4

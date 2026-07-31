@@ -23,7 +23,8 @@ spec:
       - "*"
     excludedResources:
       - secrets
-    # Opt-in, not opt-out: without this every storagebox-crypt volume would be dragged back
-    # through rclone and re-uploaded to B2, which the Storage Box's own snapshots already cover.
+    # Opt-in, not opt-out: without this every rclone-backed volume would be dragged back through
+    # rclone and re-uploaded to B2 — pointless for storagebox-crypt, which the box's own
+    # snapshots already cover, and ruinous for gdrive-crypt's bulk media.
     defaultVolumesToFsBackup: false
     snapshotVolumes: false

@@ -101,7 +101,8 @@ you do not need it in your environment. Re-converging the cluster is `just ans k
 | `bak restore <ns> [<backup>]` | **Wipes** the namespace's `local-path` PVCs and restores them |
 
 `bak restore` deletes data. It prints which PVCs it will destroy and which it will leave alone —
-`storagebox-crypt` volumes are never touched — and requires you to type the namespace back before
+only `local-path` PVCs are ever wiped, so the rclone-backed classes are never touched — and
+requires you to type the namespace back before
 it proceeds. It is deliberately not reachable from any other recipe. The backup defaults to the
 newest completed one. [Backup and recovery](recovery.md) covers what it does behind that prompt,
 and why a hand-run `velero restore` is not equivalent.

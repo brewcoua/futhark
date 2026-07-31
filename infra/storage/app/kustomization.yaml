@@ -5,7 +5,8 @@ kind: Kustomization
 resources:
   - helmrepository.yaml
   - helmrelease.yaml
-  - storageclass.yaml
+  - storageclass-storagebox.yaml
+  - storageclass-gdrive.yaml
   - secret.yaml
 
 # Stamps the Infisical project/environment onto secret.yaml — see config/infisical.
