@@ -3,9 +3,22 @@
 
 provider "registry.opentofu.org/infisical/infisical" {
   version     = "0.19.6"
-  constraints = "~> 0.15"
+  constraints = "~> 0.19"
   hashes = [
+    "h1:0/nmVbkbFziZrfT4j4wgxyHFJKhCkvIdQnhg3Lap88E=",
+    "h1:2VET4h3a/ZDLo4NrfP0IiVMqpLt7ONKUULyf3xrmRCg=",
+    "h1:9EcO8xkYoedwPxgyB4AQTH4fqJ4QqLpbqFu2bZbdDmM=",
+    "h1:Gqh7f6cyR+jUnDBziqobs3tCJuRT8bmzWz3D9ueQF+I=",
+    "h1:K3DIStUguwczZpaRi69ATzd5l5uvAfBPJL3ypWOE384=",
+    "h1:MowweLcdyjkhUAIiuL1UZ5/eieJvxTCJG2egksy2CRs=",
+    "h1:MvQP9i8QA55meMRGL0FuFoylfoNp3pzZ7RnV5fIFWQg=",
     "h1:QoP2AAa0mC7jC/KEh13xdDRmJWhNoc+GbAvDawbMoJ8=",
+    "h1:TGWeUehYzj0TVrBdB7XRJXDttWq8gqTUHc5o2W+gH2c=",
+    "h1:XKjdSvLv+2m2ffM6WeB1HCy63MVLsWOHehBr8Q21www=",
+    "h1:YQ/3Sx288wby+n3ATdOSaiNSaEnQzBBy/N0tzqVWgPM=",
+    "h1:anIQDpuFjmf1AtBhmUaUrPdIoo6tw9+FxA7frdNgl40=",
+    "h1:stVaANn96yI2Fz08dZUqxfVzRNAAsr9Yh+I23D/Eqzs=",
+    "h1:yx4ehNNPdv6JUbqcLv6NaqI5xYvJezEEFPnuVPqxIdY=",
     "zh:43e9bf8c436682345bb3d0b0a1887b7225f82320f2d7875943ff64c44ed6724f",
     "zh:5bda7cb912524ec95270c58e6f2dd478f2fcfe4e3448be986016358a92385ed1",
     "zh:74ad42aaa9a7f77fe708f8715746dfd54b5fcdc584dc544ca81955921adf8f65",
