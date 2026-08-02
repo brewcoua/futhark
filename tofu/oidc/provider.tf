@@ -6,7 +6,7 @@ terraform {
       # Patch-level only — see tofu/tailscale/provider.tf for why a 2-component "~>" is
       # looser than it looks on a 0.x provider. Doubly so for a third-party provider that
       # mints credentials.
-      version = "~> 0.1.8"
+      version = "~> 2.1.0"
     }
     infisical = {
       source  = "Infisical/infisical"
