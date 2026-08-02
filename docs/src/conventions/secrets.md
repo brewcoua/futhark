@@ -107,8 +107,8 @@ Three resolvers, one per plane:
 
 The crown-jewel tier, in one vault named `futharkd` — the same slug as the Infisical project, so
 the two remote stores are named alike. It holds the Flux git deploy key, the cluster age private
-key, all three Infisical machine identities, the Tailscale OAuth client, the Bunny API key and
-the Pocket ID admin token.
+key, all three Infisical machine identities, the three Tailscale OAuth clients, the Bunny API
+key and the Pocket ID admin token.
 
 It also holds the two keys that encrypt the backups — the Kopia repository password and the
 SSE-C key. Those are the one deliberate duplication in this scheme: they are runtime secrets, so

@@ -88,8 +88,9 @@ takes strict JSON, so strip the comments and trailing commas from `policy.hujson
 Fill in `secrets.sops.env` (from its `.example`) with the tailnet name and the two `pass://`
 references to the OAuth client, `TAILSCALE_OAUTH_CLIENT_ID` and `TAILSCALE_OAUTH_CLIENT_SECRET`.
 Create the client in the admin console under Settings → OAuth clients with **write** access to
-the policy file. It is a second, separate client from the auth-key one `ansible/roles/tailscale`
-mints node keys with — neither needs the other's scope.
+the policy file. It is one of the tailnet's three separate clients — the others mint node keys
+for `ansible/roles/tailscale` and for the Kubernetes operator — and none needs another's scope.
+See [Cold bootstrap](../operations/setup.md#1-proton-pass).
 
 Then, in the admin console's policy file management page, set **External reference** to this
 directory's URL and enable **Prevent edits in the admin console**. The former is only a link

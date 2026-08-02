@@ -60,13 +60,21 @@ this table has to agree with. Item and field names are lowercase-with-spaces, pe
 | `sops`                     | `age key`                    | Generated at step 3                                                                                                          |
 | `bunny`                    | `api key`                    | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
 | `pocketid`                 | `api token`                  | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
-| `tailscale-authkey`        | `client id`, `client secret` | OAuth client scoped to **auth-key creation**                                                                                 |
+| `tailscale-authkey`        | `client id`, `client secret` | OAuth client with **write on `auth_keys`**, tagged `tag:futhark-node`                                                        |
 | `tailscale-policy`         | `client id`, `client secret` | A **second** OAuth client, with **write on the policy file**                                                                 |
+| `tailscale-operator`       | `client id`, `client secret` | A **third** OAuth client, **write on `auth_keys` and `devices:core`**, tagged `tag:k8s-operator`                             |
 | `infisical-cluster-reader` | `client id`, `client secret` | The `cluster-reader` identity from step 2                                                                                    |
 | `infisical-tofu-writer`    | `client id`, `client secret` | The `tofu-writer` identity from step 2                                                                                       |
 
-Two Tailscale OAuth clients, not one: `ansible/roles/tailscale` mints single-use node auth keys,
-`tofu/tailscale` rewrites the policy file. Neither needs the other's scope.
+Three Tailscale OAuth clients, not one. `ansible/roles/tailscale` mints single-use node auth
+keys, `tofu/tailscale` rewrites the policy file, and the in-cluster Kubernetes operator mints its
+own keys _and_ mutates the devices it creates. No two of them need the same scope, and the tags
+differ as well: an OAuth client can only issue keys for the tags it carries, so the Ansible
+client is confined to `tag:futhark-node` and the operator's to `tag:k8s-operator`.
+
+`tailscale-operator` is the one item in the table no committed `pass://` reference points at.
+The operator reads it from Infisical, not from the vault, so this copy exists only so the
+credential is recoverable — you retype it into `/infra/tailscale` at step 2.
 
 Two Infisical identities, not one, for the same reason — and a sharper one: `cluster-reader` is
 seeded into the cluster, `tofu-writer` never leaves this machine. Collapsing them would hand the
@@ -122,9 +130,11 @@ secret in its `template` block.
 grep -rl 'kind: InfisicalStaticSecret' infra nodes
 ```
 
-`TAILSCALE_CLIENT_ID`/`_SECRET` here are the **auth-key** OAuth client — the same credential as
-the vault's `tailscale-authkey`, because the in-cluster operator and the Ansible role both mint
-node keys. `POCKETID_ENCRYPTION_KEY` is new material: `openssl rand -base64 32`.
+`TAILSCALE_CLIENT_ID`/`_SECRET` here are the **operator** OAuth client — the vault's
+`tailscale-operator`, not `tailscale-authkey`. The two are not interchangeable: the operator also
+needs `devices:core` write and the `tag:k8s-operator` tag, and handing those to the node-provision
+credential would let it mint operator-tagged keys. `POCKETID_ENCRYPTION_KEY` is new material:
+`openssl rand -base64 32`.
 `RCLONE_CONFIG` is the one entry in that table you cannot fill in yet. It is assembled by hand
 from `rclone` output, and `rclone` arrives with `just ops setup` at step 3 — so create the folder
 now, leave the secret empty, and come back after that step.
