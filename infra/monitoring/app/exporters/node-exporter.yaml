@@ -17,7 +17,7 @@ spec:
   chart:
     spec:
       chart: prometheus-node-exporter
-      version: "4.45.3" # chart 4.45.3 -> node_exporter v1.9.1
+      version: "4.56.1" # chart 4.45.3 -> node_exporter v1.9.1
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
