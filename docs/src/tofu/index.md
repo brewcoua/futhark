@@ -1,11 +1,14 @@
 # Rules for every module
 
-`tofu/` covers provider-API resources Flux and Kustomize cannot own, because they live outside
-the cluster: a DNS record, a registrar account, a mesh policy.
+The rules every module under `tofu/` follows, their two deliberate exceptions, and how to run
+one. Read this before writing or applying any module.
 
-It is not used for anything Flux can reconcile. Pocket ID itself is a Flux-managed workload
-under `infra/auth/`, not a tofu resource — the [`oidc`](oidc.md) module only registers its
-OIDC clients, an operation against Pocket ID's own API that no Kustomization can express.
+`tofu/` covers provider-API resources Flux and Kustomize cannot own, because they live outside the
+cluster: a DNS record, a registrar account, a mesh policy.
+
+It is not used for anything Flux can reconcile. Pocket ID itself is a Flux-managed workload under
+`infra/auth/`, not a tofu resource. The [`oidc`](oidc.md) module only registers its OIDC clients,
+an operation against Pocket ID's own API that no Kustomization can express.
 
 ## Rules
 
@@ -14,32 +17,31 @@ _mints_ becomes a `sensitive` output, filed by hand.
 
 _Exception: [`oidc`](oidc.md)._ It mints OIDC client secrets in Pocket ID, and the whole point
 of the module is removing that hand-paste step for this one round trip, so it writes those
-secrets straight to Infisical. It authenticates as a machine identity scoped to write one
-folder — `/nodes/<hostname>/<app>` — and is deliberately not the read-only identity the cluster
-uses. Every other module stays read-only.
+secrets straight to Infisical. It authenticates as a machine identity scoped to write one folder,
+`/nodes/<hostname>/<app>`, and is deliberately not the read-only identity the cluster uses. Every
+other module stays read-only.
 
 **Provider tokens are never committed, in any form.** A module's `secrets.sops.env` holds two
-kinds of line, and neither is a value: identifying values that grant nothing — a real public IP,
-an account ID, as `TF_VAR_<name>=...` — and credentials as bare `pass://`
+kinds of line, and neither is a value. Identifying values that grant nothing, such as a real
+public IP or an account ID, appear as `TF_VAR_<name>=...`. Credentials appear as bare `pass://`
 references that `pass-cli run` resolves after `sops exec-env` has loaded the file. No braces:
 `run` resolves bare URIs and ignores braced ones, the inverse of `inject`. See
 [Secrets](../conventions/secrets.md).
 
-A genuinely non-identifying constant that is shared with other parts of the repo — the mesh
-and service CIDRs, `traefik-internal`'s pinned ClusterIP — is read straight from its committed
-source as a `local` rather than duplicated into `terraform.tfvars`. The domain is identifying,
-so it comes through `refs.env` instead: see [Domains](../conventions/domains.md).
+A genuinely non-identifying constant shared with other parts of the repository, such as the mesh
+and service CIDRs or `traefik-internal`'s pinned ClusterIP, is read straight from its committed
+source as a `local` rather than duplicated into `terraform.tfvars`. The domain is identifying, so
+it comes through `refs.env` instead. See [Domains](../conventions/domains.md).
 
 **State stays local and gitignored.** `tofu/**/.terraform/`, `tofu/**/*.tfstate*` and
-`tofu/**/crash.log` are all excluded. A module's minted credentials can sit in state in
-plaintext even when marked `sensitive` — that only suppresses console and plan output. Keep
-state on the operator machine. `.terraform.lock.hcl` is the provider version lockfile and
-**is** committed.
+`tofu/**/crash.log` are all excluded. A module's minted credentials can sit in state in plaintext
+even when marked `sensitive`, which only suppresses console and plan output. Keep state on the
+operator machine. `.terraform.lock.hcl` is the provider version lockfile and **is** committed.
 
 _Exception: [`b2`](b2.md)._ Local state makes a module non-portable, and for that one module
-non-portable means broken: `b2_bucket` can only be imported by bucket id, and B2 bucket names are
-globally unique, so a second operator machine starting from empty state does not adopt the bucket
-— it fails the apply with `duplicate_bucket_name`. Its state lives in a B2 bucket instead, written
+non-portable means broken. `b2_bucket` can only be imported by bucket id, and B2 bucket names are
+globally unique, so a second operator machine starting from empty state does not adopt the bucket.
+It fails the apply with `duplicate_bucket_name`. Its state lives in a B2 bucket instead, written
 under SSE-C with a key from Proton Pass, so the plaintext credential in it is ciphertext to
 Backblaze. Every other module keeps its state local.
 
@@ -57,12 +59,16 @@ just tf apply <module>
 `just tf init` with no module argument inits every module under `tofu/`, and runs as part of
 `just ops setup`. `plan` and `apply` compose both stores, in this order:
 `sops exec-env secrets.sops.env 'pass-cli run -- tofu <cmd>'`. That needs a Proton Pass session
-(`pass-cli info`) and the GPG smartcard present; neither ever writes a value to disk.
+(`pass-cli info`) and the GPG smartcard present. Neither ever writes a value to disk.
 
-`init` composes them too, but only for a module that ships a `backend.tf` — initialising a remote
-backend means authenticating against it. `just tf init` with no argument therefore asks for the
-card and a Pass session as soon as one such module exists; the other modules still init on nothing
-but a network connection.
+`init` composes them too, but only for a module that ships a `backend.tf`, because initialising a
+remote backend means authenticating against it. `just tf init` with no argument therefore asks for
+the card and a Pass session as soon as one such module exists. The other modules still init on
+nothing but a network connection.
+
+One module needs more than a credential to apply: `netbird` writes account settings its own token
+cannot reach at its normal role. See
+[Applying account settings](netbird.md#applying-account-settings).
 
 ### Values another plane owns
 
@@ -78,11 +84,11 @@ TF_VAR_domain=config/dns/dns.sops.yaml#["stringData"]["DOMAIN"]
 The expression goes to `sops --extract` verbatim, so one line shape reaches a node fact and a
 Flux Secret alike. Who owns what:
 
-| Value                               | Owner                                               | Why                                                                                                                                                       |
-| ----------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| node addresses                      | `ansible/nodes/<node>/host.sops.yml`                | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join — recorded where it is discovered                                                 |
-| the domain and its subdomain labels | `config/dns/dns.sops.yaml`                          | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                 |
-| the backup bucket and its region    | `infra/substitutions/app/backup-location.sops.yaml` | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it — [`b2`](b2.md) provisions what it names |
+| Value                               | Owner                                               | Why                                                                                                                                                      |
+| ----------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| node addresses                      | `ansible/nodes/<node>/host.sops.yml`                | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join, so it is recorded where it is discovered                                        |
+| the domain and its subdomain labels | `config/dns/dns.sops.yaml`                          | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                |
+| the backup bucket and its region    | `infra/substitutions/app/backup-location.sops.yaml` | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it. [`b2`](b2.md) provisions what it names |
 
 A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads
 the mesh CIDR, the k0s service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
@@ -100,9 +106,9 @@ silently dead. Keep each value in exactly one of the two.
 decrypts it in-cluster, so it is sealed to the cluster age key as well, and `.sops.yaml`
 deliberately keeps that key away from everything under `ansible/` and `tofu/`.
 
-The pre-commit `tofu-validate` hook only runs `fmt` and `validate`, never `init` — a hook that
-touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
-`just tf init` once locally before committing. CI runs init as its own step first; see
+The pre-commit `tofu-validate` hook only runs `fmt` and `validate`, never `init`, because a hook
+that touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
+`just tf init` once locally before committing. CI runs init as its own step first. See
 [Checks and CI](../operations/checks.md).
 
 ## Modules
@@ -114,8 +120,8 @@ touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a fil
 | [`netbird`](netbird.md) | Mesh access policy, the route onto the cluster's service CIDR, and the internal DNS zone |
 | [`b2`](b2.md)           | The Backblaze B2 bucket Velero backs up to, and the application key it uses              |
 
-What each touches. Every arrow into a secret store is a read, except the one marked — that is
-the whole read-only rule, and its single exception:
+What each touches. Every arrow into a secret store is a read except the one marked in red, which
+is the whole read-only rule and its single exception.
 
 ```d2
 direction: down

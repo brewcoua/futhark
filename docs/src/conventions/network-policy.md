@@ -1,8 +1,10 @@
 # Network policy
 
+Which templates every namespace composes, what they add up to, and the one path they cannot
+govern. Read this when adding a namespace, so its overlay allows exactly what the app needs.
+
 Every non-control-plane namespace gets a default-deny baseline plus explicit opt-in bridges,
-assembled per namespace from shared templates in
-`infra/policies/namespaces/_templates/`:
+assembled per namespace from shared templates in `infra/policies/namespaces/_templates/`:
 
 | Template                             | When                                                                       |
 | ------------------------------------ | -------------------------------------------------------------------------- |
@@ -12,8 +14,8 @@ assembled per namespace from shared templates in
 | `netpol-allow-from-ingress-internal` | Only if the namespace ships an `Ingress` with `ingressClassName: internal` |
 | `netpol-allow-from-ingress-edge`     | Only if the namespace ships an `Ingress` with `ingressClassName: edge`     |
 
-What that composes to, for one namespace — a wall with named holes in it, and one path that
-goes around the wall entirely:
+What that composes to, for one namespace: a wall with named holes in it, and one path that goes
+around the wall entirely.
 
 ```d2
 direction: down
@@ -45,10 +47,10 @@ firewalld: "firewalld + Traefik rate limiting\nCNI policy never sees traefik-edg
 firewalld -> edge: { style.stroke-dash: 4 }
 ```
 
-Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace rather
-than one file. Egress is left open everywhere — the secret operators call out to their APIs,
-cert-manager calls ACME,
-apps call whatever they call. In a single-tenant homelab the risk that matters is inbound.
+Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace rather than
+one file. Egress is left open everywhere: the secret operators call out to their APIs,
+cert-manager calls ACME, and apps call whatever they call. In a single-tenant homelab the risk
+that matters is inbound.
 
 One thing the baseline cannot cover: `traefik-edge` runs with `hostNetwork: true`, so it
 shares the node's network namespace and CNI policy enforcement never sees its sockets. The
@@ -66,9 +68,9 @@ is the NetBird policy in `tofu/netbird`, which decides which peers reach the clu
 
 ## Rate limiting
 
-Every namespace with an `Ingress` also composes the `middleware-ratelimit` template — a
-Traefik `Middleware` at `average: 100`, `burst: 200`, per source IP. It is basic DoS
-protection, not a precise budget.
+Every namespace with an `Ingress` also composes the `middleware-ratelimit` template, a Traefik
+`Middleware` at `average: 100`, `burst: 200`, per source IP. It is basic DoS protection, not a
+precise budget.
 
 Composing the template alone does nothing. Traefik only applies a `Middleware` to routers
 that name it, so the `Ingress` must reference it explicitly:
@@ -79,5 +81,9 @@ annotations:
 ```
 
 Same-namespace reference only. `traefik-edge`'s `kubernetesCRD` provider does not set
-`allowCrossNamespace` (unlike `traefik-internal`), so a shared cross-namespace `Middleware`
-would not resolve there.
+`allowCrossNamespace`, unlike `traefik-internal`, so a shared cross-namespace `Middleware` would
+not resolve there.
+
+Verify a new namespace's policy the way [Pod to mesh networking](../ansible/networking.md#the-isolating-test)
+does: from a pod in another namespace, confirm the connection is refused, then confirm the
+intended bridge works.

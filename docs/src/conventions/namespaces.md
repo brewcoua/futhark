@@ -1,9 +1,13 @@
 # Namespaces
 
+Where namespaces are declared, and what their labels decide. Read this before adding a component
+or a node app, because a namespace declared in the wrong place deadlocks and a namespace labelled
+wrongly reads the wrong tier's secrets.
+
 Every `Namespace` CR lives in `infra/namespaces/app/namespaces.yaml`, owned by the `namespaces`
-Kustomization, which depends on nothing. Components do not declare their own — a controller
-whose chart writes into a namespace it does not own would otherwise deadlock against the
-component that does. See [Startup ordering](ordering.md).
+Kustomization, which depends on nothing. Components do not declare their own. A controller whose
+chart writes into a namespace it does not own would otherwise deadlock against the component that
+does. See [Startup ordering](ordering.md).
 
 What stays per-namespace is the policy attached to it: `infra/policies/namespaces/<namespace>/`
 holds that namespace's [NetworkPolicy and RBAC](network-policy.md), not its `Namespace`.

@@ -1,5 +1,7 @@
 # Domains
 
+Where the base domain is declared, how each plane reads it, and what to re-apply when it changes.
+
 One base domain, one file: `config/dns/dns.sops.yaml`, a SOPS-encrypted Secret with three keys.
 
 | Key            | Is                                     | Example host                 |
@@ -14,7 +16,7 @@ app.
 
 ## Reading it
 
-**Flux** — `infra/substitutions` publishes the Secret as `dns`. A consumer declares the
+**Flux.** `infra/substitutions` publishes the Secret as `dns`. A consumer declares the
 dependency and the source in its `ks.yaml`, then uses `${DOMAIN}` and `${SUB_INTERNAL}`
 directly in its manifests:
 
@@ -29,20 +31,20 @@ spec:
 ```
 
 `infra/monitoring/ks.yaml` is the reference implementation. `dependsOn` names the Kustomization
-that publishes the values; `substituteFrom` names the object this manifest reads.
+that publishes the values, and `substituteFrom` names the object this manifest reads.
 
 `replacements` is not used for domains. It rewrites one delimiter-separated segment of a field,
-which cannot reach a domain sitting mid-string — an OIDC discovery URL has a path after the
-host — and mixing both mechanisms meant two ways to spell one value.
+which cannot reach a domain sitting mid-string. An OIDC discovery URL has a path after the host.
+Mixing both mechanisms would also mean two ways to spell one value.
 
-**Tofu** — `bunny`, `oidc` and `netbird` each declare the keys they need in their `refs.env`
+**Tofu.** `bunny`, `oidc` and `netbird` each declare the keys they need in their `refs.env`
 and `sops --extract` them at plan time. No module keeps a copy. See
 [Values another plane owns](../tofu/index.md#values-another-plane-owns).
 
-**Ansible** — `just ans render-secrets` decrypts the same file into
+**Ansible.** `just ans render-secrets` decrypts the same file into
 `ansible/.generated/dns.yml`, and `inventory/group_vars/all/dns.yml` gives it a nested shape.
-Use `{{ dns.domain }}`, `{{ dns.sub.nodes }}`, `{{ dns.sub.internal }}`; the flat capitals exist
-only because a Kubernetes Secret cannot nest.
+Use `{{ dns.domain }}`, `{{ dns.sub.nodes }}` and `{{ dns.sub.internal }}`. The flat capitals
+exist only because a Kubernetes Secret cannot nest.
 
 ## Changing the domain
 
@@ -56,8 +58,15 @@ just tf apply oidc
 just ans setup
 ```
 
-`netbird` moves the peer domain, so every node's `ansible_host` changes with it — Ansible
-reaches the nodes by mesh name.
+`netbird` moves the peer domain, so every node's `ansible_host` changes with it. Ansible reaches
+the nodes by mesh name.
+
+`just tf apply netbird` here changes `netbird_account_settings`, which needs the policy service
+user promoted to Admin for the duration. See
+[Applying account settings](../tofu/netbird.md#applying-account-settings).
+
+Verify: `just fx failing` is empty, `just ks certs` shows every certificate `Ready` under the new
+domain, and `just ops mesh` still resolves.
 
 ## Internal ingresses are unauthenticated
 
@@ -67,7 +76,7 @@ the kind Authelia exposes, so Traefik has nothing to delegate a request to. Putt
 of an internal app needs an oauth2-proxy (or equivalent) bridge wired to Pocket ID first; until
 that lands, mesh membership is the only access control these hosts have.
 
-An app that speaks OIDC itself needs no bridge — it registers a client in `tofu/oidc` and
+An app that speaks OIDC itself needs no bridge. It registers a client in `tofu/oidc` and
 authenticates against Pocket ID directly. Grafana is the near-term case: `auth.generic_oauth`
 is the natural fit and is not configured yet. `vmsingle` has no such option and waits on the
 bridge.

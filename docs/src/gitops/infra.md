@@ -1,22 +1,25 @@
 # Cluster infrastructure
 
-`infra/` holds one directory per cluster-wide component, each with its own Flux
-`Kustomization`. Layout rules are in [Layout and naming](../conventions/layout.md); the order
-they come up in is [Startup ordering](../conventions/ordering.md).
+What each cluster-wide component is, and the four that behave unlike the rest: the two ingresses,
+monitoring, and the per-tier Infisical operator. Layout rules are in
+[Layout and naming](../conventions/layout.md), and the order they come up in is
+[Startup ordering](../conventions/ordering.md).
 
-| Component            | What it is                                                                                                                                                  |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                             |
-| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `dns`, `edge-ips` and `backup-location` Secrets, and `monitoring-sizing`                    |
-| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once                   |
-| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                    |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                   |
-| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                 |
-| `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt→sftp) and `gdrive-crypt` (Google Drive, write-once media) |
-| `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                |
-| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload — see below                                                         |
-| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                         |
-| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                 |
+`infra/` holds one directory per component, each with its own Flux `Kustomization`.
+
+| Component            | What it is                                                                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                                  |
+| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `dns`, `edge-ips` and `backup-location` Secrets, and `monitoring-sizing`                  |
+| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite, so its Deployment uses `strategy: Recreate` and never runs two pods at once                |
+| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                         |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                        |
+| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                      |
+| `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt over sftp) and `gdrive-crypt` (Google Drive, write-once media) |
+| `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                     |
+| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                               |
+| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                              |
+| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                      |
 
 ## The two ingresses
 
@@ -26,12 +29,13 @@ the odd one out everywhere else in the tree.
 `traefik-internal` is an ordinary `ClusterIP` Service with a pinned address. Nothing in the
 cluster publishes it: [`tofu/netbird`](../tofu/netbird.md) advertises the whole service CIDR
 into the mesh and points the internal wildcard at that address, so ordinary `NetworkPolicy`
-still governs its traffic and there is no node IP to know or inject anywhere. Give an internal `Ingress` the class `internal`; it never carries
-its own `tls:` block, because the wildcard is served as the default certificate.
+still governs its traffic and there is no node IP to know or inject anywhere. Give an internal
+`Ingress` the class `internal`. It never carries its own `tls:` block, because the wildcard is
+served as the default certificate.
 
 `traefik-edge` binds 80/443 directly on the edge node with `hostNetwork: true`. There is no
-LoadBalancer to hand it a Service address — MetalLB was considered and rejected, since it can
-only manage a real L2/BGP-announced IP, not a mesh one. `hostNetwork` means it shares the
+LoadBalancer to hand it a Service address. MetalLB was considered and rejected, since it can only
+manage a real L2 or BGP-announced IP, not a mesh one. `hostNetwork` means it shares the
 node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sockets and the
 `ingress-edge` baseline cannot govern it. What actually governs it is firewalld
 (`ansible/roles/firewall_ingress`) and Traefik's own rate limiting. See
@@ -40,11 +44,11 @@ node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sock
 The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
 `postBuild.substituteFrom` from the SOPS-encrypted `edge-ips` Secret in `infra/substitutions/`.
 That Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
-consumers reconcile, and `infra-policies` — the obvious home for it — depends on `traefik-edge`.
+consumers reconcile, and `infra-policies`, the obvious home for it, depends on `traefik-edge`.
 
 This release is the Secret's only consumer, and the reason it has to be one: `hostIP` in a pod
 spec takes no `fieldRef`, so an address bound there has to be written down. Where the same address
-was needed as data rather than as a bind target, it is discovered instead — the `traefik-edge`
+was needed as data rather than as a bind target, it is discovered instead. The `traefik-edge`
 scrape job in `infra/monitoring` reads it off the API server, since a `hostNetwork` pod's
 `status.podIP` is the kubelet's `--node-ip`, which `k0sctl.yaml.j2` sets to the mesh address.
 
@@ -54,13 +58,13 @@ One Flux `Kustomization`, four workloads, one directory each under `infra/monito
 `metrics/` (vmsingle + vmagent), `logs/` (vlsingle + vlagent), `exporters/` and `grafana/`.
 Only `helmrepositories.yaml` stays flat, since every one of them draws on it.
 
-**Alert rules are in `grafana/alerting/`**, one file per group — `watchdog.yaml`,
-`node-health.yaml`, `kubernetes.yaml`, `backup.yaml` — plus `contactpoints.yaml` and
+**Alert rules are in `grafana/alerting/`**, one file per group (`watchdog.yaml`,
+`node-health.yaml`, `kubernetes.yaml`, `mesh.yaml`, `backup.yaml`) plus `contactpoints.yaml` and
 `policies.yaml`. They are ordinary Grafana provisioning YAML: write `{{ $labels.instance }}` as
-you would in the UI. Nothing escapes it, because nothing templates it. `kustomization.yaml` generates them into one ConfigMap
-labelled `grafana_alert: "1"`, and the chart's alerts sidecar copies it into
-`/etc/grafana/provisioning/alerting/` and POSTs Grafana's reload endpoint — so an edit lands on
-the next reconcile without restarting Grafana.
+you would in the UI. Nothing escapes it, because nothing templates it. `kustomization.yaml`
+generates them into one ConfigMap labelled `grafana_alert: "1"`, and the chart's alerts sidecar
+copies it into `/etc/grafana/provisioning/alerting/` and POSTs Grafana's reload endpoint, so an
+edit lands on the next reconcile without restarting Grafana.
 
 They used to live in the `HelmRelease` values, where the chart ran the whole block through Helm's
 `tpl` and every `{{ $labels.x }}` had to be written `{{ "{{" }} $labels.x {{ "}}" }}` to survive
@@ -80,18 +84,18 @@ Grafana's own env expansion then reads, out of the secret named in
 `repeat_interval` for a reason. A rule's `interval` only decides how often the alert is
 _evaluated_; how often a still-firing alert re-notifies is policy-side, and the inherited
 defaults (5m and 4h) mean the healthchecks.io ping lands about every four hours. Both go to `1m`
-to match the rule — Alertmanager flushes on `group_interval` ticks and requires
+to match the rule, because Alertmanager flushes on `group_interval` ticks and requires
 `repeat_interval` to be at least as long.
 
 `vmagent`'s scrape targets are in `metrics/scrape-configs.yaml`, merged into the release with
-`valuesFrom` rather than kept inline — adding a target shouldn't mean editing a `HelmRelease`.
+`valuesFrom` rather than kept inline, so adding a target does not mean editing a `HelmRelease`.
 One file, not one per job: Flux merges `valuesFrom` entries with arrays replaced, so two
 ConfigMaps each holding `scrape_configs` would silently clobber each other.
 
 Retention and volume size for both stores are in
 `infra/substitutions/app/monitoring-sizing.yaml`, reaching the releases as `${VM_RETENTION}` and
 friends. They sit together because they are one decision against one local-path disk. CPU and
-memory are not there — those are per-workload and stay next to the release that sets them.
+memory are not there. Those are per-workload and stay next to the release that sets them.
 The file cannot live under `infra/monitoring/`: a `substituteFrom` source has to exist before its
 consumer reconciles.
 
@@ -105,7 +109,7 @@ host into the cluster, because the chart already mounts each node's `/var/log` r
 Query the bans in Grafana against the `VictoriaLogs` datasource as `app:fail2ban`. vlagent
 attaches `hostname` and `file` on its own, so events stay attributable per node.
 
-The other half — the jails, and why fail2ban logs to a file at all — is in
+The other half, the jails and why fail2ban logs to a file at all, is in
 [Inventory and roles](../ansible/index.md#fail2ban).
 
 ## Infisical operator
@@ -115,19 +119,19 @@ deployment detail. Each install sets `scopedRBAC: true` with its own `scopedName
 chart emits a `Role`/`RoleBinding` per listed namespace and no cluster-wide secrets
 `ClusterRole`. A tier's ServiceAccount has no permissions anywhere outside its own list.
 
-- **infra tier** — `infra/infisical-operator/app/helmrelease-infra.yaml`, release namespace
+- **infra tier**: `infra/infisical-operator/app/helmrelease-infra.yaml`, release namespace
   `infisical-infra`. Owns the `secrets.infisical.com` CRDs (`installCRDs: true`).
-- **node tier** — `helmrelease-node-<hostname>.yaml`, release namespace
+- **node tier**: `helmrelease-node-<hostname>.yaml`, release namespace
   `infisical-node-<hostname>`, `installCRDs: false` and `dependsOn` the infra release, because
   two installs racing to own the same CRDs is the documented failure mode.
-- **backup tier** — `helmrelease-backup.yaml`, release namespace `infisical-backup`, scoped to
+- **backup tier**: `helmrelease-backup.yaml`, release namespace `infisical-backup`, scoped to
   itself and `velero`. Not per-host, and the only tier with a machine identity of its own.
 
 Each tier's namespace appears first in its own `scopedNamespaces`, and not by accident: that is
 what lets the operator read the `InfisicalAuth` and credential Secret it authenticates with.
-The infra and node tiers share one Infisical machine identity — the free tier caps identities at
-five — so what separates _them_ is RBAC plus the `ValidatingAdmissionPolicy` in `config/`, which
-pins each `InfisicalStaticSecret`'s `secretPath` to its namespace's tier. The backup tier goes
+The infra and node tiers share one Infisical machine identity, because the free tier caps
+identities at five, so what separates _them_ is RBAC plus the `ValidatingAdmissionPolicy` in
+`config/`, which pins each `InfisicalStaticSecret`'s `secretPath` to its namespace's tier. The backup tier goes
 further and authenticates as a second identity, because the admission policy alone would let any
 infra namespace read `/infra/velero` and those are the keys that decrypt every backup. The
 reasoning, and what still defeats it, is in
@@ -136,16 +140,19 @@ reasoning, and what still defeats it, is in
 ### Adding a node tier
 
 1. Add `infra/namespaces/app/namespaces.yaml` entries for the tier's own namespace and that
-   node's app namespaces — the chart's scoped `Role`s are written into namespaces it does not
+   node's app namespaces. The chart's scoped `Role`s are written into namespaces it does not
    create, so the install fails outright if any of them is missing.
-2. Add `infra/infisical-operator/app/helmrelease-node-<hostname>.yaml` (copy the kenaz one, swap
-   the hostname, list those app namespaces in `scopedNamespaces`) and register it in the
-   sibling `kustomization.yaml`.
+2. Add `infra/infisical-operator/app/helmrelease-node-<hostname>.yaml`, copying the kenaz one,
+   swapping the hostname and listing those app namespaces in `scopedNamespaces`, then register it
+   in the sibling `kustomization.yaml`.
 3. Add `infra/infisical-operator/config/nodes/<hostname>.yaml` for the tier's
-   `InfisicalConnection` + `InfisicalAuth`, and list it in that `kustomization.yaml`.
+   `InfisicalConnection` and `InfisicalAuth`, and list it in that `kustomization.yaml`.
 4. Copy `infra/policies/namespaces/infisical-node-kenaz/` to the new tier's namespace and
    register it in `infra/policies/kustomization.yaml`. The tier namespace holds that tier's copy
    of the universal-auth credential, so it is the last place to leave without a baseline.
 5. Set `app_tier: true` in `ansible/nodes/<hostname>/host.yml`, so `flux_bootstrap` seeds the
    credential into the new namespace. The list of tiers is derived from that flag rather than
    written out, so there is nothing to keep in step with step 1.
+
+Verify: after `just ans k0s` and a push, `just fx failing` is empty and
+`kubectl -n infisical-node-<hostname> get infisicalauth` reports ready.

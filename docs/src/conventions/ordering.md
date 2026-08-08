@@ -1,13 +1,15 @@
 # Startup ordering
 
+The `dependsOn` graph the whole tree reconciles in, why each non-obvious edge exists, and where a
+new component belongs in it.
+
 Two Kustomizations `dependsOn` nothing: `namespaces`, which is every `Namespace` CR and no
 controller, and `substitutions`, which is every `postBuild.substituteFrom` source and no
-controller either. A substitution target has to exist before any consumer reconciles, so it
-cannot wait on anything. The two controllers that need nothing else from the cluster —
-`infisical-operator` and `cert-manager` — sit directly behind `namespaces`.
+controller either. A substitution target has to exist before any consumer reconciles, so it cannot
+wait on anything. The two controllers that need nothing else from the cluster,
+`infisical-operator` and `cert-manager`, sit directly behind `namespaces`.
 
-The real graph, as declared in each `ks.yaml` — thick borders are the roots and the two
-sinks:
+The real graph, as declared in each `ks.yaml`. Thick borders are the roots and the two sinks.
 
 ```d2
 direction: down
@@ -66,8 +68,7 @@ infra-policies -> nodes
 infra-policies -> actual
 ```
 
-Only those two name `namespaces` in their `dependsOn`; everything else reaches it
-transitively.
+Only those two name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
 
 They need nothing from the cluster but a namespace to land in. Their `config-ks.yaml` siblings
 are where the ordering actually bites, because those apply CRs the controller must already have
@@ -76,40 +77,40 @@ registered CRDs for.
 Three edges are less obvious than they look:
 
 - `namespaces` is a root of its own rather than a file next to each component, because
-  `infisical-operator` installs its chart with `scopedRBAC: true` — Helm emits a Role and
-  RoleBinding _inside_ every `scopedNamespaces` entry at install time, and those namespaces
-  belong to components that are downstream of `infisical-operator-config`. With the
-  `Namespace` CRs held by their consumers the install failed outright on
-  `namespaces "auth" not found`.
+  `infisical-operator` installs its chart with `scopedRBAC: true`. Helm emits a Role and
+  RoleBinding _inside_ every `scopedNamespaces` entry at install time, and those namespaces belong
+  to components that are downstream of `infisical-operator-config`. With the `Namespace` CRs held
+  by their consumers, the install failed outright on `namespaces "auth" not found`.
 - A `config-ks.yaml` does not always belong downstream of its controller. The rule is what the
   dependency is _for_: what a chart **mounts** goes upstream of it, what needs the chart's
   **CRDs** goes downstream. A config Kustomization producing a Secret the chart's own Deployment
   mounts has to run first, or the Helm install waits on a pod that waits on a Secret that waits
-  on the install. Nothing in the tree currently inverts it — every `config-ks.yaml` here applies
-  CRs — but the inversion is legitimate and is why the rule is stated rather than the pattern.
+  on the install. Nothing in the tree currently inverts it, since every `config-ks.yaml` here
+  applies CRs, but the inversion is legitimate and is why the rule is stated rather than the
+  pattern.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
   cluster: the `dns`, `edge-ips` and `backup-location` Secrets, and the `monitoring-sizing`
   ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
-  reconciles, and `traefik-edge` — one of those consumers — is upstream of `infra-policies`, the
+  reconciles, and `traefik-edge`, one of those consumers, is upstream of `infra-policies`, the
   otherwise obvious home for them.
 
 `infra-policies` sits behind every infra controller. Its overlays attach policy to namespaces
-that are already there, so the ordering it needs is the controllers': `middleware-ratelimit`
-wants Traefik's `Middleware` CRD registered, and the point of the edges as a whole is that a
-namespace's default-deny policy lands before anything worth denying. `nodes` then depends on
+that are already there, so the ordering it needs is the controllers'. `middleware-ratelimit` wants
+Traefik's `Middleware` CRD registered, and the point of the edges as a whole is that a namespace's
+default-deny policy lands before anything worth denying. `nodes` then depends on
 `infra-policies`.
 
 ## What `wait: true` already buys, and why there are no `healthChecks`
 
-Every Kustomization in the tree sets `wait: true` — patched in once by `infra/kustomization.yaml`
-— and none sets `healthChecks`. That is deliberate, and the two are alternatives rather than
-complements: `wait: true` health-checks **every** resource the Kustomization applied, and Flux
+Every Kustomization in the tree sets `wait: true`, patched in once by `infra/kustomization.yaml`,
+and none sets `healthChecks`. That is deliberate, and the two are alternatives rather than
+complements. `wait: true` health-checks **every** resource the Kustomization applied, and Flux
 **ignores `healthChecks` entirely when it is set**. Adding a `healthChecks` list would be config
-that never runs; getting it to run means `wait: false`, which checks only the resources you
+that never runs. Getting it to run means `wait: false`, which checks only the resources you
 remembered to name.
 
-The gap `healthChecks` would seem to close — "the HelmRelease is Ready but its pods are still
-starting" — is closed further upstream. helm-controller's `install.disableWait` and
+The gap `healthChecks` would seem to close, "the HelmRelease is Ready but its pods are still
+starting", is closed further upstream. helm-controller's `install.disableWait` and
 `upgrade.disableWait` both default to `false`, so it polls the chart's workloads with kstatus and
 only then reports the `HelmRelease` Ready. So a `dependsOn` edge onto a chart-based component
 already means that chart's Deployments and DaemonSets are up.
@@ -117,19 +118,22 @@ already means that chart's Deployments and DaemonSets are up.
 `local-path` is the one piece that cannot come from Flux at all: monitoring, `auth` and
 `nodes/kenaz.k0s/actual` bind PVCs on their first reconcile, and nothing in the Flux-managed
 tree can provision a StorageClass for itself. `ansible/roles/local_path_provisioner` installs it
-during [Cold bootstrap](../operations/setup.md) step 6.
+during `just ans k0s`, [Cold bootstrap](../operations/setup.md) step 9.
 
 ## Where a new component goes
 
 - Has an `InfisicalStaticSecret`: downstream of `infisical-operator-config`, same as `storage`
-  and `monitoring`. Also add its namespace to the right tier's `scopedNamespaces` — see
+  and `monitoring`. Also add its namespace to the right tier's `scopedNamespaces`. See
   [Cluster infrastructure](../gitops/infra.md#infisical-operator).
 - Needs a certificate: downstream of `cert-manager-config`.
 - Needs ingress: downstream of `traefik-internal`, or `traefik-edge` if it is public-facing.
-- Needs none of the above: it can be another root. Check first — most things eventually need a
+- Needs none of the above: it can be another root. Check first. Most things eventually need a
   cert or an ingress, and both have prerequisites.
 
-Whatever you pick, add the component's namespace to `infra/namespaces/app/namespaces.yaml` —
-nothing else declares it. If anything under `infra/policies/namespaces/` targets that namespace,
+Whatever you pick, add the component's namespace to `infra/namespaces/app/namespaces.yaml`.
+Nothing else declares it. If anything under `infra/policies/namespaces/` targets that namespace,
 add the component to `infra/policies-ks.yaml`'s `dependsOn` too, so the policy lands with the
 workload rather than ahead of it.
+
+Verify the edge you added: `just fx get` shows the new Kustomization `Ready`, and nothing upstream
+of it moved to `Reconciling` and stayed there.

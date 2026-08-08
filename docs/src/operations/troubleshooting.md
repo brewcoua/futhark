@@ -1,5 +1,9 @@
 # Troubleshooting
 
+Failure shapes that have actually happened here, what each one really means, and how to confirm
+it. Work top-down: the first three sections share one root cause and account for the worst outage
+this cluster has had.
+
 Start here:
 
 ```bash
@@ -15,9 +19,6 @@ just ks previous <ns> <pod>    # a crashlooper's last words
 just ks warnings               # Warning events cluster-wide
 just fx logs                   # kustomize-controller, or name another
 ```
-
-The rest of this page is the failure shapes that have actually happened here, and what each
-one really means.
 
 ## Half of everything times out, intermittently
 
@@ -81,7 +82,7 @@ sops -d <the file>          # works for you via the GPG card, independently of t
 ```
 
 If `sops -d` succeeds locally but Flux fails, the file was sealed without the cluster age
-recipient — check it matches the `(infra|nodes|config)` rule in `.sops.yaml` and re-run
+recipient. Check it matches the `(infra|nodes|config)` rule in `.sops.yaml` and re-run
 `sops updatekeys` on it. Files under `ansible/` and `tofu/` are _supposed_ to fail this way in
 cluster context; they are deliberately not sealed to the cluster key.
 
@@ -96,13 +97,13 @@ kubectl logs -n infisical-<tier> deploy/... -f
 Check in this order:
 
 1. Is the namespace in the right tier's `scopedNamespaces`? If not, the operator has no RBAC
-   there and will not act at all — this is the most common cause after adding an app, and it
-   looks like nothing happening rather than an error.
+   there and will not act at all. This is the most common cause after adding an app, and it looks
+   like nothing happening rather than an error.
 2. Is `infisicalAuthRef` pointing at that same tier's namespace? A node app must reference
    `infisical-node-<hostname>`, not `infisical-infra`. The node operator cannot read the infra
    tier's `InfisicalAuth`.
 3. Was the object rejected at admission? A `secretPath` outside the namespace's tier never gets
-   created — `kubectl apply` fails loudly, so check your shell history rather than the cluster.
+   created, and `kubectl apply` fails loudly, so check your shell history rather than the cluster.
 4. Does the path actually hold the secret? Check the Infisical UI at that folder and
    environment.
 
@@ -110,7 +111,7 @@ Check in this order:
 
 Check for a namespace that does not exist yet. Every overlay under `infra/policies/` sets
 kustomize's top-level `namespace:` field, so the whole overlay fails to apply if the target
-`Namespace` is missing — as does any chart that writes into a namespace it does not create,
+`Namespace` is missing, as does any chart that writes into a namespace it does not create,
 which is how `infisical-operator` fails when `scopedNamespaces` names one. Add it to
 `infra/namespaces/app/namespaces.yaml`; nothing else declares namespaces. See
 [Startup ordering](../conventions/ordering.md).
@@ -132,8 +133,23 @@ kubectl describe certificaterequest -n <ns> <name>
 
 Issuance goes through Let's Encrypt DNS-01 against the Bunny zone, so it waits on DNS
 propagation and can legitimately take minutes. If it never completes, check the
-`cert-manager-config` Kustomization is Ready — the `ClusterIssuer` lives there, behind
+`cert-manager-config` Kustomization is Ready. The `ClusterIssuer` lives there, behind
 `infisical-operator-config`, because the webhook's API key is an `InfisicalStaticSecret`.
+
+## `just tf apply netbird` returns 403 on `netbird_account_settings`
+
+The `netbird-policy` service user is at Network Admin, which reads account settings and cannot
+write them. Promote it to Admin for the apply, then demote it again:
+[Applying account settings](../tofu/netbird.md#applying-account-settings).
+
+## A `just tf plan` returns 401, or Ansible fails to mint a setup key
+
+The credential expired or was revoked. Which token, and what each lapse breaks, is
+[NetBird token expiry](checks.md#netbird-token-expiry). Replacements are in
+[Credential rotation](rotation.md).
+
+If instead a `pass://` reference comes through as a literal string, the Proton Pass session is
+gone rather than the credential. `pass-cli info` says which.
 
 ## `tofu validate` fails in pre-commit on a module you didn't touch
 

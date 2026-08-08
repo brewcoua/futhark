@@ -1,12 +1,14 @@
 # bunny
 
-Manages public DNS records against the existing Bunny DNS zone for `$DOMAIN`. The zone is
-looked up via a data source, not created — cert-manager's DNS-01 webhook already points at that
-same zone.
+Manages public DNS records against the existing Bunny DNS zone for `$DOMAIN`. Applying it leaves
+one `A` record per edge-exposed hostname pointing at the edge node.
 
-One record, defined in `dns.tf`: `auth.$DOMAIN` → the edge node's public IP. `traefik-edge`
-routes it to `infra/auth`, which is pinned to `ogma`. One `A` record per edge-exposed hostname;
-add a block as each app lands.
+The zone is looked up via a data source, not created, because cert-manager's DNS-01 webhook
+already points at that same zone.
+
+One record is defined in `dns.tf`: `auth.$DOMAIN`, pointing at the edge node's public IP.
+`traefik-edge` routes it to `infra/auth`, which is pinned to `ogma`. Add one `A` record block per
+edge-exposed hostname as each app lands.
 
 Nothing here resolves under `$SUB_INTERNAL.$DOMAIN`. The only records the zone ever holds
 under it are cert-manager's DNS-01 challenges for the internal wildcard certificate, written
@@ -20,11 +22,14 @@ just tf plan bunny
 just tf apply bunny
 ```
 
-## Before the first apply
+## Prerequisites
 
 `secrets.sops.env` holds one line. The edge node's address comes from `refs.env`, which reads it
-from the plane that owns it. Store a Bunny
-API key in Proton Pass and reference it as
-`BUNNYNET_API_KEY=pass://futharkd/bunny/api key`. The API key needs
-the same permissions as the one already used by `infra/cert-manager`'s DNS-01 webhook — Bunny
-API keys are account-wide, not zone-scoped.
+from the plane that owns it. Store a Bunny API key in Proton Pass and reference it as
+`BUNNYNET_API_KEY=pass://futharkd/bunny/api key`. The API key needs the same permissions as the
+one already used by `infra/cert-manager`'s DNS-01 webhook, because Bunny API keys are account-wide
+rather than zone-scoped. That is also why rotating it moves both consumers at once:
+[Credential rotation](../operations/rotation.md#the-bunny-api-key).
+
+Verify: `just tf plan bunny` is a no-op after the apply, and the record resolves publicly with
+`dig +short auth.$DOMAIN`.

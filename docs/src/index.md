@@ -1,10 +1,10 @@
 # futhark
 
-A GitOps-driven homelab. Two Fedora nodes joined over a NetBird mesh run one k0s cluster;
-everything inside that cluster is reconciled by Flux from this repository, and everything
-that cannot live inside it is managed by OpenTofu.
+A GitOps-driven homelab. Two Fedora nodes joined over a NetBird mesh run one k0s cluster.
+Everything inside that cluster is reconciled by Flux from this repository, and everything that
+cannot live inside it is managed by OpenTofu.
 
-The tree splits along three planes, and almost every question about the repo resolves to
+The tree splits along three planes, and almost every question about the repository resolves to
 "which plane owns this?":
 
 | Plane   | Owns                                                                           | Tool             | Where                                         |
@@ -54,31 +54,33 @@ hosts -> cluster: run
 cluster.workloads -> cloud.pocketid: OIDC at runtime
 ```
 
-If you are setting a machine up from nothing, start at [Cold bootstrap](operations/setup.md).
-If something is broken, start at [Troubleshooting](operations/troubleshooting.md). If you are
-adding to the tree, the rules you have to follow are under
-[Conventions](conventions/layout.md). Every command an operator runs is in
-[Recipes](operations/recipes.md).
+Where to go next:
+
+- Setting up from nothing: [Cold bootstrap](operations/setup.md).
+- Something is broken: [Troubleshooting](operations/troubleshooting.md).
+- Adding to the tree: [Conventions](conventions/layout.md).
+- Replacing a credential: [Credential rotation](operations/rotation.md).
+- Looking for a command: [Recipe reference](operations/recipes.md).
 
 ## What runs where
 
-`kenaz` is the k0s controller+worker and the only node with public ingress. `ogma` is a
-worker; Pocket ID is pinned to it with a `nodeSelector`. Both are on the mesh and are addressed
-by their mesh DNS name, never by a stored address — see [Nodes](ansible/nodes.md).
+`kenaz` is the k0s controller+worker and the only node with public ingress. `ogma` is a worker,
+and Pocket ID is pinned to it with a `nodeSelector`. Both are on the mesh and are addressed by
+their mesh DNS name, never by a stored address. See [Nodes](ansible/nodes.md).
 
-The pieces, roughly in dependency order: the Infisical operator (which syncs runtime secrets
-into Kubernetes `Secret`s), Pocket ID (OIDC), cert-manager (Let's Encrypt over DNS-01), two
-Traefiks — one public, one mesh-only — and a
-VictoriaMetrics/VictoriaLogs/Grafana stack. Each is described in
-[Cluster infrastructure](gitops/infra.md), and the order they must come up in is
+The pieces, roughly in dependency order: the Infisical operator, which syncs runtime secrets into
+Kubernetes Secrets; Pocket ID for OIDC; cert-manager for Let's Encrypt over DNS-01; two Traefiks,
+one public and one mesh-only; and a VictoriaMetrics, VictoriaLogs and Grafana stack. Each is
+described in [Cluster infrastructure](gitops/infra.md), and the order they must come up in is
 [Startup ordering](conventions/ordering.md).
 
 ## Secrets, in one paragraph
 
-No credential is ever committed in the clear, and neither is any identifying value, because
-this repository is public. Values that identify but grant nothing — node addresses, the domain
-— are committed SOPS-encrypted. Anything that could bootstrap or re-key the system lives in
-Proton Pass and is never committed at all; the cluster holds no credential for it, so a cluster
+No credential is ever committed in the clear, and neither is any identifying value, because this
+repository is public. Values that identify but grant nothing, such as node addresses and the
+domain, are committed SOPS-encrypted. Anything that could bootstrap or re-key the system lives in
+Proton Pass and is never committed at all. The cluster holds no credential for it, so a cluster
 compromise cannot reach the keys that rebuild it. Per-app runtime secrets live in Infisical and
 reach pods through the Infisical operator. The full rule, and what to do when you need a new one,
-is in [Secrets](conventions/secrets.md).
+is in [Secrets](conventions/secrets.md). Replacing one is
+[Credential rotation](operations/rotation.md).

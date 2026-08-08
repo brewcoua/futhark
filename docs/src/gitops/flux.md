@@ -1,25 +1,29 @@
 # Bootstrap and reconciliation
 
-`flux/` is the GitOps entrypoint. `flux/cluster.yaml` — the `FluxInstance` CR — is applied
-once by `ansible/roles/flux_bootstrap`, and Flux does not reconcile the `flux/` directory
-itself, to avoid watching its own bootstrap.
+How Flux gets installed, what it takes over, and where the handoff from Ansible sits. Read this
+when a bootstrap fails part way, or when you need to know why something is applied rather than
+reconciled.
+
+`flux/` is the GitOps entrypoint. `flux/cluster.yaml`, the `FluxInstance` CR, is applied once by
+`ansible/roles/flux_bootstrap`, and Flux does not reconcile the `flux/` directory itself, to avoid
+watching its own bootstrap.
 
 Everything else under `flux/` **is** reconciled. `flux/infra/ks.yaml` and `flux/nodes/ks.yaml`
 are the two Flux `Kustomization` CRs that point Flux at the matching repo-root directories,
 `./infra` and `./nodes`. Those two keep their full spec rather than being patched like every
-other `ks.yaml`, because `flux/` has no `kustomization.yaml` of its own — Flux auto-generates
-one from `cluster.yaml`'s `sync.path: flux`, and adding a real one would pull `cluster.yaml`
-itself into reconciliation. The rest of the naming and layout rules are in
+other `ks.yaml`, because `flux/` has no `kustomization.yaml` of its own. Flux auto-generates one
+from `cluster.yaml`'s `sync.path: flux`, and adding a real one would pull `cluster.yaml` itself
+into reconciliation. The rest of the naming and layout rules are in
 [Layout and naming](../conventions/layout.md).
 
 ## Bootstrap sequence
 
 Run by `just ans k0s` (`ansible/playbooks/k0s.yml`):
 
-1. **`k0s_cluster`** — render `k0sctl.yaml` from inventory, `k0sctl apply`, fetch the
-   kubeconfig into `ansible/.generated/`.
-2. **`local_path_provisioner`** — install the `local-path` StorageClass. `monitoring`, `auth`
-   and `nodes/kenaz.k0s/actual` all bind PVCs on their first reconcile, and nothing in the
+1. **`k0s_cluster`**: render `k0sctl.yaml` from inventory, `k0sctl apply`, fetch the kubeconfig
+   into `ansible/.generated/`.
+2. **`local_path_provisioner`**: install the `local-path` StorageClass. `monitoring`, `auth` and
+   `nodes/kenaz.k0s/actual` all bind PVCs on their first reconcile, and nothing in the
    Flux-managed tree can provision a StorageClass for itself. See
    [Startup ordering](../conventions/ordering.md).
 3. **`flux_bootstrap`**:
@@ -34,8 +38,16 @@ Run by `just ans k0s` (`ansible/playbooks/k0s.yml`):
    5. Wait for the Flux Operator to be ready.
    6. Apply `flux/cluster.yaml`. Flux takes over from here.
 
-There is no follow-up step. Everything past `flux/cluster.yaml` is Flux reconciling git. The
-handoff, and the one line it never crosses back over:
+There is no follow-up step. Everything past `flux/cluster.yaml` is Flux reconciling git.
+
+Verify the handoff:
+
+```bash
+just fx sources    # the GitRepository is Ready at the pushed revision
+just fx failing    # empty
+```
+
+The handoff, and the one line it never crosses back over:
 
 ```d2
 direction: down
@@ -60,7 +72,7 @@ git -> flux: sync.path flux/
 flux -> infra: "flux/infra/ks.yaml -> ./infra"
 flux -> nodes: "flux/nodes/ks.yaml -> ./nodes"
 
-cluster: "flux/cluster.yaml is applied, never reconciled —\nFlux would otherwise watch its own bootstrap" {
+cluster: "flux/cluster.yaml is applied, never reconciled.\nFlux would otherwise watch its own bootstrap" {
   style: { stroke-dash: 4; fill: transparent; stroke: "#888" }
 }
 ```

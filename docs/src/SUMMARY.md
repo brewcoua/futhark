@@ -7,6 +7,7 @@
 - [Cold bootstrap](operations/setup.md)
 - [The rclone remotes](operations/rclone.md)
 - [Backup and recovery](operations/recovery.md)
+- [Credential rotation](operations/rotation.md)
 - [Recipe reference](operations/recipes.md)
 - [Checks and CI](operations/checks.md)
 - [Troubleshooting](operations/troubleshooting.md)
@@ -21,20 +22,20 @@
 - [Startup ordering](conventions/ordering.md)
 - [Dependency updates](conventions/updates.md)
 
-# Ansible — the host plane
+# Ansible, the host plane
 
 - [Inventory and roles](ansible/index.md)
 - [Nodes](ansible/nodes.md)
 - [Pod to mesh networking](ansible/networking.md)
 - [The mesh watchdog](ansible/mesh-watchdog.md)
 
-# Flux — the cluster plane
+# Flux, the cluster plane
 
 - [Bootstrap and reconciliation](gitops/flux.md)
 - [Cluster infrastructure](gitops/infra.md)
 - [Node apps](gitops/nodes.md)
 
-# OpenTofu — the cloud plane
+# OpenTofu, the cloud plane
 
 - [Rules for every module](tofu/index.md)
 - [bunny](tofu/bunny.md)
