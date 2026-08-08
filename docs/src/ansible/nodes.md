@@ -53,7 +53,7 @@ with quorum two, which is worse for availability than a single controller, not b
 reachability. There is no mesh IP to store — once joined, the node is addressed as
 `<hostname>.<mesh_dns_domain>`, and NetBird's own resolver keeps that correct across re-keys.
 The node's Kubernetes `InternalIP` comes from `k0s_cluster`'s `privateInterface`, which is
-interface-based (`wt0`), not from that name.
+interface-based (`netbird0`), not from that name.
 
 `public_ingress` and `mesh` are both read generically — nothing in `roles/netbird`,
 `roles/firewall_ingress` or `roles/flux_bootstrap` branches on a hostname, so moving public

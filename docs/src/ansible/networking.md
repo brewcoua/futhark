@@ -60,7 +60,7 @@ endpoint **is** that address.
 
 The fix is one `ip rule` per peer at `mesh_route_priority`, matching only that peer's `/32` —
 never the pod CIDR, so pod-to-pod overlay routing is untouched. It looks the peer up in
-`mesh_route_table`, which the same script populates with a `<peer>/32 dev wt0` route: the table
+`mesh_route_table`, which the same script populates with a `<peer>/32 dev netbird0` route: the table
 is ours and holds exactly what is written into it, rather than depending on where the VPN
 client happens to install its own routes. NetBird keeps those in table 7120, with rules at
 priorities 105 and 110 — well clear of `mesh_route_priority`.
@@ -108,7 +108,7 @@ ping -c2 -I <this node's mesh IP> <peer mesh IP>        # succeeds
 ping -c2 -I <this node's pod-bridge IP> <peer mesh IP>  # fails without the SNAT rule
 ```
 
-Both are locally generated (OUTPUT path, and `wt0` is in firewalld's `trusted` zone), so
+Both are locally generated (OUTPUT path, and `netbird0` is in firewalld's `trusted` zone), so
 neither traverses FORWARD. That rules out every firewall hypothesis at once and isolates the
 drop to the mesh client itself.
 

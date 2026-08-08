@@ -1,4 +1,4 @@
 ---
-# Puts wt0 and the cluster CIDRs in firewalld's trusted zone.
+# Puts netbird0 and the cluster CIDRs in firewalld's trusted zone.
 dependencies:
   - role: firewalld

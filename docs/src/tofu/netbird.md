@@ -48,16 +48,40 @@ to the nodes open the first time you touch either.
 Once per account, before the first `just ans setup`.
 
 1. Create the NetBird Cloud account at <https://app.netbird.io>.
-2. **Team → Users → Add service user**, then **Access Tokens** on that user, twice:
-   - `netbird-policy` — used by this module, referenced from `secrets.sops.env`.
-   - `netbird-enrollment` — used by `ansible/roles/netbird` to mint node setup keys, referenced
-     from `config/secrets.sops.yaml`.
+2. **Team → Users → Add service user**, twice. The role is a mandatory field and is the only
+   scoping a NetBird token has: a PAT inherits the role of the user it belongs to, and carries
+   neither more nor less.
 
-   Store both in Proton Pass under `futharkd/`. NetBird PATs cannot be scoped, so both carry
-   full authority on the account; the split limits what a rotation disturbs, not what a leaked
-   token can do. Issue them to a service user, not to your own account — a PAT tied to a person
-   dies with that person's membership and takes both planes with it. They expire, 365 days at
-   most: see [Checks](../operations/checks.md#netbird-token-expiry).
+   | Service user | Role              | Token                | Used by                                                             |
+   | ------------ | ----------------- | -------------------- | ------------------------------------------------------------------- |
+   | enrollment   | **Admin**         | `netbird-enrollment` | `ansible/roles/netbird`, referenced from `config/secrets.sops.yaml` |
+   | policy       | **Network Admin** | `netbird-policy`     | this module, referenced from `secrets.sops.env`                     |
+
+   Then **Access Tokens** on each user, one token each, named for the token column. Expiry is
+   mandatory and capped at 365 days; the plaintext is shown once and stored hashed, so file it in
+   Proton Pass under `futharkd/` before closing the dialog. What breaks when each lapses is in
+   [Checks](../operations/checks.md#netbird-token-expiry).
+
+   The roles are what the API surface demands, and no wider:
+
+   | Token                | Calls                                                        | Needs                                                         |
+   | -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
+   | `netbird-enrollment` | `GET /api/groups`, `POST /api/setup-keys`                    | write on Setup Keys                                           |
+   | `netbird-policy`     | the account settings, groups, policies, route and zone below | write on Control Center, Access Control, Network Routing, DNS |
+
+   Network Admin can read Setup Keys but not create one, so enrollment cannot drop to it — Admin
+   is the lowest role that mints a setup key. Going the other way, if an apply returns 403 on
+   `netbird_account_settings`, the peer DNS domain and network range are counting as account
+   Settings, which Network Admin only reads: promote that user to Admin and note it here.
+
+   Issue both to service users, never to your own account — a PAT tied to a person dies with that
+   person's membership and takes its plane with it. Two users rather than one because the roles
+   genuinely differ: a leaked `netbird-policy` cannot enrol a peer, and either token rotates
+   without disturbing the other plane.
+
+   The enrollment PAT is reached for only on a peer's first join — an already-connected peer skips
+   the lookup and the mint — and what it mints there never lands on the node:
+   [why no credential lives on a node](../ansible/mesh-watchdog.md#stuck-and-why-no-credential-lives-on-a-node).
 
 3. **Access Control → Policies**, delete the shipped `Default` policy.
 4. Write this module's `secrets.sops.env` from its `.example`, then:

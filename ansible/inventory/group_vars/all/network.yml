@@ -13,9 +13,12 @@ mesh_cidr: 100.80.0.0/24
 mesh_cidr_regex: '^100\.80\.0\.'
 
 # NetBird's WireGuard interface, as k0s's privateInterface and as the interface firewalld
-# trusts. wt0 is the client's own default; overriding it would mean passing --interface-name on
-# every `netbird up` as well as changing it here.
-mesh_interface: wt0
+# trusts. The client's own default is wt0, which names nothing; every `netbird up` in this repo
+# passes --interface-name to get this instead. The flag is passed on the watchdog's re-up too,
+# not just the first join: the client does persist the name in its config.json, but a recovery
+# rung that came back on wt0 would land outside firewalld's trusted zone and off k0s's
+# privateInterface — declaring it every time costs a flag and removes the failure mode.
+mesh_interface: netbird0
 
 # The domain NetBird answers peer names under: <hostname>.<this>. NetBird's default is
 # netbird.cloud; tofu/netbird sets the account's dns_domain to this instead, so both planes

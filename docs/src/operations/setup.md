@@ -63,8 +63,8 @@ this table has to agree with. Item and field names are lowercase-with-spaces, pe
 | `sops`                     | `age key`                                                                            | Generated at step 3                                                                                                          |
 | `bunny`                    | `api key`                                                                            | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
 | `pocketid`                 | `api token`                                                                          | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
-| `netbird-enrollment`       | `token`                                                                              | A PAT on the NetBird service user. Used by `ansible/roles/netbird` to mint node setup keys                                   |
-| `netbird-policy`           | `token`                                                                              | A **second** PAT on the same service user, used by `tofu/netbird`                                                            |
+| `netbird-enrollment`       | `token`                                                                              | A PAT on the **Admin** NetBird service user. Used by `ansible/roles/netbird` to mint node setup keys                         |
+| `netbird-policy`           | `token`                                                                              | A PAT on a second, **Network Admin** service user, used by `tofu/netbird`                                                    |
 | `healthchecks`             | one per node, named for the host                                                     | Each node's healthchecks.io ping URL, for [the mesh watchdog](../ansible/mesh-watchdog.md). Create the checks first          |
 | `infisical-cluster-reader` | `client id`, `client secret`                                                         | The `cluster-reader` identity from step 2                                                                                    |
 | `infisical-tofu-writer`    | `client id`, `client secret`                                                         | The `tofu-writer` identity from step 2                                                                                       |
@@ -74,11 +74,10 @@ this table has to agree with. Item and field names are lowercase-with-spaces, pe
 | `storagebox`               | `ssh key`                                                                            | The Storage Box key pair's private half, generated at [The rclone remotes](rclone.md#the-storage-box)                        |
 | `rclone-crypt`             | `storagebox password`, `storagebox password2`, `gdrive password`, `gdrive password2` | The four obscured crypt passwords. Placeholders for now — they are minted after step 3                                       |
 
-Two NetBird PATs, not one — and both on a **service user**, created in the dashboard before
-either. A PAT tied to a person dies with that person's membership and takes both planes with it.
-NetBird PATs cannot be scoped, so the split buys nothing in privilege: it means one can be
-rotated without taking the other plane down.
-They expire, at most a year out — see [Checks](checks.md#netbird-token-expiry).
+Two NetBird PATs, on two **service users** of different roles, both created in the dashboard
+before either token — the roles, and why they differ, are
+[Bootstrap](../tofu/netbird.md#bootstrap) step 2. They expire, at most a year out; see
+[Checks](checks.md#netbird-token-expiry).
 
 One `healthchecks` item holds every node's ping URL, one field per node named for the host, so
 adding a node is adding a field. Create each check in healthchecks.io first — period 2 minutes,
@@ -188,8 +187,9 @@ can go back and finish [The rclone remotes](rclone.md) from step 2.
 You need two things of your own: the GPG smartcard plugged in, and the Proton Pass session from
 step 1. The third, this machine's own membership of the mesh, is what `just ops mesh` checks —
 `k0s_cluster` resolves each node's mesh address through NetBird's DNS from here. The client
-arrives with `ops deps`, but joining does not: run `netbird up` to log in over SSO, then add the
-peer to the `admin` group from the dashboard, per [netbird](../tofu/netbird.md#bootstrap).
+arrives with `ops deps`, but joining does not: run the `netbird up` that `just ops mesh` prints —
+it carries the `--interface-name` this repo uses — to log in over SSO, then add the peer to the
+`admin` group from the dashboard, per [netbird](../tofu/netbird.md#bootstrap).
 
 On a cold bootstrap that check is **expected to fail here** — the NetBird account is created at
 step 8, so there is nothing to join yet. It is the last thing `ops setup` runs, so everything

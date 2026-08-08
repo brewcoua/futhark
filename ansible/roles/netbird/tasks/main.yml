@@ -90,6 +90,7 @@
       netbird up
       --setup-key {{ netbird_setup_key.json.key }}
       --hostname {{ node.hostname }}
+      --interface-name {{ mesh_interface }}
       --allow-server-ssh
   when: netbird_setup_key is not skipped
   changed_when: true
@@ -139,10 +140,10 @@
   delegate_to: localhost
   become: false
 
-# The mesh is its own trust boundary, so anything a node binds to wt0 (k0s's API server) is
+# The mesh is its own trust boundary, so anything a node binds to netbird0 (k0s's API server) is
 # reachable over it without punching per-port holes in the public zone, which stays limited to
 # the hardened SSH port. See docs/src/ansible/index.md.
-- name: Put wt0 in firewalld's trusted zone
+- name: Put the mesh interface in firewalld's trusted zone
   ansible.posix.firewalld:
     zone: trusted
     interface: "{{ mesh_interface }}"
@@ -154,8 +155,8 @@
 # The CNI bridge is in no zone, so it would land in the default "public" zone, which is
 # limited to the hardened SSH port and 80/443. Trust the cluster's own dataplane explicitly.
 #
-# Cross-node pod traffic doesn't actually cross on wt0: kube-router builds its own per-peer IPIP
-# tunnel (tun-<hash>, a new interface name every rejoin) and routes pod-bound packets out
+# Cross-node pod traffic doesn't actually cross on netbird0: kube-router builds its own per-peer
+# IPIP tunnel (tun-<hash>, a new interface name every rejoin) and routes pod-bound packets out
 # through that instead. A hostNetwork pod's traffic — e.g. traefik-edge dialing a backend pod on
 # the other node — carries the node's own mesh IP as source, which matches neither an interface
 # rule (the tunnel's name is unpredictable) nor the pod/service CIDR sources above, so it falls

@@ -27,7 +27,10 @@ mesh:
     netbird status 2> /dev/null | grep -q "Management: Connected" && { echo "NetBird mesh OK"; exit 0; }
     echo "This machine is not on the mesh. Log in over SSO:"
     echo
-    echo "  netbird up"
+    # Spelled out rather than read from ansible's mesh_interface: nothing requires the operator
+    # machine's interface to match the nodes' — it is no k0s node and has no firewalld rule
+    # keyed on it — so this is a second decision that happens to agree, not the same one.
+    echo "  netbird up --interface-name netbird0"
     echo
     echo "Then add this peer to the 'admin' group in the NetBird dashboard — that group is"
     echo "what every access rule names, and tofu/netbird deliberately leaves it empty."

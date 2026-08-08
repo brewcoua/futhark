@@ -57,7 +57,7 @@ Then check the rules are actually installed, and at a priority that is not being
 ```bash
 ip rule
 systemctl status futhark-mesh-routes
-iptables -t nat -L POSTROUTING -n | grep wt0
+iptables -t nat -L POSTROUTING -n | grep netbird0
 ```
 
 See [Pod to mesh networking](../ansible/networking.md). If `ip rule` shows kube-router at a

@@ -154,8 +154,8 @@ reports on the cluster, not on the mesh underneath it.
 
 ## NetBird token expiry
 
-NetBird Personal Access Tokens expire, 365 days out at most. Two are in use, both on the service
-user:
+NetBird Personal Access Tokens expire, 365 days out at most. Two are in use, one on each of the
+two service users:
 
 | Token                | Referenced from                 | Breaks when it expires                             |
 | -------------------- | ------------------------------- | -------------------------------------------------- |

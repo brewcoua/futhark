@@ -127,10 +127,13 @@ restart)
     ;;
 reup)
     # Re-applies the stored configuration; no --setup-key, so this cannot re-enrol a peer the
-    # account has forgotten. That case is the terminal one above.
+    # account has forgotten. That case is the terminal one above. --interface-name is restated
+    # rather than left to the stored config: coming back on the client's wt0 default would put
+    # the peer outside firewalld's trusted zone and off k0s's privateInterface, turning a
+    # recoverable rung into the terminal one.
     log "re-running netbird up"
     netbird down >/dev/null 2>&1 || true
-    netbird up || log "error: netbird up failed"
+    netbird up --interface-name {{ mesh_interface }} || log "error: netbird up failed"
     systemctl restart futhark-mesh-routes.service >/dev/null 2>&1 || true
     repairs_reup_total=$((repairs_reup_total + 1))
     ;;
