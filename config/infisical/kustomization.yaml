@@ -9,7 +9,7 @@
 # Consumers add `components: [../../../config/infisical]` and declare `sources` with a
 # `secretPath` alone. See docs/src/conventions/secrets.md.
 #
-# Deliberately a patch and not a configMapGenerator + replacements, the way config/domain works:
+# Deliberately a patch and not a configMapGenerator + replacements, the way a domain ConfigMap would:
 # a generated ConfigMap would be applied by all six consuming Kustomizations at once, and one
 # object owned by six Flux Kustomizations is a prune fight waiting to happen. A patch emits
 # nothing of its own.

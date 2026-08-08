@@ -12,8 +12,8 @@ resource "netbird_route" "k0s_services" {
   network_id  = "k0s-services"
   description = "k0s service CIDR, for traefik-internal"
   network     = local.service_cidr
-  peer_groups = [netbird_group.nodes.id]
-  groups      = [data.netbird_group.all.id]
+  peer_groups = [netbird_group.k0s.id]
+  groups      = [netbird_group.admin.id]
   masquerade  = true
   enabled     = true
 }

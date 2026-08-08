@@ -1,6 +1,5 @@
-# INT_DOMAIN is SOPS-encrypted, so it comes in as a Tofu variable — extracted from
-# infra/substitutions/app/int-domain.sops.yaml via refs.env — rather than being read from
-# config/domain/domain.env like DOMAIN. See tofu/bunny/dns.tf/variables.tf for the same pattern.
+# The domain is SOPS-encrypted, so it comes in as a Tofu variable — extracted from
+# config/dns/dns.sops.yaml via refs.env. See docs/src/conventions/domains.md.
 
 # One pocketid_client + infisical_secret pair per app — add a block per app as it adopts OIDC
 # login. Each app owns its own non-secret OIDC config (client ID, discovery URL, hostname) in
@@ -11,7 +10,7 @@
 # Pocket ID's token endpoint server-side, never exposed to the browser.
 resource "pocketid_client" "actual" {
   name          = "Actual Budget"
-  callback_urls = ["https://actual.${var.int_domain}/openid/callback"]
+  callback_urls = ["https://actual.${var.sub_internal}.${var.domain}/openid/callback"]
   is_public     = false
   pkce_enabled  = true
 }

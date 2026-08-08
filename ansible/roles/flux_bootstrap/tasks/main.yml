@@ -65,7 +65,7 @@
 # Flux. Everything else in the cluster arrives through the Infisical operator.
 #
 #   sops-age                  Flux needs it to decrypt any *.sops.yaml, including this repo's
-#                             edge-ips and int-domain Secrets.
+#                             edge-ips and dns Secrets.
 #   infisical-universal-auth  the operator's only credential, one copy per tier namespace so a
 #                             tier's scoped RBAC is what gates access to it.
 #

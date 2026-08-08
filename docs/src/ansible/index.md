@@ -26,13 +26,13 @@ schema and how to add one.
 
 `network.yml` beside it holds every constant more than one role has an opinion about:
 
-| Variable                                  | Notes                                                                                         |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `mesh_cidr`, `mesh_cidr_regex`            | NetBird's CGNAT pool, as a CIDR and — for `assert`, which has no membership test — as a regex |
-| `mesh_interface`, `mesh_dns_domain`       | NetBird's WireGuard interface (`wt0`) and the domain it answers peer names under              |
-| `mesh_node_group`                         | The group every node is placed in at join. `tofu/netbird`'s policies target it                |
-| `mesh_route_table`, `mesh_route_priority` | The routing-rule slot `roles/netbird`'s pod → mesh script claims                              |
-| `k0s_pod_cidr`, `k0s_service_cidr`        | k0s's own defaults, pinned as a single source of truth                                        |
+| Variable                                  | Notes                                                                                                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mesh_cidr`, `mesh_cidr_regex`            | The mesh's address pool, as a CIDR and — for `assert`, which has no membership test — as a regex. `tofu/netbird` sets it on the account from this file |
+| `mesh_interface`, `mesh_dns_domain`       | NetBird's WireGuard interface (`wt0`) and the domain it answers peer names under, composed from `dns.yml`                                              |
+| `mesh_node_group`                         | The group every peer joins, alongside its `node.workflow` group. Both are declared in `tofu/netbird`                                                   |
+| `mesh_route_table`, `mesh_route_priority` | The routing-rule slot `roles/netbird`'s pod → mesh script claims                                                                                       |
+| `k0s_pod_cidr`, `k0s_service_cidr`        | k0s's own defaults, pinned as a single source of truth                                                                                                 |
 
 **These are collected rather than written at each use site** because they had drifted into
 different spellings of the same fact: the mesh range was a literal in fail2ban's `ignoreip`,

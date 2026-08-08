@@ -33,8 +33,12 @@
 
 # Single-use, group-scoped, short-lived — minted fresh for this join instead of reading a
 # standing reusable key out of Proton Pass. The PAT that mints it is issued to a NetBird
-# service user and can do nothing else useful; the policy PAT in tofu/netbird is separate.
-- name: Look up the mesh node group
+# service user; the policy PAT in tofu/netbird is separate.
+#
+# Two groups per peer: `node` for every machine this repo provisions, and the workflow group
+# (k0s) that the policies in tofu/netbird actually target. Both must already exist there — a
+# name the account does not have resolves to nothing and the peer joins short a group.
+- name: Look up the mesh groups
   ansible.builtin.uri:
     url: "{{ netbird_api_url }}/api/groups"
     headers:
@@ -45,6 +49,14 @@
   when: >-
     netbird_status.rc != 0 or
     not ((netbird_status.stdout | from_json).management.connected | default(false) | bool)
+
+# A group name the account does not have resolves to nothing, and the peer would join short a
+# group — outside every policy that names it, with no error anywhere.
+- name: Every group this peer joins exists in NetBird
+  ansible.builtin.assert:
+    that: netbird_join_groups | difference(netbird_groups.json | map(attribute='name') | list) == []
+    fail_msg: "missing NetBird groups — apply tofu/netbird first"
+  when: netbird_groups is not skipped
 
 - name: Mint a single-use setup key
   ansible.builtin.uri:
@@ -60,8 +72,8 @@
       expires_in: 300
       ephemeral: false
       auto_groups:
-        - "{{ netbird_groups.json | selectattr('name', 'equalto', mesh_node_group)
-          | map(attribute='id') | first }}"
+        "{{ netbird_groups.json | selectattr('name', 'in', netbird_join_groups)
+        | map(attribute='id') | list }}"
     status_code: 200
   register: netbird_setup_key
   no_log: true
@@ -98,7 +110,7 @@
     netbird_mesh_status.rc == 0 and
     (netbird_mesh_status.stdout | from_json).netbirdIp | default('') | length > 0
 
-# netbirdIp carries a prefix (100.x.y.z/16); every consumer wants the bare address.
+# netbirdIp carries a prefix (100.x.y.z/24); every consumer wants the bare address.
 - name: Extract the node's mesh IP
   ansible.builtin.set_fact:
     netbird_mesh_ip: "{{ (netbird_mesh_status.stdout | from_json).netbirdIp | split('/') | first }}"

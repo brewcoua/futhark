@@ -9,10 +9,14 @@ variable "infisical_project_id" {
   }
 }
 
-# Declared in refs.env and read from infra/substitutions/app/int-domain.sops.yaml, the Secret
-# Flux substitutes into manifests as ${INT_DOMAIN}. Flux owns it; tofu/bunny reads the same key.
-# One copy, not three.
-variable "int_domain" {
-  description = "The internal wildcard's base domain, e.g. example.eu."
+# Declared in refs.env and read from config/dns/dns.sops.yaml, the one place the domain and its
+# subdomain labels are written down. One copy, not three.
+variable "domain" {
+  description = "Base domain, e.g. example.eu."
+  type        = string
+}
+
+variable "sub_internal" {
+  description = "Subdomain label for internal services, e.g. in."
   type        = string
 }

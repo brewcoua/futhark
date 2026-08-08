@@ -1,31 +1,33 @@
-# NetBird's built-in group. Every peer is a member of it and it cannot be deleted, which is why
-# it is looked up rather than declared — and why nothing below uses it as a policy *destination*
-# without meaning "the whole network".
-data "netbird_group" "all" {
-  name = "All"
-}
+# Two axes, deliberately. `node` is "a machine this repo provisions", `k0s` is "a machine that
+# runs the cluster" — today every node is both, but the policies below target the workflow, not
+# the fleet, so a future node that runs something else joins `node` and reaches nothing extra.
+#
+# ansible/roles/netbird puts a peer in both at join time, from the setup key's auto_groups:
+# `node` from mesh_node_group, the workflow one from node.workflow in ansible/nodes/<host>/host.yml.
+# Names are matched by string on that side, so a rename here strands every node outside every
+# rule until it is renamed there too.
+resource "netbird_group" "node" {
+  name = "node"
 
-# The k0s nodes. Peers land here automatically: ansible/roles/netbird mints a setup key with
-# this group in auto_groups, so membership follows the join and is never assigned by hand.
-# The group is this module's equivalent of the old tag:futhark-node — policies, the service
-# route and the DNS zone all target it. Its name is mirrored in
-# ansible/inventory/group_vars/all/network.yml as mesh_node_group; changing it in one place
-# only strands every node outside every rule.
-resource "netbird_group" "nodes" {
-  name = "futhark-nodes"
-
-  # `peers` is Ansible's to fill, not this module's. Without this, a converge that adds a peer
-  # leaves a diff here that the next apply would "correct" by emptying the group.
+  # `peers` is Ansible's to fill. Without this, a converge that adds a peer leaves a diff here
+  # that the next apply would "correct" by emptying the group.
   lifecycle {
     ignore_changes = [peers]
   }
 }
 
-# The operator's own devices — laptop, phone. Empty here for the same reason: peers are added
-# from the dashboard when they enrol, and this module only needs the group to exist so the SSH
-# and internal-ingress rules have something to name that is narrower than "All".
-resource "netbird_group" "admins" {
-  name = "futhark-admins"
+resource "netbird_group" "k0s" {
+  name = "k0s"
+
+  lifecycle {
+    ignore_changes = [peers]
+  }
+}
+
+# The operator's own devices — laptop, phone. Empty here: those peers enrol from the dashboard,
+# and this module only needs the group to exist for the rules that name it.
+resource "netbird_group" "admin" {
+  name = "admin"
 
   lifecycle {
     ignore_changes = [peers]

@@ -1,0 +1,9 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# A directory, not a bare file, only so infra/substitutions can reference it: kustomize refuses
+# to load a *file* outside the kustomization's own root, but follows a directory anywhere in the
+# repo. Nothing else lives here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - dns.sops.yaml

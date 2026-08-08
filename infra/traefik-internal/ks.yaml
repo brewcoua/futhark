@@ -9,9 +9,8 @@ spec:
   dependsOn:
     - name: cert-manager-config
     - name: substitutions
-  # INT_DOMAIN (certificate.yaml's commonName/dnsNames) is committed SOPS-encrypted in
-  # infra/substitutions.
+  # ${SUB_INTERNAL}.${DOMAIN} — certificate.yaml's commonName and dnsNames.
   postBuild:
     substituteFrom:
       - kind: Secret
-        name: int-domain
+        name: dns

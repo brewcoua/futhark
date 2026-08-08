@@ -7,11 +7,11 @@ identifiers.
 Three stores, chosen by what a value can _do_ rather than by who consumes it. Only two of them
 hold credentials; SOPS is a file format rather than a service.
 
-| Store                             | Holds                                                                                      | Read by                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| **SOPS**, encrypted in git        | Identifying but non-granting: node addresses, the internal domain, account and project IDs | Ansible, OpenTofu, Flux                  |
-| **Proton Pass**, vault `futharkd` | Anything that can bootstrap or re-key the system                                           | `pass-cli`, on operator machines only    |
-| **Infisical Cloud** (EU)          | Per-app runtime secrets                                                                    | the Infisical operator, OpenTofu (write) |
+| Store                             | Holds                                                                             | Read by                                  |
+| --------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------- |
+| **SOPS**, encrypted in git        | Identifying but non-granting: node addresses, the domain, account and project IDs | Ansible, OpenTofu, Flux                  |
+| **Proton Pass**, vault `futharkd` | Anything that can bootstrap or re-key the system                                  | `pass-cli`, on operator machines only    |
+| **Infisical Cloud** (EU)          | Per-app runtime secrets                                                           | the Infisical operator, OpenTofu (write) |
 
 The dividing line: publishing a node's IP would tie this repo to a machine, but the IP grants
 nothing on its own — that is SOPS. The Flux deploy key or the cluster age key grants everything —
@@ -34,7 +34,7 @@ operator: operator machine {
 pass: "Proton Pass — futharkd\ndeploy key, age key, API tokens, API keys" {
   style.stroke-width: 3
 }
-sops: SOPS in git\nnode addresses, internal domain, account IDs
+sops: SOPS in git\nnode addresses, domain, account IDs
 infisical: "Infisical Cloud (EU)\nper-app runtime secrets"
 
 cluster: k0s cluster {

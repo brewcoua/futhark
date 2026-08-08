@@ -5,7 +5,7 @@ metadata:
   name: pocketid-config
   namespace: auth
 data:
-  APP_URL: https://auth.DOMAIN
+  APP_URL: https://auth.${DOMAIN}
   TRUST_PROXY: "true"
   ENCRYPTION_KEY_FILE: /run/secrets/pocketid_encryption_key
   MAXMIND_LICENSE_KEY_FILE: /run/secrets/maxmind_license_key

@@ -76,8 +76,8 @@ VictoriaMetrics/VictoriaLogs/Grafana stack. Each is described in
 ## Secrets, in one paragraph
 
 No credential is ever committed in the clear, and neither is any identifying value, because
-this repository is public. Values that identify but grant nothing — node addresses, the
-internal domain — are committed SOPS-encrypted. Anything that could bootstrap or re-key the system lives in
+this repository is public. Values that identify but grant nothing — node addresses, the domain
+— are committed SOPS-encrypted. Anything that could bootstrap or re-key the system lives in
 Proton Pass and is never committed at all; the cluster holds no credential for it, so a cluster
 compromise cannot reach the keys that rebuild it. Per-app runtime secrets live in Infisical and
 reach pods through the Infisical operator. The full rule, and what to do when you need a new one,

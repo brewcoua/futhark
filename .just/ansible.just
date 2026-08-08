@@ -22,11 +22,14 @@ k0s: render-secrets
 # --out-file rather than a shell redirect: it applies pass-cli's default 0600, where `>` would
 # use the umask. ansible/.generated/ is gitignored.
 
-# Resolve the crown jewels from Proton Pass into ansible/.generated/secrets.yml
+# Resolve the crown jewels from Proton Pass into ansible/.generated/secrets.yml, and decrypt
+# the DNS values beside them. dns.yml holds no reference to resolve, so it skips pass-cli
+# entirely — it is the same file Flux and tofu read, just flattened out of the Secret.
 render-secrets:
     @pass-cli info > /dev/null 2>&1 || { echo "no Proton Pass session — run: just ops pass-session" >&2; exit 1; }
     mkdir -p ansible/.generated
     sops -d config/secrets.sops.yaml | pass-cli inject -f -o ansible/.generated/secrets.yml
+    sops -d --extract '["stringData"]' config/dns/dns.sops.yaml > ansible/.generated/dns.yml
 
 # Ping all nodes
 [working-directory('ansible')]

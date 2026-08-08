@@ -16,10 +16,10 @@ spec:
   ingressClassName: edge
   tls:
     - hosts:
-        - auth.DOMAIN
+        - auth.${DOMAIN}
       secretName: pocketid-tls
   rules:
-    - host: auth.DOMAIN
+    - host: auth.${DOMAIN}
       http:
         paths:
           - path: /

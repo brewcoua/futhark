@@ -1,6 +1,6 @@
 ---
 # Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
-# *.INT_DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -13,7 +13,7 @@ metadata:
 spec:
   ingressClassName: internal
   rules:
-    - host: actual.${INT_DOMAIN}
+    - host: actual.${SUB_INTERNAL}.${DOMAIN}
       http:
         paths:
           - path: /

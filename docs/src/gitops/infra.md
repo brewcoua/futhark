@@ -4,19 +4,19 @@
 `Kustomization`. Layout rules are in [Layout and naming](../conventions/layout.md); the order
 they come up in is [Startup ordering](../conventions/ordering.md).
 
-| Component            | What it is                                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                              |
-| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `edge-ips`, `int-domain` and `backup-location` Secrets, `monitoring-sizing`, and `${DOMAIN}` |
-| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once                    |
-| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                     |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                    |
-| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                  |
-| `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt→sftp) and `gdrive-crypt` (Google Drive, write-once media)  |
-| `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                 |
-| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload — see below                                                          |
-| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                          |
-| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                  |
+| Component            | What it is                                                                                                                                                  |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                             |
+| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `dns`, `edge-ips` and `backup-location` Secrets, and `monitoring-sizing`                    |
+| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once                   |
+| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                    |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                   |
+| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                 |
+| `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt→sftp) and `gdrive-crypt` (Google Drive, write-once media) |
+| `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                |
+| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload — see below                                                         |
+| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                         |
+| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                 |
 
 ## The two ingresses
 

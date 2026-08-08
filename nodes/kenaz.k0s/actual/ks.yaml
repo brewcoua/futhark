@@ -14,12 +14,9 @@ spec:
     # only transitively via infra-policies.
     - name: storage
     - name: substitutions
-  # INT_DOMAIN (ingress host, OIDC hostname) is committed SOPS-encrypted in infra/substitutions;
-  # DOMAIN (the edge domain, for Pocket ID's discovery URL) is published from the same place, out
-  # of config/domain/domain.env.
+  # The internal hostname (ingress host, OIDC hostname) and the edge one (Pocket ID's discovery
+  # URL) are both spelled from the same Secret.
   postBuild:
     substituteFrom:
       - kind: Secret
-        name: int-domain
-      - kind: ConfigMap
-        name: domain
+        name: dns

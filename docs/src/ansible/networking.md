@@ -85,7 +85,7 @@ not.
 
 The SNAT is scoped to peer `/32`s rather than the whole `mesh_cidr` on purpose: pods get to
 reach cluster nodes (konnectivity-agent → konnectivity-server, Prometheus → traefik on the mesh
-IP) without inheriting the node's `mesh_node_group` reach across the entire mesh.
+IP) without inheriting the node's own reach across the entire mesh.
 
 All three rules live in `ansible/roles/netbird/templates/futhark-mesh-routes.sh.j2`, re-applied
 by a systemd oneshot because neither `ip rule`, a route in a custom table, nor iptables state
@@ -114,12 +114,12 @@ NetBird policy rules name a protocol: `tcp`, `udp`, `icmp`, `netbird-ssh`, or `a
 protocol 4, so only `all` passes it. Anything narrower and cross-node pod-to-pod blackholes:
 the route is correct, the tunnel is `UP`, nothing is logged, and every packet vanishes.
 
-That is what `netbird_policy.nodes` in [`tofu/netbird`](../tofu/netbird.md) is for — a rule
-from `futhark-nodes` to `futhark-nodes` with `protocol = "all"` and no ports:
+That is what `netbird_policy.k0s` in [`tofu/netbird`](../tofu/netbird.md) is for — a rule from
+`k0s` to `k0s` with `protocol = "all"` and no ports:
 
 ```hcl
 rule {
-  name          = "node to node, every protocol"
+  name          = "k0s to k0s, every protocol"
   action        = "accept"
   protocol      = "all"
   bidirectional = true

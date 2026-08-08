@@ -73,9 +73,9 @@ NetBird PATs cannot be scoped, so the split buys nothing in privilege: it means 
 rotated without taking the other plane down.
 They expire, at most a year out — see [Checks](checks.md#netbird-token-expiry).
 
-Create the account itself first, then delete its shipped `Default` policy, which accepts
-everything between everything. `tofu/netbird` does not manage that policy and will not remove
-it; leave it and the rules you apply in step 8 describe an access model nothing is enforcing.
+Create the account itself first, and delete its shipped `Default` policy — the full sequence is
+[Bootstrap](../tofu/netbird.md#bootstrap). Leave that policy in place and the rules you apply at
+step 8 describe an access model nothing is enforcing.
 
 `storagebox` and `rclone-crypt` are the items in the table no committed `pass://` reference
 points at. Their consumers read Infisical, not the vault, so these copies exist only so the
@@ -208,18 +208,18 @@ with the references already written, so only the identifying half needs filling 
   out: the node has not joined the mesh yet, and `roles/netbird` writes it in at step 7.
 - `infra/substitutions/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put
   a placeholder in `MESH_IP` for now**; the node has not joined the mesh yet. Step 7 fills it.
-- `infra/substitutions/app/int-domain.sops.yaml` — the internal base domain. `tofu/netbird` and
-  `tofu/oidc` both read it from here, so this is its only copy.
+- `config/dns/dns.sops.yaml` — the base domain and its subdomain labels. Flux, all three tofu
+  modules and Ansible read this one file; nothing else spells a domain out. See
+  [Domains](../conventions/domains.md).
 - `tofu/netbird/secrets.sops.env` — its PAT only.
 - `tofu/bunny/secrets.sops.env` — its API key only.
 - `tofu/oidc/secrets.sops.env` — the Pocket ID base URL and the Infisical project ID.
 
-None of the three `tofu/` files carries a node address or the internal domain:
-each module declares those in its `refs.env` and reads them from the plane that owns them, at
-plan/apply time. See [Values another plane owns](../tofu/index.md#values-another-plane-owns).
+None of the three `tofu/` files carries a node address or a domain: each module declares those
+in its `refs.env` and reads them from the plane that owns them, at plan/apply time. See [Values another plane owns](../tofu/index.md#values-another-plane-owns).
 
-Nothing builds until the two under `infra/substitutions/` exist: both are referenced by a
-`kustomization.yaml`, so `kustomize build` fails without them. That is deliberate — better a
+Nothing builds until `config/dns/dns.sops.yaml` and `infra/substitutions/app/edge-ips.sops.yaml`
+exist: both are referenced by a `kustomization.yaml`, so `kustomize build` fails without them. That is deliberate — better a
 loud failure than a cluster reconciling with half its inputs missing.
 
 ## 6. Verify and push
@@ -277,10 +277,12 @@ account's shipped `Default` policy has to be gone (step 1), and nothing validate
 server-side — NetBird has no policy tests, so a wrong rule applies cleanly and fails later, in
 traffic.
 
-The DNS zone this creates resolves `*.$INT_DOMAIN` to `traefik-internal`'s ClusterIP, which does
-not exist yet. That is fine and stays fine: the record is static, the Service address is pinned
-in `infra/traefik-internal/app/helmrelease.yaml`, and the name starts answering usefully once
-step 9 brings the workload up.
+This also sets the account's peer DNS domain and network range, so do it before any node joins:
+a peer registered under the old ones has to re-register. The DNS zone it creates resolves
+`*.$SUB_INTERNAL.$DOMAIN` to `traefik-internal`'s ClusterIP, which does not exist yet. That is
+fine and stays fine: the record is static, the Service address is pinned in
+`infra/traefik-internal/app/helmrelease.yaml`, and the name starts answering usefully once step
+9 brings the workload up.
 
 ## 9. Cluster and Flux
 

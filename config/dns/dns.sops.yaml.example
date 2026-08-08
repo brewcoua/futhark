@@ -1,0 +1,31 @@
+---
+# Template. Copy to dns.sops.yaml, fill in, encrypt:
+#
+#   cp config/dns/dns.sops.yaml.example config/dns/dns.sops.yaml
+#   $EDITOR config/dns/dns.sops.yaml
+#   sops -e -i config/dns/dns.sops.yaml
+#
+# One base domain and the subdomain labels every plane hangs off it. Nothing else in the repo
+# spells a domain out: Flux substitutes these keys into manifests, and tofu/bunny, tofu/oidc and
+# tofu/netbird read this same file through their refs.env. See docs/src/conventions/domains.md.
+#
+# A Secret rather than a ConfigMap: the domain is identifying, and encrypting a ConfigMap's data
+# would be conspicuous mislabelling of something that is, in fact, hidden. The labels are not
+# identifying, but they live here because splitting them into a second object would mean two
+# files to keep in step for one decision.
+#
+# Sealed to the operator key and the cluster age key both — Flux decrypts it in-cluster. That is
+# the `(infra|nodes|config)/` rule in .sops.yaml, not the operator-only one above it, which
+# matches config/secrets.sops.yaml alone.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dns
+  namespace: flux-system
+type: Opaque
+stringData:
+  DOMAIN: example.eu
+  # Internal services, reachable only over the mesh: dash.in.example.eu, actual.in.example.eu.
+  SUB_INTERNAL: in
+  # NetBird's peer domain, set on the account by tofu/netbird: kenaz.n.example.eu.
+  SUB_NODES: n

@@ -88,7 +88,7 @@ Three edges are less obvious than they look:
   on the install. Nothing in the tree currently inverts it — every `config-ks.yaml` here applies
   CRs — but the inversion is legitimate and is why the rule is stated rather than the pattern.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
-  cluster: the `edge-ips`, `int-domain` and `backup-location` Secrets, and the `domain`
+  cluster: the `dns`, `edge-ips` and `backup-location` Secrets, and the `monitoring-sizing`
   ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
   reconciles, and the obvious home — `infra-policies` — is downstream of `traefik-edge`, one of
   those consumers.

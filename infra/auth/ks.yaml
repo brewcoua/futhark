@@ -13,3 +13,9 @@ spec:
     # weakest dependsOn in the tree.
     - name: cert-manager-config
     - name: traefik-edge
+    - name: substitutions
+  # ${DOMAIN} — the ingress host, the TLS SAN and Pocket ID's own APP_URL.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: dns

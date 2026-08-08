@@ -7,3 +7,7 @@ netbird_node_sops_file: "{{ repo_root }}/ansible/nodes/{{ node.hostname }}/host.
 # NetBird Cloud. Self-hosting later means overriding this here and setting the matching
 # management_url in tofu/netbird — the rest of this role is unaware of which it talks to.
 netbird_api_url: https://api.netbird.io
+
+# The NetBird groups this peer joins: the fleet-wide one, plus its workflow if it has one.
+# tofu/netbird declares both — nothing here creates a group.
+netbird_join_groups: "{{ [mesh_node_group] + ([node.workflow] if node.workflow is defined else []) }}"

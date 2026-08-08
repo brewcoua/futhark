@@ -82,8 +82,8 @@ is pinned — in `config/versions.env`, the same file `just ops deps` reads, so 
 installs. Both sides consume it natively: just via `set dotenv-path` in the root `justfile`,
 whose values every submodule inherits, and the workflows via
 `grep -v '^#' config/versions.env >> "$GITHUB_ENV"`. It is dotenv rather than YAML for the same
-reason `config/domain/domain.env` is — nothing in it nests, and parsing YAML would mean a `yq`
-dependency inside the very recipe whose job is installing dependencies.
+reason: nothing in it nests, and parsing YAML would mean a `yq` dependency inside the very
+recipe whose job is installing dependencies.
 
 CI holds no decryption key and must never need one. Nothing above decrypts: `kustomize build`
 parses SOPS output fine, because SOPS encrypts values and leaves keys alone, and

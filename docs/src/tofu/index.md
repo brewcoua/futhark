@@ -25,9 +25,10 @@ references that `pass-cli run` resolves after `sops exec-env` has loaded the fil
 `run` resolves bare URIs and ignores braced ones, the inverse of `inject`. See
 [Secrets](../conventions/secrets.md).
 
-A genuinely non-identifying constant that is also shared with other parts of the repo — the
-domain — is read straight from its committed source, `config/domain/domain.env`, as a `local`
-rather than duplicated into `terraform.tfvars`. See [Domains](../conventions/domains.md).
+A genuinely non-identifying constant that is shared with other parts of the repo — the mesh
+and service CIDRs, `traefik-internal`'s pinned ClusterIP — is read straight from its committed
+source as a `local` rather than duplicated into `terraform.tfvars`. The domain is identifying,
+so it comes through `refs.env` instead: see [Domains](../conventions/domains.md).
 
 **State stays local and gitignored.** `tofu/**/.terraform/`, `tofu/**/*.tfstate*` and
 `tofu/**/crash.log` are all excluded. A module's minted credentials can sit in state in
@@ -59,20 +60,20 @@ reference in `refs.env`, which `plan` and `apply` resolve before running:
 ```
 # <variable>=<repo-relative .sops file>#<sops --extract expression>
 TF_VAR_kenaz_public_ip=ansible/nodes/kenaz/host.sops.yml#["node_ip"]
-TF_VAR_int_domain=infra/substitutions/app/int-domain.sops.yaml#["stringData"]["INT_DOMAIN"]
+TF_VAR_domain=config/dns/dns.sops.yaml#["stringData"]["DOMAIN"]
 ```
 
 The expression goes to `sops --extract` verbatim, so one line shape reaches a node fact and a
 Flux Secret alike. Who owns what:
 
-| Value          | Owner                                          | Why                                                                                                       |
-| -------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| node addresses | `ansible/nodes/<node>/host.sops.yml`           | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join — recorded where it is discovered |
-| `INT_DOMAIN`   | `infra/substitutions/app/int-domain.sops.yaml` | Flux substitutes it into manifests                                                                        |
+| Value                               | Owner                                | Why                                                                                                       |
+| ----------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| node addresses                      | `ansible/nodes/<node>/host.sops.yml` | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join — recorded where it is discovered |
+| the domain and its subdomain labels | `config/dns/dns.sops.yaml`           | Flux substitutes the same keys into manifests, and Ansible reads them too                                 |
 
 A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads
-the k0s service CIDR and `traefik-internal`'s pinned ClusterIP straight out of the committed
-files that own them, as `local`s, the same way `bunny` reads `DOMAIN`.
+the mesh CIDR, the k0s service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
+the committed files that own them, as `local`s.
 
 `refs.env` holds only references, so it is committed in the clear even though every file it
 names is encrypted. All of them seal to the same operator key, so resolving one costs no extra
