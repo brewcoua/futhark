@@ -16,3 +16,5 @@ git-repository-url = "https://github.com/brewcoua/futhark"
 edit-url-template = "https://github.com/brewcoua/futhark/edit/master/docs/{path}"
 site-url = "/futhark/"
 default-theme = "rust"
+# Repaints the inlined D2 SVGs from the mdbook theme variables. Path is relative to this file.
+additional-css = ["theme/d2.css"]

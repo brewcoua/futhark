@@ -1,0 +1,55 @@
+/* D2 diagrams are inlined as SVG by mdbook-d2, so the mdbook theme variables on <html>
+   cascade into them. d2 tags every colored element with a theme-slot class (fill-N1,
+   stroke-B1, ...) alongside a presentation attribute, and remapping the slots here
+   repaints the diagrams without touching any d2 fence.
+
+   The leading `svg` is load-bearing. d2 also emits its own `<style>` inside the SVG with
+   `.d2-<hash> .fill-N7{...}` rules. Those are specificity 0,2,0 and sit in <body>, after
+   this stylesheet's <link> in <head>, so a bare `.d2-svg .fill-N7` would lose the tie on
+   source order. `svg.d2-svg` is 0,2,1 and wins outright. */
+
+svg.d2-svg .fill-N7 {
+  fill: var(--bg);
+}
+svg.d2-svg .fill-N1 {
+  fill: var(--fg);
+}
+svg.d2-svg .fill-N2 {
+  fill: var(--icons);
+}
+
+svg.d2-svg .stroke-B1 {
+  stroke: var(--links);
+}
+svg.d2-svg .fill-B1 {
+  fill: var(--links);
+}
+svg.d2-svg .stroke-B2 {
+  stroke: color-mix(in srgb, var(--links) 60%, var(--bg));
+}
+svg.d2-svg .fill-B2 {
+  fill: color-mix(in srgb, var(--links) 60%, var(--bg));
+}
+
+/* Container fills, tinted from the accent so nesting depth reads the same in every theme. */
+svg.d2-svg .fill-B4 {
+  fill: color-mix(in srgb, var(--links) 22%, var(--bg));
+}
+svg.d2-svg .fill-B5 {
+  fill: color-mix(in srgb, var(--links) 14%, var(--bg));
+}
+svg.d2-svg .fill-B6 {
+  fill: color-mix(in srgb, var(--links) 7%, var(--bg));
+}
+
+/* Colors set explicitly in the d2 source carry no slot class. Matched by exact value;
+   see the diagram convention in docs/CLAUDE.md before changing either hex. */
+svg.d2-svg [stroke="#c00"] {
+  stroke: var(--blockquote-caution-color, #f21424);
+}
+svg.d2-svg [fill="#c00"] {
+  fill: var(--blockquote-caution-color, #f21424);
+}
+svg.d2-svg [stroke="#888"] {
+  stroke: var(--icons);
+}

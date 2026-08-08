@@ -33,6 +33,14 @@ A reader unfamiliar with the author's context should be able to complete the doc
 - Keep orientation shallow and detail deep. Top-level pages say what something is and point to specific documentation.
 - Add a section only when it contains something real and verifiable. Never add a section or header for symmetry, including generic "Overview," "Conclusion," and "Additional Resources."
 
+## Diagrams
+
+Diagrams are ```d2 fences rendered inline by `mdbook-d2`. `docs/theme/d2.css` remaps d2's theme slots to the mdbook theme variables so a diagram follows the reader's selected theme.
+
+- Use d2's default colors. They carry the slot classes that `docs/theme/d2.css` repaints. Express meaning with `stroke-width`, `stroke-dash`, and arrowhead shape instead of color where you can.
+- Two explicit colors are allowed, and their exact hex is load-bearing because the stylesheet matches on it: `#c00` for denied or danger edges, `#888` for annotation edges.
+- Adding a third explicit color requires a matching rule in `docs/theme/d2.css`. Without one, that color stays fixed across all five themes.
+
 ## Accuracy and uncertainty
 
 - Do not invent behavior, commands, defaults, outputs, compatibility information, file paths, or supported versions.
