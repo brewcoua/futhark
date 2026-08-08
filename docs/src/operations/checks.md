@@ -93,8 +93,7 @@ non-fatal in CI rather than putting a key into GitHub Actions.
 
 ## Infisical tier isolation
 
-Two manual checks, in the same spirit as the `ip-in-ip` test in
-[tailscale](../tofu/tailscale.md). Neither is automated, and both are worth re-running after any
+Two manual checks. Neither is automated, and both are worth re-running after any
 change to the operator HelmReleases or the admission policy — they are the only evidence the
 tier boundary is real rather than merely intended. Run them once at the end of
 [Cold bootstrap](setup.md), and delete the objects afterwards.
@@ -136,3 +135,19 @@ EOF
 The API server must reject this at admission with `secretPath must lie within the namespace's
 own tier`. If it is created instead, the `ValidatingAdmissionPolicyBinding` is not selecting the
 namespace — check that `actual` still carries `futk.eu/tier` and `futk.eu/node`.
+
+## NetBird token expiry
+
+NetBird Personal Access Tokens expire, 365 days out at most. Two are in use, both on the service
+user:
+
+| Token                | Referenced from                 | Breaks when it expires                             |
+| -------------------- | ------------------------------- | -------------------------------------------------- |
+| `netbird-policy`     | `tofu/netbird/secrets.sops.env` | `just tf plan netbird` fails with a 401            |
+| `netbird-enrollment` | `config/secrets.sops.yaml`      | A node join fails at "Mint a single-use setup key" |
+
+Neither takes the mesh down when it lapses: peers keep their configuration and keep connecting.
+What stops is changing anything — no policy applies, no new node joins.
+
+Issue the replacement in the dashboard, update the Proton Pass item in place, and the `pass://`
+references keep resolving without a repo change.

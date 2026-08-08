@@ -14,8 +14,8 @@ node:
   # reference rather than moved out of `node:` so every hostvars[x].node.ip in the roles and
   # k0sctl template keeps working unchanged.
   ip: "{{ node_ip }}"
-  # Written back into host.sops.yml by the tailscale role after the join — the tailnet assigns
-  # it, so it can't be known before first contact. Defaulted so a cold bootstrap (where the
+  # Written back into host.sops.yml by the netbird role after the join — the management server
+  # assigns it, so it can't be known before first contact. Defaulted so a cold bootstrap (where the
   # key does not exist yet) parses; k0s_cluster asserts it is non-empty before converging.
   mesh_ip: "{{ node_mesh_ip | default('') }}"
   initial_user: fedora

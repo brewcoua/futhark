@@ -3,7 +3,7 @@ terraform {
   required_providers {
     pocketid = {
       source = "Trozz/pocketid"
-      # Patch-level only — see tofu/tailscale/provider.tf for why a 2-component "~>" is
+      # Patch-level only — see tofu/netbird/provider.tf for why a 2-component "~>" is
       # looser than it looks on a 0.x provider. Doubly so for a third-party provider that
       # mints credentials.
       version = "~> 2.1.0"

@@ -7,7 +7,7 @@ cannot wait on anything. The two controllers that need nothing else from the clu
 `infisical-operator` and `cert-manager` — sit directly behind `namespaces`.
 
 The real graph, as declared in each `ks.yaml` — thick borders are the roots and the two
-sinks, the dashed edge is the one inversion:
+sinks:
 
 ```d2
 direction: down
@@ -17,7 +17,6 @@ substitutions: substitutions\n(no dependsOn) { style.stroke-width: 3 }
 
 infisical-operator-config: infisical-operator-config
 cert-manager-config: cert-manager-config
-tailscale-operator-config: tailscale-operator-config
 backup-config: backup-config
 
 nodes: nodes { style.stroke-width: 3 }
@@ -30,15 +29,12 @@ infisical-operator -> infisical-operator-config
 cert-manager -> cert-manager-config
 
 infisical-operator-config -> cert-manager-config
-infisical-operator-config -> tailscale-operator-config
 infisical-operator-config -> storage
 infisical-operator-config -> backup
 infisical-operator-config -> monitoring
 infisical-operator-config -> auth
 infisical-operator-config -> actual
 
-tailscale-operator-config -> tailscale-operator: inverted { style.stroke-dash: 3 }
-tailscale-operator -> traefik-internal
 cert-manager-config -> traefik-internal
 cert-manager-config -> auth
 
@@ -59,7 +55,6 @@ substitutions -> infra-policies
 
 cert-manager -> infra-policies
 infisical-operator -> infra-policies
-tailscale-operator -> infra-policies
 traefik-internal -> infra-policies
 traefik-edge -> infra-policies
 storage -> infra-policies
@@ -76,9 +71,9 @@ transitively.
 
 They need nothing from the cluster but a namespace to land in. Their `config-ks.yaml` siblings
 are where the ordering actually bites, because those apply CRs the controller must already have
-registered CRDs for — except `tailscale-operator-config`, which runs the other way round.
+registered CRDs for.
 
-Four edges are less obvious than they look:
+Three edges are less obvious than they look:
 
 - `namespaces` is a root of its own rather than a file next to each component, because
   `infisical-operator` installs its chart with `scopedRBAC: true` — Helm emits a Role and
@@ -86,14 +81,12 @@ Four edges are less obvious than they look:
   belong to components that are downstream of `infisical-operator-config`. With the
   `Namespace` CRs held by their consumers the install failed outright on
   `namespaces "auth" not found`.
-- `tailscale-operator-config` runs _before_ its operator, inverting the pattern every other
-  `config-ks.yaml` follows. It produces the `operator-oauth` Secret the chart's own Deployment
-  mounts. Put it downstream and the Helm install waits on a pod that waits on a Secret that waits
-  on the install. The rule: what a chart _mounts_ goes upstream of it, what needs the chart's
-  _CRDs_ goes downstream.
-- Anything that needs an operator _running_, rather than just its credentials present, has to
-  name the operator and not the config ahead of it. `traefik-internal` names
-  `tailscale-operator` for exactly that reason.
+- A `config-ks.yaml` does not always belong downstream of its controller. The rule is what the
+  dependency is _for_: what a chart **mounts** goes upstream of it, what needs the chart's
+  **CRDs** goes downstream. A config Kustomization producing a Secret the chart's own Deployment
+  mounts has to run first, or the Helm install waits on a pod that waits on a Secret that waits
+  on the install. Nothing in the tree currently inverts it — every `config-ks.yaml` here applies
+  CRs — but the inversion is legitimate and is why the rule is stated rather than the pattern.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
   cluster: the `edge-ips`, `int-domain` and `backup-location` Secrets, and the `domain`
   ConfigMap. A substitution target must exist before the Kustomization that substitutes from it

@@ -79,9 +79,9 @@ config:
         - source_labels: [__name__]
           action: drop
           regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
-    # traefik-internal has no hostNetwork/hostIP anymore (it's exposed via the Tailscale
-    # operator instead — see infra/traefik-internal/app/helmrelease.yaml), so its metrics
-    # port is just an ordinary in-cluster Service.
+    # traefik-internal has no hostNetwork/hostIP: it is an ordinary ClusterIP Service, reached
+    # from the mesh over a NetBird route (see infra/traefik-internal/app/helmrelease.yaml), so
+    # its metrics port is just an ordinary in-cluster Service too.
     # The chart names the metrics Service `velero` in its own namespace. node-agent exposes its
     # own metrics on the pods, but the backup/restore counters the alerts read are the server's.
     - job_name: velero

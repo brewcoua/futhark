@@ -1,28 +1,41 @@
 # Network constants shared by more than one role. Each of these used to be written out at every
-# use site, in a different spelling each time — the tailnet CIDR as a literal in fail2ban's
-# ignoreip, again in tailscale's firewalld loop, and a third time as a hand-expanded regex in
-# k0s_cluster's assert. A constant with three spellings is three constants.
+# use site, in a different spelling each time — the mesh CIDR as a literal in fail2ban's
+# ignoreip, again in the mesh role's firewalld loop, and a third time as a hand-expanded regex
+# in k0s_cluster's assert. A constant with three spellings is three constants.
 
-# Tailscale's CGNAT pool. Every mesh address falls inside it, so it is simultaneously the range
+# NetBird's CGNAT pool. Every mesh address falls inside it, so it is simultaneously the range
 # fail2ban must never ban, the source firewalld trusts, and the shape k0s_cluster checks a
 # recorded node.mesh_ip against before baking it into spec.api.address.
 mesh_cidr: 100.64.0.0/10
 # The same range as a regex, because `assert` has no CIDR-membership test: 100.64-127.x.x.
 mesh_cidr_regex: '^100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.'
 
-# The ACL tag every node advertises at join. tofu/tailscale's policy grants against this tag, so
-# changing it here without changing it there silently strands the node outside every rule.
-mesh_node_tag: tag:futhark-node
+# NetBird's WireGuard interface, as k0s's privateInterface and as the interface firewalld
+# trusts. wt0 is the client's own default; overriding it would mean passing --interface-name on
+# every `netbird up` as well as changing it here.
+mesh_interface: wt0
 
-# The routing-rule slot roles/tailscale's pod -> mesh script claims. The priority is
-# load-bearing: kube-router installs its own `from <pod /24>` rule, and anything numerically
-# above it is silently shadowed — see the generated script's own comment and
+# The domain NetBird answers peer names under. Fixed by NetBird Cloud and shared by every
+# account, so — unlike the tailnet suffix it replaced — it identifies nothing and is committed
+# in the clear. Self-hosting would make it a per-deployment value again.
+mesh_dns_domain: netbird.cloud
+
+# The group every node is placed in at join, via the setup key's auto_groups. tofu/netbird's
+# policies, service route and DNS zone all target this group by name, so changing it here
+# without changing it there silently strands the node outside every rule.
+mesh_node_group: futhark-nodes
+
+# The routing-rule slot roles/netbird's pod -> mesh script claims, and the table it writes the
+# peer routes into. Both are the script's own: NetBird uses table 7120 and priorities 105/110.
+# The priority is load-bearing: kube-router installs its own `from <pod /24>` rule, and anything
+# numerically above it is silently shadowed — see the generated script's own comment and
 # docs/src/ansible/networking.md.
 mesh_route_table: 52
 mesh_route_priority: 5
 
 # k0s's own defaults, pinned here as a single source of truth — see docs/src/ansible/index.md.
-# pod_cidr is the cluster-wide /16; kube-router carves a /24 out of it per node, and the
-# tailscale role's SNAT rule must match the /16 or a peer's pods aren't covered.
+# pod_cidr is the cluster-wide /16; kube-router carves a /24 out of it per node, and the netbird
+# role's SNAT rule must match the /16 or a peer's pods aren't covered. tofu/netbird reads
+# k0s_service_cidr straight out of this file for the route it advertises into the mesh.
 k0s_pod_cidr: 10.244.0.0/16
 k0s_service_cidr: 10.96.0.0/12

@@ -38,4 +38,4 @@
 - [Rules for every module](tofu/index.md)
 - [bunny](tofu/bunny.md)
 - [oidc](tofu/oidc.md)
-- [tailscale](tofu/tailscale.md)
+- [netbird](tofu/netbird.md)

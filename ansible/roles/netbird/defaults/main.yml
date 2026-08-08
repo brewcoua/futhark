@@ -1,0 +1,9 @@
+---
+# The node's own SOPS file, which this role writes node_mesh_ip back into after the mesh join.
+# ansible/nodes/<host>/ is the canonical location; inventory/host_vars/<host>/ symlinks to it,
+# which is how the value reaches playbooks/k0s.yml as node.mesh_ip on a later run.
+netbird_node_sops_file: "{{ repo_root }}/ansible/nodes/{{ node.hostname }}/host.sops.yml"
+
+# NetBird Cloud. Self-hosting later means overriding this here and setting the matching
+# management_url in tofu/netbird — the rest of this role is unaware of which it talks to.
+netbird_api_url: https://api.netbird.io

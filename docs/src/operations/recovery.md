@@ -110,8 +110,9 @@ nothing still reports `Completed`.
 A corrupted host gets reinstalled, which destroys every `local-path` volume on it. Both nodes
 hold some: Pocket ID is pinned to `ogma`, Actual to `kenaz`, and the monitoring stack floats.
 
-1. Reinstall the OS, then `just ans setup <host>`. The `tailscale` role registers the node
-   again and writes the new mesh IP back into `ansible/nodes/<host>/host.sops.yml`.
+1. Reinstall the OS, then `just ans setup <host>`. The `netbird` role registers the node
+   again and writes the new mesh IP back into `ansible/nodes/<host>/host.sops.yml`. Delete the
+   node's old peer from the NetBird dashboard afterwards — the rejoin creates a new one.
 2. `just ans k0s` — rejoins the node, reinstalls the local-path provisioner, re-seeds the Flux
    and Infisical credentials.
 3. Wait for Flux: `just fx failing` should come back empty. The apps return with empty PVCs.

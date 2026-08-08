@@ -1,7 +1,7 @@
 ---
 # Opens the public zone for edge ingress. TLS only — no plaintext HTTP, so 80 stays closed.
 # Gated by node.public_ingress in playbooks/setup.yml — nothing in here branches on hostname,
-# same convention as roles/tailscale (any future node opts in just by setting node.public_ingress: true).
+# same convention as roles/netbird (any future node opts in just by setting node.public_ingress: true).
 - name: Open HTTPS in firewalld's public zone
   ansible.posix.firewalld:
     port: "443/tcp"

@@ -16,7 +16,7 @@
   #   access    the admin user and the SSH hardening that depends on it — one tag, never two,
   #             because ssh_harden without admin_user locks the host out permanently
   #   firewall  fail2ban and the public 443 ingress
-  #   mesh      the tailnet join and the pod -> mesh routing
+  #   mesh      the NetBird join and the pod -> mesh routing
   #
   # Anything that touches how we *connect* is `always`: the identity probe below decides which
   # login and port every later task uses, so skipping it by tag would have `--tags mesh` dial a
@@ -39,7 +39,7 @@
       tags: access
     - role: fail2ban
       tags: firewall
-    - role: tailscale
+    - role: netbird
       when: node.mesh | default(false)
       tags: mesh
     - role: firewall_ingress

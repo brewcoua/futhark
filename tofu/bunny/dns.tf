@@ -1,21 +1,18 @@
 # DOMAIN is Kustomize's source of truth too (config/domain/domain.env) — read straight from
-# that file so it never drifts. INT_DOMAIN isn't in that file: it's SOPS-encrypted (see
-# var.int_domain), so it comes in as a Tofu variable instead.
+# that file so it never drifts.
 locals {
   domain_env_file = file("${path.module}/../../config/domain/domain.env")
   domain          = regex("(?m)^DOMAIN=(.*)$", local.domain_env_file)[0]
 }
 
-# Looked up, not created: both zones already exist (the same DNS-01 webhook in
-# infra/cert-manager solves challenges on either) — creating a bunnynet_dns_zone here would
-# duplicate them. DOMAIN and INT_DOMAIN are unrelated apex domains, not the same zone, so each
-# gets its own lookup.
+# Looked up, not created: the zone already exists (the DNS-01 webhook in infra/cert-manager
+# solves challenges against it) — creating a bunnynet_dns_zone here would duplicate it.
+#
+# INT_DOMAIN's zone is deliberately absent. It exists in Bunny and is still needed there for
+# DNS-01, but this module holds no record in it: internal names are answered by NetBird's own
+# zone now (tofu/netbird/dns.tf), not by a public CNAME into the mesh.
 data "bunnynet_dns_zone" "this" {
   domain = local.domain
-}
-
-data "bunnynet_dns_zone" "internal" {
-  domain = var.int_domain
 }
 
 # One record per edge-exposed hostname — add one bunnynet_dns_record block per additional edge
@@ -33,22 +30,6 @@ resource "bunnynet_dns_record" "auth" {
   }
 }
 
-# Every internal hostname (dash, logs, metrics, actual, …) is served by the same
-# traefik-internal, which the tailscale operator exposes as one tailnet device named "internal"
-# (the tailscale.com/hostname annotation in infra/traefik-internal/app/helmrelease.yaml). So one
-# wildcard covers all of them, and an internal app landing needs no apply here.
-#
-# A CNAME to the MagicDNS name rather than an A record to the device's tailnet IP: that IP is
-# assigned by the operator and recorded nowhere in this repo, so an A record would drift exactly
-# the way edge-ips' MESH_IP did. Only tailnet resolvers answer a *.ts.net name — off-tailnet
-# this record dead-ends, which is the point of the internal domain.
-#
-# Name is the bare wildcard "*": INT_DOMAIN is its own zone apex (not a subdomain of DOMAIN),
-# so there's no prefix to compute.
-resource "bunnynet_dns_record" "internal_wildcard" {
-  zone  = data.bunnynet_dns_zone.internal.id
-  name  = "*"
-  type  = "CNAME"
-  value = "internal.${var.tailnet_domain}"
-  ttl   = 300
-}
+# The internal wildcard used to live here, as a CNAME into the tailnet's MagicDNS. It moved to
+# tofu/netbird/dns.tf: NetBird serves INT_DOMAIN to peers from a zone of its own, so the public
+# hop is no longer needed to keep the name mesh-only.

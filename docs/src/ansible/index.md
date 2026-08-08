@@ -20,33 +20,34 @@ schema and how to add one.
 | Variable                                       | Notes                                                      |
 | ---------------------------------------------- | ---------------------------------------------------------- |
 | `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted |
-| `tailnet_domain`                               | The tailnet's MagicDNS suffix. Identifying, so encrypted   |
 | `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to           |
 | `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                              |
 | `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed |
 
 `network.yml` beside it holds every constant more than one role has an opinion about:
 
-| Variable                                  | Notes                                                                                           |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `mesh_cidr`, `mesh_cidr_regex`            | Tailscale's CGNAT pool, as a CIDR and — for `assert`, which has no membership test — as a regex |
-| `mesh_node_tag`                           | The ACL tag every node advertises at join. `tofu/tailscale`'s policy grants against it          |
-| `mesh_route_table`, `mesh_route_priority` | The routing-rule slot `roles/tailscale`'s pod → mesh script claims                              |
-| `k0s_pod_cidr`, `k0s_service_cidr`        | k0s's own defaults, pinned as a single source of truth                                          |
+| Variable                                  | Notes                                                                                         |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `mesh_cidr`, `mesh_cidr_regex`            | NetBird's CGNAT pool, as a CIDR and — for `assert`, which has no membership test — as a regex |
+| `mesh_interface`, `mesh_dns_domain`       | NetBird's WireGuard interface (`wt0`) and the domain it answers peer names under              |
+| `mesh_node_group`                         | The group every node is placed in at join. `tofu/netbird`'s policies target it                |
+| `mesh_route_table`, `mesh_route_priority` | The routing-rule slot `roles/netbird`'s pod → mesh script claims                              |
+| `k0s_pod_cidr`, `k0s_service_cidr`        | k0s's own defaults, pinned as a single source of truth                                        |
 
 **These are collected rather than written at each use site** because they had drifted into
-different spellings of the same fact: the tailnet range was a literal in fail2ban's `ignoreip`,
-a literal again in `tailscale`'s firewalld loop, and a hand-expanded regex in `k0s_cluster`'s
-assert. A constant with three spellings is three constants. The CIDRs specifically need two
-consumers to agree: `k0s_cluster` writes them into the k0s `ClusterConfig`, and `tailscale`
+different spellings of the same fact: the mesh range was a literal in fail2ban's `ignoreip`,
+a literal again in the mesh role's firewalld loop, and a hand-expanded regex in `k0s_cluster`'s
+assert. A constant with three spellings is three constants. The CIDRs specifically need three
+consumers to agree: `k0s_cluster` writes them into the k0s `ClusterConfig`, `tofu/netbird`
+reads `k0s_service_cidr` out of this file for the route it advertises into the mesh, and `netbird`
 needs the pod CIDR to scope its pod → mesh SNAT rule — `k0s_pod_cidr` is the cluster-wide
 `/16`, kube-router carves a `/24` out of it per node, and the SNAT rule must match the `/16` or
 a peer's pods are not covered. All of these are private or RFC6598 ranges, not identifying, so
 they are plain literals.
 
-**`ansible_host` resolves through MagicDNS for mesh nodes** — `<hostname>.<tailnet_domain>` —
-and falls back to `node.ip` otherwise. There is no stored mesh IP anywhere in this repo:
-Tailscale's own resolver keeps the name correct across re-keys and reassignments, so there is
+**`ansible_host` resolves through NetBird's DNS for mesh nodes** —
+`<hostname>.<mesh_dns_domain>` — and falls back to `node.ip` otherwise. There is no stored mesh
+IP anywhere in this repo: NetBird's own resolver keeps the name correct across re-keys and reassignments, so there is
 nothing to update when an address changes. The expression is guarded on `node is defined`
 because `k0s_cluster` and `flux_bootstrap` run against `hosts: localhost`,
 which is implicit, not in inventory, and has no `node` var.
@@ -66,7 +67,7 @@ play-scoped rather than host-scoped.
 | `setup.yml` | `just ans setup [<host>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
 | `k0s.yml`   | `just ans k0s`            | `k0sctl apply` across the whole fleet, the `local-path` StorageClass, then the Flux bootstrap      |
 
-`setup.yml` runs per host and is gated by the node's own flags — the `tailscale` role only
+`setup.yml` runs per host and is gated by the node's own flags — the `netbird` role only
 runs when `node.mesh` is true, `firewall_ingress` only when `node.public_ingress` is. Nothing
 in any role branches on a hostname, so a future node opts into either by setting the flag.
 
@@ -77,7 +78,7 @@ It also carries tags, so a single concern can be re-converged without running th
 | `base`     | `fedora_common`                |
 | `access`   | `admin_user`, `ssh_harden`     |
 | `firewall` | `fail2ban`, `firewall_ingress` |
-| `mesh`     | `tailscale`                    |
+| `mesh`     | `netbird`                      |
 
 `admin_user` and `ssh_harden` share one tag on purpose: `ssh_harden` disables root and password
 login, so running it without `admin_user` locks the host out permanently. `ssh_identity` and the
@@ -101,7 +102,7 @@ network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
 | `ssh_harden`             | Disables root and password login, moves sshd to `ssh_port`, via a `sshd_config.d/` drop-in                             |
 | `firewalld`              | Nothing but "the daemon is up and answering". A dependency of the four roles that write firewalld rules                |
 | `fail2ban`               | Bans brute force on `ssh_port`, and repeat offenders, through firewalld                                                |
-| `tailscale`              | Mesh join with a freshly minted single-use auth key, firewalld zoning, and the pod → mesh routing fix                  |
+| `netbird`                | Mesh join with a freshly minted single-use setup key, firewalld zoning, and the pod → mesh routing fix                 |
 | `firewall_ingress`       | Opens 443 in firewalld's public zone. Only on the `public_ingress` node                                                |
 | `k0s_cluster`            | Renders `k0sctl.yaml` from inventory, converges the cluster, writes the kubeconfig                                     |
 | `local_path_provisioner` | Installs the `local-path` StorageClass that monitoring, `auth` and `actual` bind PVCs against                          |
@@ -110,7 +111,7 @@ network with the k0sctl-fetched kubeconfig — no SSH, no `become`.
 Ordering between them is declared in each role's `meta/main.yml`, not left to the order of the
 playbook's role list. `ssh_harden` depends on `admin_user` for the lockout reason above, and the
 four firewall-writing roles depend on `firewalld`. That last one used to be two tasks inside
-`ssh_harden`, which made "tailscale needs a running firewalld" an ordering fact you could only
+`ssh_harden`, which made "the mesh role needs a running firewalld" an ordering fact you could only
 learn by reading `setup.yml` top to bottom. Ansible runs a role once per play regardless of how
 many times it is reached, so the dependencies cost nothing at runtime — though `--list-tasks`
 prints the pre-deduplication list and will show them repeated.
@@ -133,7 +134,7 @@ re-bans anything the first jail catches repeatedly. Bans are enforced by firewal
 `firewallcmd-rich-rules` action Fedora's own `jail.d/00-firewalld.conf` already sets — the same
 firewall every other role touches.
 
-`ignoreip` covers loopback, Tailscale's CGNAT range and both cluster CIDRs. Ops SSH and
+`ignoreip` covers loopback, the mesh's CGNAT range and both cluster CIDRs. Ops SSH and
 `k0sctl` arrive over the mesh, so without that line a misfiring jail could lock the operator
 out of every node at once.
 
@@ -152,7 +153,7 @@ key before `ssh_harden` closes the initial one — there is no window where neit
 
 ### `k0s_cluster`
 
-kubelet's `--node-ip` is pinned to each node's Tailscale mesh IP, deliberately: the Kubernetes
+kubelet's `--node-ip` is pinned to each node's NetBird mesh IP, deliberately: the Kubernetes
 API, etcd and kubelet then bind only to mesh addresses and are never publicly exposed. Several
 consequences follow.
 
@@ -160,16 +161,16 @@ k0s would otherwise self-detect `spec.api.address` from the default-route interf
 these hosts is the public IP — join tokens would carry an address workers cannot reach. So the
 role pins it to the controller's mesh address, read from inventory as `node.mesh_ip`.
 
-That value is not resolved at converge time. The tailnet assigns a mesh address at
-registration — it cannot be chosen in advance, and an ACL cannot target a hostname — so
-`roles/tailscale` reads it back with `tailscale ip -4` after the join and records it into
+That value is not resolved at converge time. The management server assigns a mesh address at
+registration — it cannot be chosen in advance — so `roles/netbird` reads it back out of
+`netbird status --json` after the join and records it into
 `ansible/nodes/<host>/host.sops.yml`, which `inventory/host_vars/<host>/` symlinks to. Writing
 it down rather than looking it up each run is what lets `playbooks/k0s.yml` stay
 `hosts: localhost` in a separate invocation from `setup.yml`, without requiring the operator's
-own workstation to be on the tailnet. The write is guarded by a compare, because SOPS
+own workstation to be on the mesh. The write is guarded by a compare, because SOPS
 re-encryption changes the ciphertext even when the plaintext has not.
 
-The role then asserts every recorded address is non-empty and inside Tailscale's CGNAT range
+The role then asserts every recorded address is non-empty and inside NetBird's CGNAT range
 (`mesh_cidr`). That assertion is not paranoia: a node deleted and re-registered picks up a
 different address, and a stale value would otherwise be baked silently into `spec.api.address`
 and every kubelet's `--node-ip`.
@@ -196,14 +197,14 @@ Two mechanisms, no custom code in this repo any more.
 
 Identifying values are decrypted transparently by the `community.sops` vars plugin, enabled by
 `vars_plugins_enabled` in `ansible/ansible.cfg`. Any `*.sops.yml` under `group_vars/` or
-`host_vars/` is opened on load, so `tailnet_domain` and `node.ip` are ordinary variables at the
+`host_vars/` is opened on load, so `admin.user` and `node.ip` are ordinary variables at the
 point of use and no task mentions SOPS at all. `host_group_vars` has to stay listed alongside
 it: naming any plugin there replaces the default set rather than adding to it.
 
 Crown-jewel values come from Proton Pass, but not through a lookup plugin.
 `just ans render-secrets` decrypts `config/secrets.sops.yaml` and pipes it through `pass-cli inject`
 into `ansible/.generated/secrets.yml`; the playbooks load that with `vars_files`, so the roles
-that need one — `flux_bootstrap` and `tailscale`, both `no_log: true` — reference an ordinary
+that need one — `flux_bootstrap` and `netbird`, both `no_log: true` — reference an ordinary
 variable like `secrets.flux.deploy_key`. `ans setup` and `ans k0s` depend on that render, so it
 is not a step you run by hand. It needs a Proton Pass session; `pass-cli info` checks.
 

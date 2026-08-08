@@ -7,7 +7,7 @@ node:
   mesh: true
   # Identifying, so the literal lives encrypted in host.sops.yml beside this file.
   ip: "{{ node_ip }}"
-  # Written back into host.sops.yml by the tailscale role after the join — see
+  # Written back into host.sops.yml by the netbird role after the join — see
   # ansible/nodes/kenaz/host.yml.
   mesh_ip: "{{ node_mesh_ip | default('') }}"
   initial_user: fedora

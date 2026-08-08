@@ -16,9 +16,9 @@ spec:
         port: {{ hostvars[host].ssh_port }}
 {#    privateInterface only feeds spec.api.address/etcd peerAddress below, not kubelet —
       under --enable-cloud-provider=true kubelet won't self-assign InternalIP at all, so
-      --node-ip is passed explicitly (node.mesh_ip, recorded by the tailscale role at join).
+      --node-ip is passed explicitly (node.mesh_ip, recorded by the netbird role at join).
       It can't set ExternalIP at all (that's the k0s-cloud-provider annotation instead). #}
-      privateInterface: tailscale0
+      privateInterface: {{ mesh_interface }}
       installFlags:
 {% if hostvars[host].node.k0s_role == 'controller+worker' %}
         - --no-taints
@@ -43,7 +43,7 @@ spec:
             - {{ hostvars[k0s_cluster_controller_host].ansible_host }}
             - {{ hostvars[k0s_cluster_controller_host].node.ip }}
 {#      These are k0s's own defaults, so pinning them changes nothing about the running
-        cluster — but the tailscale role has to know the pod CIDR to scope its pod -> mesh
+        cluster — but the netbird role has to know the pod CIDR to scope its pod -> mesh
         SNAT rule, and a CIDR that only exists as an upstream default is a value that can
         shift under us. Declared once in inventory/group_vars/all/network.yml. #}
         network:

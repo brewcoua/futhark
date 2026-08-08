@@ -80,11 +80,11 @@ Tofu needs the same value for the Bunny DNS wildcard record (`tofu/bunny/dns.tf`
 
 ## Internal ingresses are unauthenticated
 
-An `internal`-class `Ingress` is reachable by anything on the tailnet, with no login in front
+An `internal`-class `Ingress` is reachable by anything on the mesh, with no login in front
 of it. `infra/auth` (Pocket ID) is a plain OIDC provider: it has no forwardAuth/verify endpoint
 of the kind Authelia exposes, so Traefik has nothing to delegate a request to. Putting SSO in
 front of an internal app needs an oauth2-proxy (or equivalent) bridge wired to Pocket ID first;
-until that lands, tailnet membership is the only access control these hosts have.
+until that lands, mesh membership is the only access control these hosts have.
 
 An app that speaks OIDC itself needs no bridge — it registers a client in `tofu/oidc` and
 authenticates against Pocket ID directly. Grafana is the near-term case: `auth.generic_oauth`

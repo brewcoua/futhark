@@ -78,7 +78,7 @@ spec:
           tls:
             enabled: true
       # Bound to the mesh IP, not the public one, so the dashboard/API is reachable over the
-      # tailnet only, never on kenaz's public interface.
+      # mesh only, never on kenaz's public interface.
       traefik:
         port: 8081
         hostIP: ${MESH_IP}

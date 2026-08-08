@@ -39,5 +39,4 @@ spec:
       - cert-manager
       - csi-rclone
       - monitoring
-      - tailscale
       - auth

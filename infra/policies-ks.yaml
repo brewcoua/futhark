@@ -17,7 +17,6 @@ spec:
     - name: storage
     - name: backup
     - name: auth
-    - name: tailscale-operator
     - name: traefik-internal
     - name: traefik-edge
     - name: substitutions

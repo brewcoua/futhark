@@ -25,28 +25,28 @@
       selectattr('node.k0s_role', 'search', 'controller') |
       map(attribute='inventory_hostname') | first }}
 
-# Mesh IPs come from each node's own `tailscale ip -4`, recorded into
-# ansible/nodes/<host>/host.sops.yml by the tailscale role at join time and surfaced here as
+# Mesh IPs come from each node's own `netbird status`, recorded into
+# ansible/nodes/<host>/host.sops.yml by the netbird role at join time and surfaced here as
 # node.mesh_ip (host_vars/<host>/host.sops.yml symlinks to it). Read from inventory rather
 # than resolved per-run: this play is `hosts: localhost` in a separate run from setup.yml, so
-# a MagicDNS lookup here would require the operator's own workstation to be on the tailnet and
+# resolving a peer name here would require the operator's own workstation to be on the mesh and
 # would lag a node's join by seconds. See docs/src/ansible/index.md#k0s_cluster.
 #
-# The range check catches a recorded address that is no longer a tailnet address (node deleted
+# The range check catches a recorded address that is no longer a mesh address (node deleted
 # and re-registered into a different pool, value hand-edited) before it gets baked silently
 # into spec.api.address and every kubelet's --node-ip. privateInterface only feeds
 # spec.api.address/etcd peerAddress, never kubelet: under --cloud-provider=external kubelet
 # won't self-assign InternalIP without an explicit --node-ip, so every k0s host's own mesh IP
 # is checked, not just the controller's.
-- name: Assert every k0s host has a recorded mesh IP inside the tailnet
+- name: Assert every k0s host has a recorded mesh IP inside the mesh pool
   ansible.builtin.assert:
     that:
       - hostvars[item].node.mesh_ip | default('') | length > 0
       - hostvars[item].node.mesh_ip is regex(mesh_cidr_regex)
     fail_msg: >-
       {{ item }} has node.mesh_ip
-      '{{ hostvars[item].node.mesh_ip | default('') }}', which isn't an address in the tailnet's
-      {{ mesh_cidr }} pool — run playbooks/setup.yml against it first, which joins the tailnet
+      '{{ hostvars[item].node.mesh_ip | default('') }}', which isn't an address in the mesh's
+      {{ mesh_cidr }} pool — run playbooks/setup.yml against it first, which joins the mesh
       and writes the address into ansible/nodes/{{ item }}/host.sops.yml, or check that file
       for a stale value.
   loop: "{{ k0s_cluster_hosts }}"

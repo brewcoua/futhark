@@ -1,7 +1,7 @@
 [Unit]
-Description=Futhark: route and masquerade pod traffic to Tailscale mesh peer IPs
-After=tailscaled.service
-Wants=tailscaled.service
+Description=Futhark: route and masquerade pod traffic to NetBird mesh peer IPs
+After=netbird.service
+Wants=netbird.service
 
 [Service]
 Type=oneshot

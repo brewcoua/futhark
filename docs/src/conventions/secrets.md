@@ -7,11 +7,11 @@ identifiers.
 Three stores, chosen by what a value can _do_ rather than by who consumes it. Only two of them
 hold credentials; SOPS is a file format rather than a service.
 
-| Store                             | Holds                                                                                              | Read by                                  |
-| --------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| **SOPS**, encrypted in git        | Identifying but non-granting: node addresses, the tailnet MagicDNS suffix, account and project IDs | Ansible, OpenTofu, Flux                  |
-| **Proton Pass**, vault `futharkd` | Anything that can bootstrap or re-key the system                                                   | `pass-cli`, on operator machines only    |
-| **Infisical Cloud** (EU)          | Per-app runtime secrets                                                                            | the Infisical operator, OpenTofu (write) |
+| Store                             | Holds                                                                                      | Read by                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| **SOPS**, encrypted in git        | Identifying but non-granting: node addresses, the internal domain, account and project IDs | Ansible, OpenTofu, Flux                  |
+| **Proton Pass**, vault `futharkd` | Anything that can bootstrap or re-key the system                                           | `pass-cli`, on operator machines only    |
+| **Infisical Cloud** (EU)          | Per-app runtime secrets                                                                    | the Infisical operator, OpenTofu (write) |
 
 The dividing line: publishing a node's IP would tie this repo to a machine, but the IP grants
 nothing on its own — that is SOPS. The Flux deploy key or the cluster age key grants everything —
@@ -31,10 +31,10 @@ operator: operator machine {
   pat: Proton Pass token
 }
 
-pass: "Proton Pass — futharkd\ndeploy key, age key, OAuth clients, API keys" {
+pass: "Proton Pass — futharkd\ndeploy key, age key, API tokens, API keys" {
   style.stroke-width: 3
 }
-sops: SOPS in git\nnode addresses, tailnet suffix, account IDs
+sops: SOPS in git\nnode addresses, internal domain, account IDs
 infisical: "Infisical Cloud (EU)\nper-app runtime secrets"
 
 cluster: k0s cluster {
@@ -107,8 +107,8 @@ Three resolvers, one per plane:
 
 The crown-jewel tier, in one vault named `futharkd` — the same slug as the Infisical project, so
 the two remote stores are named alike. It holds the Flux git deploy key, the cluster age private
-key, all three Infisical machine identities, the three Tailscale OAuth clients, the Bunny API
-key and the Pocket ID admin token.
+key, all three Infisical machine identities, the two NetBird PATs, the Bunny API key and the
+Pocket ID admin token.
 
 It also holds the two keys that encrypt the backups — the Kopia repository password and the
 SSE-C key. Those are the one deliberate duplication in this scheme: they are runtime secrets, so
@@ -219,7 +219,7 @@ look right, check these before reading any more YAML.
 Infisical's free tier caps identities at five, humans included, so identities are rationed rather
 than minted per tier: `cluster-reader` is shared by the infra and every node tier. Kubernetes
 auth is not an option either — Infisical would have to reach the k0s API server for a
-`TokenReview`, and that API server is tailnet-only. So one credential can, by itself, read almost
+`TokenReview`, and that API server is mesh-only. So one credential can, by itself, read almost
 the entire project, and the isolation OpenBao used to enforce server-side has to be rebuilt in
 the cluster.
 
@@ -263,7 +263,7 @@ don't treat it as isolation.
 ## Naming
 
 **Every secret name, in every store, is `SCREAMING_SNAKE_CASE`.** `BUNNY_API_KEY`,
-`ADMIN_PASSWORD`, `TAILSCALE_CLIENT_ID`. No hyphens, no camelCase, no lowercase.
+`ADMIN_PASSWORD`, `NB_PAT`. No hyphens, no camelCase, no lowercase.
 
 One rule, for three reasons. It is the intersection of what every store accepts — Infisical's
 key charset is narrower than Kubernetes', and a hyphen that works in one may not in the other.
@@ -271,10 +271,10 @@ Most of these values end up as environment variables anyway, where the shape is 
 And a single rule means you never have to remember which store spells a thing which way.
 
 The exception is Proton Pass, whose items and fields are lowercase-with-spaces —
-`pass://futharkd/tailscale/client id`. Nothing there is matched by name or becomes an environment
-variable under that name: every reference is a path, and the environment variable it lands in is
-named by the consumer, not by the store. `TAILSCALE_OAUTH_CLIENT_ID` in a module's
-`secrets.sops.env` and `secrets.tailscale.client_id` in Ansible are two different fields of two
+`pass://futharkd/netbird-policy/token`. Nothing there is matched by name or becomes an
+environment variable under that name: every reference is a path, and the environment variable it
+lands in is named by the consumer, not by the store. `NB_PAT` in `tofu/netbird`'s
+`secrets.sops.env` and `secrets.netbird.api_token` in Ansible are two different fields of two
 different items, and the names say nothing about that — the paths do.
 
 Kubernetes Secret **keys** are a separate question, because the consumer often dictates them and
@@ -295,8 +295,8 @@ targets:
         api-key: "{{ .BUNNY_API_KEY }}"
 ```
 
-Three manifests need this today: `cert-manager` (`api-key`), `storage` (`configData`) and
-`tailscale-operator` (`client_id`/`client_secret`). Remap in the manifest rather than bending the
+Two manifests need this today: `cert-manager` (`api-key`) and `storage` (`configData`). Remap in
+the manifest rather than bending the
 name in Infisical — the constraint belongs to the chart, so it should be visible next to the
 chart, not encoded as a mystery in a remote UI.
 

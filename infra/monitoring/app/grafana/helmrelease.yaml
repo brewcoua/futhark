@@ -110,7 +110,7 @@ spec:
           resources: ["configmaps"]
           verbs: ["get", "watch", "list"]
     # No dashboardProviders/dashboards block: dashboards stay UI-managed, not git.
-    # Unauthenticated on the tailnet until auth.generic_oauth is pointed at Pocket ID — see
+    # Unauthenticated on the mesh until auth.generic_oauth is pointed at Pocket ID — see
     # docs/src/conventions/domains.md.
     ingress:
       enabled: true

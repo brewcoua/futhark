@@ -32,18 +32,18 @@ endpoint is unreachable and the failure looks intermittent rather than total.
 ping -c2 <remote pod IP>
 ```
 
-If that fails, the tailnet ACL is almost certainly missing the `ip-in-ip` rule the IPIP
+If that fails, the mesh policy is almost certainly not passing every protocol, which the IPIP
 overlay needs. Full explanation and the fix:
-[Pod to mesh networking](../ansible/networking.md#tailnet-acl-prerequisite-ip-in-ip).
+[Pod to mesh networking](../ansible/networking.md#the-all-protocol-policy-rule).
 
 This is the one that took the cluster down and presented as a storage fault three layers away.
 Check it before believing a cross-node bug is node-local.
 
 ## `no route to host` from a pod dialing a node
 
-This is a source-address fault, not a routing one, despite what the message says. tailscaled
-drops packets whose source is not the node's own tailnet IP, so pod-sourced packets die on
-egress even when the route is correct.
+This is a source-address fault, not a routing one, despite what the message says. The
+WireGuard peer drops packets whose source is not the node's own mesh address, so pod-sourced
+packets die on egress even when the route is correct.
 
 Isolate it on the node:
 
@@ -57,7 +57,7 @@ Then check the rules are actually installed, and at a priority that is not being
 ```bash
 ip rule
 systemctl status futhark-mesh-routes
-iptables -t nat -L POSTROUTING -n | grep tailscale0
+iptables -t nat -L POSTROUTING -n | grep wt0
 ```
 
 See [Pod to mesh networking](../ansible/networking.md). If `ip rule` shows kube-router at a
@@ -134,12 +134,6 @@ Issuance goes through Let's Encrypt DNS-01 against the Bunny zone, so it waits o
 propagation and can legitimately take minutes. If it never completes, check the
 `cert-manager-config` Kustomization is Ready — the `ClusterIssuer` lives there, behind
 `infisical-operator-config`, because the webhook's API key is an `InfisicalStaticSecret`.
-
-## `tofu apply` fails with `test(s) failed (400)`
-
-A tailnet policy test caught a regression. The apply aborted and the tailnet kept its previous
-policy, which is the intended behaviour. Plan does not catch this — it never submits the
-document. See [tailscale](../tofu/tailscale.md#tests).
 
 ## `tofu validate` fails in pre-commit on a module you didn't touch
 

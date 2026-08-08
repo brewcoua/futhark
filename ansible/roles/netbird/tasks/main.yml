@@ -1,0 +1,220 @@
+---
+# Generic NetBird mesh join. Gated by node.mesh in playbooks/setup.yml — nothing in here
+# branches on hostname or workflow, so any future node opts in just by setting node.mesh: true.
+- name: Install the NetBird repo
+  ansible.builtin.yum_repository:
+    name: netbird
+    description: NetBird
+    baseurl: https://pkgs.netbird.io/yum/
+    gpgcheck: true
+    repo_gpgcheck: true
+    gpgkey: https://pkgs.netbird.io/yum/repodata/repomd.xml.key
+    file: netbird
+  when: node.os == 'fedora'
+
+- name: Install netbird
+  ansible.builtin.dnf:
+    name: netbird
+    state: present
+  when: node.os == 'fedora'
+
+- name: Enable and start netbird
+  ansible.builtin.systemd:
+    name: netbird
+    state: started
+    enabled: true
+
+- name: Check current NetBird status
+  ansible.builtin.command:
+    cmd: netbird status --json
+  register: netbird_status
+  changed_when: false
+  failed_when: false
+
+# Single-use, group-scoped, short-lived — minted fresh for this join instead of reading a
+# standing reusable key out of Proton Pass. The PAT that mints it is issued to a NetBird
+# service user and can do nothing else useful; the policy PAT in tofu/netbird is separate.
+- name: Look up the mesh node group
+  ansible.builtin.uri:
+    url: "{{ netbird_api_url }}/api/groups"
+    headers:
+      Authorization: "Token {{ secrets.netbird.api_token }}"
+    status_code: 200
+  register: netbird_groups
+  no_log: true
+  when: >-
+    netbird_status.rc != 0 or
+    not ((netbird_status.stdout | from_json).management.connected | default(false) | bool)
+
+- name: Mint a single-use setup key
+  ansible.builtin.uri:
+    url: "{{ netbird_api_url }}/api/setup-keys"
+    method: POST
+    headers:
+      Authorization: "Token {{ secrets.netbird.api_token }}"
+    body_format: json
+    body:
+      name: "{{ inventory_hostname }} join {{ ansible_date_time.iso8601 }}"
+      type: one-off
+      usage_limit: 1
+      expires_in: 300
+      ephemeral: false
+      auto_groups:
+        - "{{ netbird_groups.json | selectattr('name', 'equalto', mesh_node_group)
+          | map(attribute='id') | first }}"
+    status_code: 200
+  register: netbird_setup_key
+  no_log: true
+  when: netbird_groups is not skipped
+
+# --allow-server-ssh is what the netbird-ssh policy rule in tofu/netbird grants against; without
+# it the rule matches and the peer still refuses the session.
+- name: Join the mesh
+  ansible.builtin.command:
+    cmd: >
+      netbird up
+      --setup-key {{ netbird_setup_key.json.key }}
+      --hostname {{ node.hostname }}
+      --allow-server-ssh
+  when: netbird_setup_key is not skipped
+  changed_when: true
+  no_log: true
+
+# The management server assigns the mesh address at registration — it can't be chosen — so it
+# can only be read back from the node itself. Recorded into the node's SOPS file rather than
+# resolved per-run because the consumers are all outside this run: playbooks/k0s.yml is a
+# separate invocation on localhost, and tofu/bunny needs the same value from outside Ansible
+# entirely. Unconditional — `netbird up` above is skipped on an already-joined node, but the
+# address still has to be readable on every run.
+- name: Read the node's mesh IP
+  ansible.builtin.command:
+    cmd: netbird status --json
+  register: netbird_mesh_status
+  changed_when: false
+  # Registration completes a moment after `netbird up` returns.
+  retries: 6
+  delay: 5
+  until: >-
+    netbird_mesh_status.rc == 0 and
+    (netbird_mesh_status.stdout | from_json).netbirdIp | default('') | length > 0
+
+# netbirdIp carries a prefix (100.x.y.z/16); every consumer wants the bare address.
+- name: Extract the node's mesh IP
+  ansible.builtin.set_fact:
+    netbird_mesh_ip: "{{ (netbird_mesh_status.stdout | from_json).netbirdIp | split('/') | first }}"
+
+# sops re-encrypts on every write and the ciphertext changes even when the plaintext doesn't,
+# so writing unconditionally would leave a spurious diff after every converge. Compare first.
+- name: Read the mesh IP currently recorded for this node
+  ansible.builtin.command:
+    cmd: sops -d --extract '["node_mesh_ip"]' {{ netbird_node_sops_file }}
+  register: netbird_recorded_mesh_ip
+  changed_when: false
+  failed_when: false
+  delegate_to: localhost
+  become: false
+
+- name: Record the mesh IP in the node's SOPS file
+  ansible.builtin.command:
+    cmd: >-
+      sops set {{ netbird_node_sops_file }}
+      '["node_mesh_ip"]' '"{{ netbird_mesh_ip }}"'
+  when: netbird_recorded_mesh_ip.stdout | trim != netbird_mesh_ip
+  changed_when: true
+  delegate_to: localhost
+  become: false
+
+# The mesh is its own trust boundary, so anything a node binds to wt0 (k0s's API server) is
+# reachable over it without punching per-port holes in the public zone, which stays limited to
+# the hardened SSH port. See docs/src/ansible/index.md.
+- name: Put wt0 in firewalld's trusted zone
+  ansible.posix.firewalld:
+    zone: trusted
+    interface: "{{ mesh_interface }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  when: node.os == 'fedora'
+
+# The CNI bridge is in no zone, so it would land in the default "public" zone, which is
+# limited to the hardened SSH port and 80/443. Trust the cluster's own dataplane explicitly.
+#
+# Cross-node pod traffic doesn't actually cross on wt0: kube-router builds its own per-peer IPIP
+# tunnel (tun-<hash>, a new interface name every rejoin) and routes pod-bound packets out
+# through that instead. A hostNetwork pod's traffic — e.g. traefik-edge dialing a backend pod on
+# the other node — carries the node's own mesh IP as source, which matches neither an interface
+# rule (the tunnel's name is unpredictable) nor the pod/service CIDR sources above, so it falls
+# through to the default zone and gets rejected: the exact shape of the "Bad Gateway"
+# traefik-edge hit reaching pocketid on ogma. Trusting the whole mesh CIDR by source, rather
+# than by interface, covers it regardless of which tunnel name comes and goes.
+- name: Trust the CNI bridge and cluster CIDRs in firewalld
+  ansible.posix.firewalld:
+    zone: trusted
+    permanent: true
+    immediate: true
+    state: enabled
+    interface: "{{ item.interface | default(omit) }}"
+    source: "{{ item.source | default(omit) }}"
+  loop:
+    - interface: kube-bridge
+    - source: "{{ k0s_pod_cidr }}"
+    - source: "{{ k0s_service_cidr }}"
+    - source: "{{ mesh_cidr }}"
+  loop_control:
+    label: "{{ item.interface | default(item.source) }}"
+  when: node.os == 'fedora'
+
+# A pod dialing a mesh peer's own address is broken twice over — routing and source address —
+# and the fix is one narrow rule per peer. konnectivity-agent does exactly this, so while it's
+# broken, kubectl exec/logs/port-forward are down cluster-wide. Full write-up:
+# docs/src/ansible/networking.md. The systemd oneshot exists because neither `ip rule` nor
+# iptables state survives a reboot.
+- name: Resolve every other mesh peer's mesh IP
+  ansible.builtin.command:
+    cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ mesh_dns_domain }}"
+  register: netbird_peer_getent
+  loop: "{{ groups['all'] }}"
+  loop_control:
+    label: "{{ item }}"
+  when:
+    - item != inventory_hostname
+    - hostvars[item].node.mesh | default(false)
+  changed_when: false
+  # A from-scratch multi-node run, or setup.yml limited to one host at a time, can hit this
+  # before every peer has finished its own "Join the mesh" task above and the peer's record has
+  # propagated. Retry instead of aborting the whole play on the first race.
+  retries: 6
+  delay: 5
+  until: netbird_peer_getent.rc == 0
+
+- name: Build a hostname -> peer mesh IP map
+  ansible.builtin.set_fact:
+    netbird_peer_ips: >-
+      {{ netbird_peer_ips | default({}) |
+         combine({item.item: item.stdout_lines[0].split()[0]}) }}
+  loop: "{{ netbird_peer_getent.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.skipped is not defined
+
+- name: Install the pod -> mesh routing/SNAT script
+  ansible.builtin.template:
+    src: futhark-mesh-routes.sh.j2
+    dest: /usr/local/bin/futhark-mesh-routes.sh
+    mode: "0755"
+  when: node.os == 'fedora' and netbird_peer_ips is defined
+
+- name: Install the pod -> mesh routing/SNAT systemd unit
+  ansible.builtin.template:
+    src: futhark-mesh-routes.service.j2
+    dest: /etc/systemd/system/futhark-mesh-routes.service
+    mode: "0644"
+  when: node.os == 'fedora' and netbird_peer_ips is defined
+
+- name: Enable and (re)run the pod -> mesh routing/SNAT service now
+  ansible.builtin.systemd:
+    name: futhark-mesh-routes
+    daemon_reload: true
+    enabled: true
+    state: restarted
+  when: node.os == 'fedora' and netbird_peer_ips is defined

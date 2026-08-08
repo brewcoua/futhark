@@ -10,8 +10,7 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 | `substitutions`      | Not a controller: every `postBuild.substituteFrom` source — the `edge-ips`, `int-domain` and `backup-location` Secrets, `monitoring-sizing`, and `${DOMAIN}` |
 | `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite so its Deployment uses `strategy: Recreate` — never two pods at once                    |
 | `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                     |
-| `tailscale-operator` | Gives Services their own tailnet identity via `type: LoadBalancer` + `loadBalancerClass: tailscale`                                                          |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. Exposed through the Tailscale operator                                                                |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                    |
 | `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                  |
 | `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt→sftp) and `gdrive-crypt` (Google Drive, write-once media)  |
 | `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                 |
@@ -24,14 +23,15 @@ they come up in is [Startup ordering](../conventions/ordering.md).
 They are split because they solve different problems, and the split is why `traefik-edge` is
 the odd one out everywhere else in the tree.
 
-`traefik-internal` is exposed through the Tailscale operator, so the Service gets its own
-tailnet identity. Ordinary `NetworkPolicy` still governs its traffic and there is no node IP
-to know or inject anywhere. Give an internal `Ingress` the class `internal`; it never carries
+`traefik-internal` is an ordinary `ClusterIP` Service with a pinned address. Nothing in the
+cluster publishes it: [`tofu/netbird`](../tofu/netbird.md) advertises the whole service CIDR
+into the mesh and points the internal wildcard at that address, so ordinary `NetworkPolicy`
+still governs its traffic and there is no node IP to know or inject anywhere. Give an internal `Ingress` the class `internal`; it never carries
 its own `tls:` block, because the wildcard is served as the default certificate.
 
 `traefik-edge` binds 80/443 directly on the edge node with `hostNetwork: true`. There is no
 LoadBalancer to hand it a Service address — MetalLB was considered and rejected, since it can
-only manage a real L2/BGP-announced IP, not a tailnet one. `hostNetwork` means it shares the
+only manage a real L2/BGP-announced IP, not a mesh one. `hostNetwork` means it shares the
 node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sockets and the
 `ingress-edge` baseline cannot govern it. What actually governs it is firewalld
 (`ansible/roles/firewall_ingress`) and Traefik's own rate limiting. See

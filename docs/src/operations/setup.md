@@ -11,14 +11,14 @@ direction: down
 
 stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and folders"
 repo: "3-6. This machine and this repo\njust ops setup, age key, node definitions,\nthe encrypted files, push"
-hosts: "7-8. The hosts and the tailnet\njust ans setup, then just tf apply tailscale"
+hosts: "7-8. The hosts and the mesh\njust ans setup, then just tf apply netbird"
 cluster: "9. The cluster\njust ans k0s — k0sctl, local-path, Flux"
 cloud: "10. The cloud plane\njust tf apply bunny, oidc"
 after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps"
 
 stores -> repo -> hosts -> cluster -> cloud -> after
 
-hosts -> repo: "MESH_IP was a placeholder in step 5 —\nthe node had not joined the tailnet yet" {
+hosts -> repo: "MESH_IP was a placeholder in step 5 —\nthe node had not joined the mesh yet" {
   style: { stroke-dash: 4; stroke: "#c00" }
 }
 cloud -> stores: "POCKETID_API_TOKEN was a placeholder in step 1 —\nPocket ID did not exist yet" {
@@ -60,25 +60,27 @@ this table has to agree with. Item and field names are lowercase-with-spaces, pe
 | `sops`                     | `age key`                                                                            | Generated at step 3                                                                                                          |
 | `bunny`                    | `api key`                                                                            | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
 | `pocketid`                 | `api token`                                                                          | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
-| `tailscale-authkey`        | `client id`, `client secret`                                                         | OAuth client with **write on `auth_keys`**, tagged `tag:futhark-node`                                                        |
-| `tailscale-policy`         | `client id`, `client secret`                                                         | A **second** OAuth client, with **write on the policy file**                                                                 |
-| `tailscale-operator`       | `client id`, `client secret`                                                         | A **third** OAuth client, **write on `auth_keys` and `devices:core`**, tagged `tag:k8s-operator`                             |
+| `netbird-enrollment`       | `token`                                                                              | A PAT on the NetBird service user. Used by `ansible/roles/netbird` to mint node setup keys                                   |
+| `netbird-policy`           | `token`                                                                              | A **second** PAT on the same service user, used by `tofu/netbird`                                                            |
 | `infisical-cluster-reader` | `client id`, `client secret`                                                         | The `cluster-reader` identity from step 2                                                                                    |
 | `infisical-tofu-writer`    | `client id`, `client secret`                                                         | The `tofu-writer` identity from step 2                                                                                       |
 | `storagebox`               | `ssh key`                                                                            | The Storage Box key pair's private half, generated at [The rclone remotes](rclone.md#the-storage-box)                        |
 | `rclone-crypt`             | `storagebox password`, `storagebox password2`, `gdrive password`, `gdrive password2` | The four obscured crypt passwords. Placeholders for now — they are minted after step 3                                       |
 
-Three Tailscale OAuth clients, not one. `ansible/roles/tailscale` mints single-use node auth
-keys, `tofu/tailscale` rewrites the policy file, and the in-cluster Kubernetes operator mints its
-own keys _and_ mutates the devices it creates. No two of them need the same scope, and the tags
-differ as well: an OAuth client can only issue keys for the tags it carries, so the Ansible
-client is confined to `tag:futhark-node` and the operator's to `tag:k8s-operator`.
+Two NetBird PATs, not one — and both on a **service user**, created in the dashboard before
+either. A PAT tied to a person dies with that person's membership and takes both planes with it.
+NetBird PATs cannot be scoped, so the split buys nothing in privilege: it means one can be
+rotated without taking the other plane down.
+They expire, at most a year out — see [Checks](checks.md#netbird-token-expiry).
 
-`tailscale-operator`, `storagebox` and `rclone-crypt` are the items in the table no committed
-`pass://` reference points at. Their consumers read Infisical, not the vault, so these copies
-exist only so the credentials are recoverable — you retype them into `/infra/tailscale` and
-`/infra/csi-rclone`. For the crypt passwords that is not a convenience: lose one and the data it
-wrapped is ciphertext forever.
+Create the account itself first, then delete its shipped `Default` policy, which accepts
+everything between everything. `tofu/netbird` does not manage that policy and will not remove
+it; leave it and the rules you apply in step 8 describe an access model nothing is enforcing.
+
+`storagebox` and `rclone-crypt` are the items in the table no committed `pass://` reference
+points at. Their consumers read Infisical, not the vault, so these copies exist only so the
+credentials are recoverable — you retype them into `/infra/csi-rclone`. For the crypt passwords
+that is not a convenience: lose one and the data it wrapped is ciphertext forever.
 
 Two Infisical identities, not one, for the same reason — and a sharper one: `cluster-reader` is
 seeded into the cluster, `tofu-writer` never leaves this machine. Collapsing them would hand the
@@ -117,14 +119,13 @@ Copy both client ID/secret pairs into Proton Pass per the table above.
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
 
-| Folder                | Secrets                                                                      | Consumed by                                   |
-| --------------------- | ---------------------------------------------------------------------------- | --------------------------------------------- |
-| `/infra/cert-manager` | `BUNNY_API_KEY`                                                              | `infra/cert-manager/config/secret.yaml`       |
-| `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                              | `infra/storage/app/secret.yaml`               |
-| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/grafana/secret.yaml`    |
-| `/infra/tailscale`    | `TAILSCALE_CLIENT_ID`, `TAILSCALE_CLIENT_SECRET`                             | `infra/tailscale-operator/config/secret.yaml` |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/infisicalsecret.yaml`         |
-| `/nodes/kenaz/actual` | none — leave empty                                                           | written by `just tf apply oidc`               |
+| Folder                | Secrets                                                                      | Consumed by                                |
+| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------ |
+| `/infra/cert-manager` | `BUNNY_API_KEY`                                                              | `infra/cert-manager/config/secret.yaml`    |
+| `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                              | `infra/storage/app/secret.yaml`            |
+| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/grafana/secret.yaml` |
+| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/infisicalsecret.yaml`      |
+| `/nodes/kenaz/actual` | none — leave empty                                                           | written by `just tf apply oidc`            |
 
 That table goes stale as apps are added. The authoritative version is the tree itself: every
 `InfisicalStaticSecret` names its `secretPath`, and any that remaps a key names the Infisical
@@ -134,10 +135,8 @@ secret in its `template` block.
 grep -rl 'kind: InfisicalStaticSecret' infra nodes
 ```
 
-`TAILSCALE_CLIENT_ID`/`_SECRET` here are the **operator** OAuth client — the vault's
-`tailscale-operator`, not `tailscale-authkey`. The two are not interchangeable: the operator also
-needs `devices:core` write and the `tag:k8s-operator` tag, and handing those to the node-provision
-credential would let it mint operator-tagged keys. `POCKETID_ENCRYPTION_KEY` is new material:
+No NetBird credential appears in that table, and none should: nothing inside the cluster talks
+to NetBird. Both PATs stay on the operator machine. `POCKETID_ENCRYPTION_KEY` is new material:
 `openssl rand -base64 32`.
 `RCLONE_CONFIG` is the one entry in that table you cannot fill in yet. It is assembled by hand
 from `rclone` output, and `rclone` arrives with `just ops setup` at step 3 — so create the folder
@@ -164,8 +163,8 @@ Pass session. It needs `dnf` and `uv`.
 can go back and finish [The rclone remotes](rclone.md) from step 2.
 
 You need three things of your own: the GPG smartcard plugged in, the Proton Pass session from
-step 1, and your own tailnet membership — `k0s_cluster` resolves each node's mesh address through
-MagicDNS from this machine.
+step 1, and your own membership of the mesh — `k0s_cluster` resolves each node's mesh address
+through NetBird's DNS from this machine.
 
 Then generate the cluster age key:
 
@@ -204,19 +203,18 @@ and the `pass://` references `pass-cli run` resolves at plan time — and both t
 with the references already written, so only the identifying half needs filling in:
 
 - `config/secrets.sops.yaml` — done at step 1, and nothing to fill in beyond the vault name.
-- `ansible/inventory/group_vars/all/secrets.sops.yml` — `admin.user`, `admin.ssh_pubkey`,
-  and `tailnet_domain`.
+- `ansible/inventory/group_vars/all/secrets.sops.yml` — `admin.user` and `admin.ssh_pubkey`.
 - `ansible/nodes/<hostname>/host.sops.yml` — that node's public address. Leave `node_mesh_ip`
-  out: the node has not joined the tailnet yet, and `roles/tailscale` writes it in at step 7.
+  out: the node has not joined the mesh yet, and `roles/netbird` writes it in at step 7.
 - `infra/substitutions/app/edge-ips.sops.yaml` — the edge node's public and mesh addresses. **Put
-  a placeholder in `MESH_IP` for now**; the node has not joined the tailnet yet. Step 7 fills it.
-- `infra/substitutions/app/int-domain.sops.yaml` — the internal base domain. `tofu/bunny` and
+  a placeholder in `MESH_IP` for now**; the node has not joined the mesh yet. Step 7 fills it.
+- `infra/substitutions/app/int-domain.sops.yaml` — the internal base domain. `tofu/netbird` and
   `tofu/oidc` both read it from here, so this is its only copy.
-- `tofu/tailscale/secrets.sops.env` — its OAuth client only.
+- `tofu/netbird/secrets.sops.env` — its PAT only.
 - `tofu/bunny/secrets.sops.env` — its API key only.
 - `tofu/oidc/secrets.sops.env` — the Pocket ID base URL and the Infisical project ID.
 
-None of the three `tofu/` files carries a node address, a tailnet name or the internal domain:
+None of the three `tofu/` files carries a node address or the internal domain:
 each module declares those in its `refs.env` and reads them from the plane that owns them, at
 plan/apply time. See [Values another plane owns](../tofu/index.md#values-another-plane-owns).
 
@@ -246,9 +244,10 @@ just ans setup
 Update, admin user, SSH hardening, mesh join, firewall. Add `<host>` to limit it to one
 machine. Safe to re-run; `ssh_identity` picks whichever login currently answers. After the first
 run each host answers only as the admin user on the hardened port. Provisioning nodes one at a
-time is fine — the mesh-peer resolution in `roles/tailscale` retries while MagicDNS catches up.
+time is fine — the mesh-peer resolution in `roles/netbird` retries while the new peer's DNS
+record propagates.
 
-Each host's mesh address is read back with `tailscale ip -4` and written into
+Each host's mesh address is read back out of `netbird status --json` and written into
 `ansible/nodes/<hostname>/host.sops.yml` as `node_mesh_ip` by the same run, so `just ans setup`
 leaves those files modified. Commit them — `playbooks/k0s.yml` reads the value from there, and
 `tofu/bunny` gets the public address from the same file.
@@ -257,28 +256,31 @@ The `edge-ips` Secret is sealed to the cluster age key as well as yours, so it c
 file and still needs filling by hand:
 
 ```bash
-ssh <edge host> tailscale ip -4
+ssh <edge host> netbird status --json | jq -r .netbirdIp
 sops infra/substitutions/app/edge-ips.sops.yaml     # set MESH_IP
 git commit -am 'fix(edge-ips): real mesh address' && git push
 ```
 
-## 8. Tailnet policy
+## 8. Mesh policy, route and DNS
 
-Do this **before** the cluster, not after. Cross-node pod networking needs the `ip-in-ip` rule,
-and without it the cluster fails in ways that look like anything but a network fault.
-
-The first apply needs an import, because the resource owns the entire policy document — read
-[tailscale](../tofu/tailscale.md#first-apply) in full first.
+Do this **before** the cluster, not after. Cross-node pod networking needs the all-protocol
+node-to-node rule, and without it the cluster fails in ways that look like anything but a
+network fault.
 
 ```bash
-cd tofu/tailscale
-sops exec-env secrets.sops.env 'pass-cli run -- tofu import tailscale_acl.this acl'
-cd ../..
-just tf plan tailscale && just tf apply tailscale
+just tf init netbird
+just tf plan netbird && just tf apply netbird
 ```
 
-The policy tests only run on `apply` — a green `plan` is not evidence they pass, because plan
-never submits the document.
+Read [netbird](../tofu/netbird.md) first. Two things this step cannot check for you: the
+account's shipped `Default` policy has to be gone (step 1), and nothing validates a policy
+server-side — NetBird has no policy tests, so a wrong rule applies cleanly and fails later, in
+traffic.
+
+The DNS zone this creates resolves `*.$INT_DOMAIN` to `traefik-internal`'s ClusterIP, which does
+not exist yet. That is fine and stays fine: the record is static, the Service address is pinned
+in `infra/traefik-internal/app/helmrelease.yaml`, and the name starts answering usefully once
+step 9 brings the workload up.
 
 ## 9. Cluster and Flux
 

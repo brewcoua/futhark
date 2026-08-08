@@ -1,5 +1,0 @@
----
-# The node's own SOPS file, which this role writes node_mesh_ip back into after the tailnet
-# join. ansible/nodes/<host>/ is the canonical location; inventory/host_vars/<host>/ symlinks
-# to it, which is how the value reaches playbooks/k0s.yml as node.mesh_ip on a later run.
-tailscale_node_sops_file: "{{ repo_root }}/ansible/nodes/{{ node.hostname }}/host.sops.yml"

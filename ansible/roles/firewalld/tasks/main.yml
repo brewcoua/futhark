@@ -1,8 +1,8 @@
 ---
 # Just "firewalld is up and answering". Four roles write firewalld rules — ssh_harden, fail2ban,
-# tailscale, firewall_ingress — and each one used to depend on ssh_harden having started the
+# netbird, firewall_ingress — and each one used to depend on ssh_harden having started the
 # daemon earlier in the playbook's role list. That made the ordering invisible: `--tags mesh`
-# would run tailscale against a daemon nobody had started. Now each of them names this role in
+# would run netbird against a daemon nobody had started. Now each of them names this role in
 # meta/main.yml, and Ansible's role dedupe means it still runs once per play.
 - name: Ensure firewalld is running
   ansible.builtin.systemd:

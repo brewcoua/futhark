@@ -50,7 +50,7 @@ spec:
         enabled: true
         ingressClassName: internal
         annotations:
-          # Unauthenticated on the tailnet — see docs/src/conventions/domains.md.
+          # Unauthenticated on the mesh — see docs/src/conventions/domains.md.
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
           traefik.ingress.kubernetes.io/router.middlewares: monitoring-ratelimit@kubernetescrd
