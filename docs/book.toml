@@ -1,7 +1,7 @@
 [book]
 title = "futhark"
 description = "GitOps-driven homelab: Ansible host provisioning, a k0s cluster reconciled by Flux, OpenTofu for the cloud plane."
-authors = ["Brewen Couaran"]
+authors = ["Brewen Couaran <contact@brewen.dev>"]
 language = "en"
 src = "src"
 
