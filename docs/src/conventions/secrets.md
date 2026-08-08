@@ -24,9 +24,13 @@ operational secret, rotatable without touching anything else, so that is Infisic
 **The cluster holds no Proton Pass credential at all.** That is the whole tier boundary, and it
 rests on absence rather than on a console-side path grant that could be misconfigured or drift. A
 compromise of the cluster cannot reach the keys that rebuild it, because there is nothing in the
-cluster to reach them with. Drawn out, the boundary is the arrow that is not there: the red one,
-barred rather than pointed. Green is Proton Pass, the tier everything else is rebuilt from, and
-amber is a third party this repository can write to but does not own.
+cluster to reach them with.
+
+Drawn out, with the reads the table above already covers left off, so that the one edge that
+matters is the only one competing for attention. The boundary is the arrow that is not there:
+the red one, barred rather than pointed. Green is Proton Pass, the tier everything else is
+rebuilt from. Amber is a third party this repository can write to but does not own. What the
+cluster gets, it gets seeded once by Ansible, never by holding a credential of its own.
 
 ```d2
 direction: down
@@ -55,6 +59,7 @@ classes: {
 
 operator: operator machine {
   gpg: GPG smartcard
+  ansible: Ansible
   pat: Proton Pass token
 }
 
@@ -71,19 +76,9 @@ cluster: k0s cluster {
   infop -> pods: Secret
 }
 
-tofu: OpenTofu
-ansible: Ansible
-
-operator.pat -> pass: pass-cli
 operator.gpg -> sops: decrypts
-
-ansible -> pass: inject
-ansible -> sops
-ansible -> cluster: seeds age key,\ndeploy key, universal-auth
-
-tofu -> pass: run
-tofu -> sops
-tofu -> infisical: writes
+operator.pat -> pass: pass-cli, operator machines only
+operator.ansible -> cluster: seeds age key,\ndeploy key, universal-auth
 
 cluster.flux -> sops: decrypts, with the age key only
 cluster.infop -> infisical: reads
