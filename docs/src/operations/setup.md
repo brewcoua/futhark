@@ -54,17 +54,19 @@ Now the items. Nothing is matched by name here — every consumer addresses a
 this table has to agree with. Item and field names are lowercase-with-spaces, per
 [Naming](../conventions/secrets.md#naming).
 
-| Item                       | Fields                       | Value                                                                                                                        |
-| -------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `flux`                     | `deploy key`                 | The private half generated above                                                                                             |
-| `sops`                     | `age key`                    | Generated at step 3                                                                                                          |
-| `bunny`                    | `api key`                    | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
-| `pocketid`                 | `api token`                  | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
-| `tailscale-authkey`        | `client id`, `client secret` | OAuth client with **write on `auth_keys`**, tagged `tag:futhark-node`                                                        |
-| `tailscale-policy`         | `client id`, `client secret` | A **second** OAuth client, with **write on the policy file**                                                                 |
-| `tailscale-operator`       | `client id`, `client secret` | A **third** OAuth client, **write on `auth_keys` and `devices:core`**, tagged `tag:k8s-operator`                             |
-| `infisical-cluster-reader` | `client id`, `client secret` | The `cluster-reader` identity from step 2                                                                                    |
-| `infisical-tofu-writer`    | `client id`, `client secret` | The `tofu-writer` identity from step 2                                                                                       |
+| Item                       | Fields                                                                               | Value                                                                                                                        |
+| -------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `flux`                     | `deploy key`                                                                         | The private half generated above                                                                                             |
+| `sops`                     | `age key`                                                                            | Generated at step 3                                                                                                          |
+| `bunny`                    | `api key`                                                                            | Bunny account API key. Same permissions as cert-manager's DNS-01 webhook uses — Bunny keys are account-wide, not zone-scoped |
+| `pocketid`                 | `api token`                                                                          | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
+| `tailscale-authkey`        | `client id`, `client secret`                                                         | OAuth client with **write on `auth_keys`**, tagged `tag:futhark-node`                                                        |
+| `tailscale-policy`         | `client id`, `client secret`                                                         | A **second** OAuth client, with **write on the policy file**                                                                 |
+| `tailscale-operator`       | `client id`, `client secret`                                                         | A **third** OAuth client, **write on `auth_keys` and `devices:core`**, tagged `tag:k8s-operator`                             |
+| `infisical-cluster-reader` | `client id`, `client secret`                                                         | The `cluster-reader` identity from step 2                                                                                    |
+| `infisical-tofu-writer`    | `client id`, `client secret`                                                         | The `tofu-writer` identity from step 2                                                                                       |
+| `storagebox`               | `ssh key`                                                                            | The Storage Box key pair's private half, generated at [The rclone remotes](rclone.md#the-storage-box)                        |
+| `rclone-crypt`             | `storagebox password`, `storagebox password2`, `gdrive password`, `gdrive password2` | The four obscured crypt passwords. Placeholders for now — they are minted after step 3                                       |
 
 Three Tailscale OAuth clients, not one. `ansible/roles/tailscale` mints single-use node auth
 keys, `tofu/tailscale` rewrites the policy file, and the in-cluster Kubernetes operator mints its
@@ -72,9 +74,11 @@ own keys _and_ mutates the devices it creates. No two of them need the same scop
 differ as well: an OAuth client can only issue keys for the tags it carries, so the Ansible
 client is confined to `tag:futhark-node` and the operator's to `tag:k8s-operator`.
 
-`tailscale-operator` is the one item in the table no committed `pass://` reference points at.
-The operator reads it from Infisical, not from the vault, so this copy exists only so the
-credential is recoverable — you retype it into `/infra/tailscale` at step 2.
+`tailscale-operator`, `storagebox` and `rclone-crypt` are the items in the table no committed
+`pass://` reference points at. Their consumers read Infisical, not the vault, so these copies
+exist only so the credentials are recoverable — you retype them into `/infra/tailscale` and
+`/infra/csi-rclone`. For the crypt passwords that is not a convenience: lose one and the data it
+wrapped is ciphertext forever.
 
 Two Infisical identities, not one, for the same reason — and a sharper one: `cluster-reader` is
 seeded into the cluster, `tofu-writer` never leaves this machine. Collapsing them would hand the
@@ -137,90 +141,9 @@ credential would let it mint operator-tagged keys. `POCKETID_ENCRYPTION_KEY` is 
 `openssl rand -base64 32`.
 `RCLONE_CONFIG` is the one entry in that table you cannot fill in yet. It is assembled by hand
 from `rclone` output, and `rclone` arrives with `just ops setup` at step 3 — so create the folder
-now, leave the secret empty, and come back after that step.
-[The rclone config](#the-rclone-config) below is the whole procedure.
-
-### The rclone config
-
-Done after step 3, and the result goes in `/infra/csi-rclone` as `RCLONE_CONFIG`.
-
-It is one INI with four sections — a backend, and a `crypt` wrapping it, for each of the two
-StorageClasses `infra/storage/app/` declares. Only the crypt section headers are fixed — each must
-match the `remote:` parameter of the class naming it, or that class provisions nothing. The
-backend names underneath are yours to pick, as long as each crypt's `remote =` points at one.
-`rclone config` writes the backend sections for you; the crypt sections are four lines each:
-
-```ini
-[storagebox]
-type = sftp
-# host, user and key material for the Storage Box, as rclone config wrote them
-
-[storagebox-crypt]
-type = crypt
-remote = storagebox:
-password = <obscured>
-password2 = <obscured>
-
-[gdrive]
-type = drive
-client_id = <your own, see below>
-client_secret = <your own, see below>
-scope = drive.file
-root_folder_id = <see below>
-token = {"access_token":"…","refresh_token":"…","expiry":"…"}
-
-[gdrive-crypt]
-type = crypt
-remote = gdrive:
-password = <obscured>
-password2 = <obscured>
-```
-
-**`password`/`password2` are not plaintext.** rclone stores them obscured, and a plaintext value
-there fails at mount time on the base64 decode rather than being read as the password. Generate
-each with:
-
-```bash
-rclone obscure "$(openssl rand -base64 32)"
-```
-
-Four values, all distinct — the two crypts do not share a password, so a leak of one does not
-read the other's data. **Copy all four into the Proton Pass vault** before they go into
-Infisical, for the same reason as Velero's encryption keys in
-[Backup and recovery](recovery.md#encryption): lose one and its data is ciphertext forever, and
-Infisical is not a backup of itself.
-
-### The Google Drive credential
-
-`[gdrive]` needs its own GCP project and OAuth client — rclone's built-in client ID is shared and
-heavily rate limited. Two settings on that client decide whether the mount survives:
-
-- **Publishing status must be `In production`.** An external app left in `Testing` is issued
-  refresh tokens that expire after **7 days**. The CSI driver mounts the config Secret read-only,
-  so rclone cannot write a rotated token back — a stable refresh token is a hard requirement, and
-  the failure is silent until the eighth day.
-- **Scope `drive.file`, not `drive`.** It grants access only to files the app itself created,
-  which is the folder boundary the cluster is supposed to have, enforced by Google rather than by
-  convention. It is also not a sensitive scope, so publishing needs no verification review —
-  `drive` triggers one.
-
-A personal Google account rules out a service account, which is the usual answer for unattended
-access: a service account has no Drive quota of its own, and files it creates in a shared folder
-fail. So this is a user OAuth token, minted once, interactively.
-
-The consequence of `drive.file` is that the cluster's folder must be **created by rclone**, not in
-the Drive web UI — anything dragged into it from a browser afterwards is invisible to the cluster.
-Run `rclone config` on the operator machine, choose `drive`, give it the client ID and secret from
-the GCP project, and take the default `drive.file` scope. Then:
-
-```bash
-rclone mkdir gdrive:futhark
-rclone lsf --dirs-only --format pi --separator ' ' gdrive:
-```
-
-That id is `root_folder_id`, and `rclone config file` prints where rclone wrote the `token` line
-to copy across. Shred that file once the secret is in Infisical — it holds the refresh token in
-the clear, and nothing on the operator machine reads it again.
+now, leave the secret empty, and come back after that step. It also needs a Hetzner Storage Box
+and a Google OAuth client that nothing else in this bootstrap creates.
+[The rclone remotes](rclone.md) is the whole procedure, end to end.
 
 ## 3. The operator machine
 
@@ -238,7 +161,7 @@ installs the pre-commit hooks; runs `tofu init` in every module; and checks you 
 Pass session. It needs `dnf` and `uv`.
 
 `rclone` is the one there purely for bootstrap: nothing in `just` calls it, and it exists so you
-can go back and finish [The rclone config](#the-rclone-config) from step 2.
+can go back and finish [The rclone remotes](rclone.md) from step 2.
 
 You need three things of your own: the GPG smartcard plugged in, the Proton Pass session from
 step 1, and your own tailnet membership — `k0s_cluster` resolves each node's mesh address through

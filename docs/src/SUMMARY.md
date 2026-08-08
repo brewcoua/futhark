@@ -5,6 +5,7 @@
 # Operations
 
 - [Cold bootstrap](operations/setup.md)
+- [The rclone remotes](operations/rclone.md)
 - [Backup and recovery](operations/recovery.md)
 - [Recipe reference](operations/recipes.md)
 - [Checks and CI](operations/checks.md)

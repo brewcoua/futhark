@@ -26,7 +26,8 @@ allowVolumeExpansion: true
 # rclone mount flags (flag=value, no leading --). Drive has no connection cap — the box's whole
 # pain point — so the tuning here is against API quota and request pacing instead.
 mountOptions:
-  # Media readers seek; `writes` caches only the write path and leaves reads near-sequential.
+  # Media readers seek, and Drive cannot serve a random read without refetching. `full` caches
+  # the read path too, so a seek hits the node's disk instead of the API.
   - vfs-cache-mode=full
   # The cache is node-local container storage, so it is bounded twice. The node's ceiling is
   # this size times the number of mounts landing on it.
