@@ -177,17 +177,24 @@ just ops setup
 ```
 
 Installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`, `k0sctl`,
-`flux`, `rclone`, `tofu`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard stack, and
-`mdbook` with `d2`/`mdbook-d2` for the diagrams;
+`flux`, `rclone`, `tofu`, `netbird`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG smartcard
+stack, and `mdbook` with `d2`/`mdbook-d2` for the diagrams;
 installs the pre-commit hooks; runs `tofu init` in every module; and checks you have a Proton
-Pass session. It needs `dnf` and `uv`.
+Pass session and a place on the mesh. It needs `dnf` and `uv`.
 
 `rclone` is the one there purely for bootstrap: nothing in `just` calls it, and it exists so you
 can go back and finish [The rclone remotes](rclone.md) from step 2.
 
-You need three things of your own: the GPG smartcard plugged in, the Proton Pass session from
-step 1, and your own membership of the mesh — `k0s_cluster` resolves each node's mesh address
-through NetBird's DNS from this machine.
+You need two things of your own: the GPG smartcard plugged in, and the Proton Pass session from
+step 1. The third, this machine's own membership of the mesh, is what `just ops mesh` checks —
+`k0s_cluster` resolves each node's mesh address through NetBird's DNS from here. The client
+arrives with `ops deps`, but joining does not: run `netbird up` to log in over SSO, then add the
+peer to the `admin` group from the dashboard, per [netbird](../tofu/netbird.md#bootstrap).
+
+On a cold bootstrap that check is **expected to fail here** — the NetBird account is created at
+step 8, so there is nothing to join yet. It is the last thing `ops setup` runs, so everything
+above it has already happened; come back and re-run `just ops mesh` once step 8 is done. Nothing
+between here and step 9 needs the mesh.
 
 Then generate the cluster age key:
 

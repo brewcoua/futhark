@@ -70,7 +70,9 @@ Once per account, before the first `just ans setup`.
    policies, route and zone. Do it before any node joins: a peer that registered under the old
    domain or the old range has to re-register.
 
-5. Install the client on your own devices, add them to the `admin` group from the dashboard.
+5. Install the client on your own devices, `netbird up`, then add each to the `admin` group from
+   the dashboard. The operator machine's client comes with `just ops deps`; `just ops mesh`
+   reports whether that machine is on the mesh yet.
 
 Everything above except the account, the tokens and the `Default` deletion is declarative — the
 dashboard is for enrolling peers, not for configuration. `settings.tf` writes the whole settings

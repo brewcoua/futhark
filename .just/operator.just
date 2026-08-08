@@ -5,7 +5,7 @@ import '_common.just'
 # land in the environment, not in just's variable scope.
 
 # Fully set up this machine as a futhark operator (packages + collections + hooks + tofu)
-setup: deps collections hooks _tf-init pass-session
+setup: deps collections hooks _tf-init pass-session mesh
 
 # Check this machine has a Proton Pass session, and explain how to get one if not
 [no-exit-message]
@@ -18,9 +18,29 @@ pass-session:
     echo "  PROTON_PASS_PERSONAL_ACCESS_TOKEN=pst_… pass-cli login"
     exit 1
 
+# Check this machine is on the mesh, and explain how to join if not
+[no-exit-message]
+mesh:
+    #!/usr/bin/env bash
+    # Plain `status`, not `--json`: nothing in `deps` installs jq.
+    command -v netbird > /dev/null || { echo "netbird is not installed — run: just ops deps"; exit 1; }
+    netbird status 2> /dev/null | grep -q "Management: Connected" && { echo "NetBird mesh OK"; exit 0; }
+    echo "This machine is not on the mesh. Log in over SSO:"
+    echo
+    echo "  netbird up"
+    echo
+    echo "Then add this peer to the 'admin' group in the NetBird dashboard — that group is"
+    echo "what every access rule names, and tofu/netbird deliberately leaves it empty."
+    echo "See docs/src/tofu/netbird.md."
+    exit 1
+
 # Install required packages (ansible-core, ansible-lint, yamllint, sops, age, pass-cli,
-# pre-commit, kubectl, helm, kustomize, k0sctl, flux, velero, rclone, tofu, mdbook, d2)
+# pre-commit, kubectl, helm, kustomize, k0sctl, flux, velero, rclone, tofu, netbird, mdbook, d2)
 deps: (_require 'dnf') (_require 'uv')
+    # netbird ships in no Fedora repo, so its own one comes first. Same fields as the
+    # yum_repository in ansible/roles/netbird, so operator and node install from one place —
+    # and unpinned for the same reason they are: an upstream distro package, not a _fetch below.
+    printf '[netbird]\nname=NetBird\nbaseurl=https://pkgs.netbird.io/yum/\ngpgcheck=1\nrepo_gpgcheck=1\ngpgkey=https://pkgs.netbird.io/yum/repodata/repomd.xml.key\nenabled=1\n' | sudo tee /etc/yum.repos.d/netbird.repo > /dev/null
     # opentofu (dnf) provides /usr/bin/tofu — the upstream install-opentofu.sh's rpm method
     # ships a same-path conflicting package literally named `tofu`, don't use it here.
     #
@@ -29,8 +49,10 @@ deps: (_require 'dnf') (_require 'uv')
     #
     # just is here for completeness only — it has to already be installed for this to run.
     # bsdtar is what _fetch unpacks every release archive with, tarball or zip alike.
-    sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry just bsdtar
+    sudo dnf install -y ansible-core yamllint kubernetes-client helm opentofu age gnupg2 pcsc-lite pinentry just bsdtar netbird
     sudo systemctl enable --now pcscd.socket
+    # The daemon holds the mesh connection; `netbird up` in `just ops mesh` talks to it.
+    sudo systemctl enable --now netbird
     # kubernetes.core.helm's idempotency check shells out to this plugin if present.
     helm plugin list | grep -q ^diff || helm plugin install --verify=false https://github.com/databus23/helm-diff
     uv tool install --upgrade ansible-lint

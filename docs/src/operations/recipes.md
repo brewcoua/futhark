@@ -24,6 +24,7 @@ that argument, `[<x>]` takes an optional one.
 | `ops age-key`       | Generate the SOPS cluster age keypair. Run once, at cold bootstrap                                        |
 | `ops sops [<file>]` | Edit an encrypted file, seeding it from its `.example` if absent. No argument lists what is still missing |
 | `ops pass-session`  | Check for a Proton Pass session, and explain how to get one                                               |
+| `ops mesh`          | Check this machine is on the NetBird mesh, and explain how to join if not                                 |
 
 `just` itself is the one thing `ops deps` cannot install for you — it has to be there to run the
 recipe. `sudo dnf install just` first.
@@ -31,6 +32,10 @@ recipe. `sudo dnf install just` first.
 The `tf init` inside `ops setup` skips any module with a `backend.tf` whose `secrets.sops.env` is
 not written yet, and says so. That is the cold-bootstrap case: setup runs at step 3, the encrypted
 files land at step 5. Run `just tf init <module>` for it afterwards.
+
+`ops mesh` only reports: `netbird up` is an interactive SSO login, and the `admin` group it has
+to land in is filled from the dashboard, not from `tofu/netbird`. `ops deps` installs the client
+either way.
 
 `ops age-key` is not part of `ops setup`: it mints key material, so it is deliberately explicit.
 It prints the public recipient for `.sops.yaml` and leaves the private key in a temporary file
