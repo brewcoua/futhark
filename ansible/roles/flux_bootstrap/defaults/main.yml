@@ -4,7 +4,7 @@
 # produced two different clusters from the same commit. The FluxInstance's own
 # distribution.version (flux/cluster.yaml) is pinned for the same reason.
 # renovate: datasource=docker depName=ghcr.io/controlplaneio-fluxcd/charts/flux-operator
-flux_bootstrap_operator_chart_version: "0.57.0"
+flux_bootstrap_operator_chart_version: "0.58.0"
 
 # Namespaces that need a copy of the Infisical universal-auth credential — one per operator
 # tier. Each tier's operator has scoped RBAC in its own namespace only, so a shared copy in one
