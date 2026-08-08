@@ -8,6 +8,11 @@
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["config:recommended", ":dependencyDashboard"],
 
+  // Commits go through the GitHub API rather than `git push`, so GitHub signs them with the
+  // App's identity and `master` can require signed commits. The default "auto" does not
+  // trigger for this token.
+  platformCommit: "enabled",
+
   // The dashboard issue is the notification surface: everything Renovate knows about appears
   // there whether or not it has an open PR.
   dependencyDashboard: true,
@@ -99,6 +104,9 @@
       automerge: true,
       automergeType: "pr",
       platformAutomerge: true,
+      // GitHub performs the merge; squash makes it author a fresh signed commit, where a rebase
+      // merge would replay the branch commits and drop their signatures.
+      automergeStrategy: "squash",
       ignoreTests: false,
     },
 

@@ -89,17 +89,29 @@ npx --yes --package renovate -- renovate --platform=local
 ## Repository prerequisites
 
 Renovate authenticates as a GitHub App of ours, minted per run and expiring within the hour. The
-The default `GITHUB_TOKEN` cannot be used: pull requests it opens do not trigger
+default `GITHUB_TOKEN` cannot be used: pull requests it opens do not trigger
 `on: pull_request`, so `validate.yml` would never run and nothing would gate an automerge.
 
 The App needs read/write on contents, pull requests, issues and workflows, installed on this
 repository, with its ID in the `RENOVATE_APP_ID` variable and its private key in the
 `RENOVATE_APP_PRIVATE_KEY` secret.
 
-Two settings outside the repo tree matter as much as the config:
+Its commits are signed by GitHub, not by a key of ours. `platformCommit` makes Renovate write
+through the GitHub API instead of `git push`, and GitHub signs what it writes with the App's
+identity. A key we held would have to live in a repository secret and could not be verified
+anyway: a GitHub App has no user account to register a public key against, so the signature would
+show as unverified.
+
+Three settings outside the repo tree matter as much as the config:
 
 - **Allow auto-merge** must be on, and `master` must require the `validate` checks. Without a
   required check, an auto-merge lands the moment the PR opens.
+- **Allow squash merging** must be on, and `master` must require signed commits. `platformCommit`
+  signs what Renovate pushes; `automergeStrategy: "squash"` makes GitHub author and sign the
+  commit that lands, where a rebase merge would replay the branch commits and drop their
+  signatures. Enable the signed-commit rule only after a run has confirmed the branch commits are
+  signed, or Renovate's pushes are rejected and every pull request stalls. Afterwards, rebasing a
+  bot branch locally and pushing it is refused unless you re-sign the rewritten commits.
 - **Labels must already exist.** Renovate applies `type/{major,minor,patch,digest}` and
   `renovate/{container,helm,terraform,ansible,github-action,tool}`; it does not create them, and
   a label it cannot find is dropped without an error. `just ops labels` creates or updates them,
