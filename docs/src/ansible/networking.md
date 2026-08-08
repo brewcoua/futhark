@@ -91,6 +91,14 @@ All three rules live in `ansible/roles/netbird/templates/futhark-mesh-routes.sh.
 by a systemd oneshot because neither `ip rule`, a route in a custom table, nor iptables state
 survives a reboot.
 
+The script reads the peer set out of `netbird status --json` each time it runs, rather than
+having Ansible resolve peer addresses and bake them in. A peer re-registering onto a different
+mesh address would otherwise strand these rules until someone ran Ansible again — over the very
+mesh that is now half broken. It tears down everything it owns and rebuilds from the current peer
+set, so a peer that has gone away leaves nothing behind; the SNAT rules sit in their own
+`FUTHARK-MESH` chain so they can be flushed as a set. [The mesh watchdog](mesh-watchdog.md)
+re-runs the unit on every healthy probe, which is what makes drift correct itself.
+
 ## The isolating test
 
 Run on a node:

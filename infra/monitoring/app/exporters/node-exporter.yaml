@@ -25,6 +25,20 @@ spec:
   values:
     # Fixes the rendered Service name to `node-exporter` for metrics/scrape-configs.yaml.
     fullnameOverride: node-exporter
+    # The textfile collector, so host-side agents can publish metrics without each shipping its
+    # own exporter. Its one producer today is the NetBird watchdog
+    # (ansible/roles/netbird, futhark_mesh_* — see docs/src/ansible/mesh-watchdog.md); the host
+    # directory is created by that same role, on every node the role runs on.
+    #
+    # Read-only from here on purpose: node-exporter only ever reads this directory, and the
+    # watchdog writes into it atomically so a half-written file is never scraped.
+    extraArgs:
+      - --collector.textfile.directory=/run/prometheus
+    extraHostVolumeMounts:
+      - name: textfile
+        hostPath: /var/lib/node_exporter/textfile_collector
+        mountPath: /run/prometheus
+        readOnly: true
     resources:
       requests:
         cpu: 10m

@@ -137,6 +137,21 @@ The API server must reject this at admission with `secretPath must lie within th
 own tier`. If it is created instead, the `ValidatingAdmissionPolicyBinding` is not selecting the
 namespace — check that `actual` still carries `futk.eu/tier` and `futk.eu/node`.
 
+## The per-node mesh checks
+
+One healthchecks.io check per mesh node, pinged directly by that node's watchdog rather than by
+anything in the cluster — see [The mesh watchdog](../ansible/mesh-watchdog.md). This is the only
+mesh-health signal that does not travel over the mesh, which is the point: everything scraped into
+Grafana goes dark exactly when the thing being watched breaks.
+
+Read a red check as "this node has been unhealthy for longer than the grace period, and its own
+repairs have not fixed it yet". The `/log` events on the check's timeline say which rungs fired;
+a `/fail` means the ladder is exhausted and the node needs re-enrolling by hand.
+
+Distinct from the cluster-wide dead-man's switch in
+`infra/monitoring/app/grafana/alerting/watchdog.yaml`, which pings from inside Grafana and so
+reports on the cluster, not on the mesh underneath it.
+
 ## NetBird token expiry
 
 NetBird Personal Access Tokens expire, 365 days out at most. Two are in use, both on the service

@@ -1,0 +1,15 @@
+[Unit]
+Description=Futhark: run the NetBird watchdog periodically
+
+[Timer]
+# Past netbird's own startup, so the first probe is not a false negative.
+OnBootSec=3min
+OnUnitActiveSec={{ netbird_watchdog_interval }}
+# De-synchronises the fleet, so a fleet-wide management blip does not have every node restart its
+# daemon in the same second.
+RandomizedDelaySec=20s
+# Missed runs are worthless: the watchdog only ever acts on the current state.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

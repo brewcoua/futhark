@@ -65,6 +65,7 @@ this table has to agree with. Item and field names are lowercase-with-spaces, pe
 | `pocketid`                 | `api token`                                                                          | Placeholder for now — Pocket ID does not exist yet. Filled in at step 10                                                     |
 | `netbird-enrollment`       | `token`                                                                              | A PAT on the NetBird service user. Used by `ansible/roles/netbird` to mint node setup keys                                   |
 | `netbird-policy`           | `token`                                                                              | A **second** PAT on the same service user, used by `tofu/netbird`                                                            |
+| `healthchecks`             | one per node, named for the host                                                     | Each node's healthchecks.io ping URL, for [the mesh watchdog](../ansible/mesh-watchdog.md). Create the checks first          |
 | `infisical-cluster-reader` | `client id`, `client secret`                                                         | The `cluster-reader` identity from step 2                                                                                    |
 | `infisical-tofu-writer`    | `client id`, `client secret`                                                         | The `tofu-writer` identity from step 2                                                                                       |
 | `infisical-backup-reader`  | `client id`, `client secret`                                                         | The `backup-reader` identity from step 2 — the one path with an identity of its own                                          |
@@ -78,6 +79,11 @@ either. A PAT tied to a person dies with that person's membership and takes both
 NetBird PATs cannot be scoped, so the split buys nothing in privilege: it means one can be
 rotated without taking the other plane down.
 They expire, at most a year out — see [Checks](checks.md#netbird-token-expiry).
+
+One `healthchecks` item holds every node's ping URL, one field per node named for the host, so
+adding a node is adding a field. Create each check in healthchecks.io first — period 2 minutes,
+grace 15 minutes, which is past the ladder's restart and re-up rungs and short of its reboot rung.
+A node whose field is missing still runs its watchdog; it just reports nothing.
 
 Create the account itself first, and delete its shipped `Default` policy — the full sequence is
 [Bootstrap](../tofu/netbird.md#bootstrap). Leave that policy in place and the rules you apply at

@@ -1,0 +1,86 @@
+---
+# The mesh watchdog's view from inside the cluster. Second-class on purpose: these series are
+# scraped through node-exporter, which is reached over the mesh, so a hard mesh failure takes the
+# reporting path down with the thing it reports on. The signal that survives that is each node's
+# own healthchecks.io ping, straight out to the internet — see docs/src/ansible/mesh-watchdog.md.
+# What these rules add is the shape of the failure and, above all, notice of the repairs that
+# worked, which otherwise leave no trace anywhere.
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: mesh
+    folder: System
+    interval: 1m
+    rules:
+      - uid: mesh-unhealthy
+        title: NetBird unhealthy
+        condition: A
+        # Longer than the ladder's first two observe-only rungs, so a transient management blip
+        # that the watchdog is already ignoring does not page anyone either.
+        for: 8m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 600, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: futhark_mesh_state > 0
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} NetBird unhealthy (1 degraded, 2 down) — the watchdog is escalating"
+
+      - uid: mesh-stuck
+        title: NetBird watchdog stuck
+        condition: A
+        # Terminal by construction, so there is nothing to wait out.
+        for: 0m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 600, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: futhark_mesh_state == 3
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} exhausted the NetBird repair ladder — re-enrol the node by hand"
+
+      - uid: mesh-self-healed
+        title: NetBird self-healed
+        condition: A
+        for: 0m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 3600, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: sum by (instance) (increase(futhark_mesh_repairs_total[1h])) > 0
+        noDataState: OK
+        execErrState: OK
+        annotations:
+          summary: "{{ $labels.instance }} repaired its own NetBird connection in the last hour — repeatedly means an underlying fault"
+
+      - uid: mesh-watchdog-stale
+        title: NetBird watchdog not running
+        condition: A
+        # The watchdog going quiet while node-exporter still answers means the timer itself is
+        # broken — the node looks fine and is in fact unguarded.
+        for: 5m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 1800, to: 0 }
+            model:
+              refId: A
+              instant: true
+              expr: time() - futhark_mesh_last_run_timestamp_seconds > 600
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.instance }} has not run the NetBird watchdog in over 10m — check futhark-mesh-watchdog.timer"

@@ -1,0 +1,9 @@
+[Unit]
+Description=Futhark: probe and repair this node's NetBird connection
+# Ordered after netbird so a boot-time run sees a settled daemon, but deliberately no Wants= or
+# Requires=: the watchdog has to run precisely when netbird is *not* running.
+After=netbird.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/futhark-mesh-watchdog.sh

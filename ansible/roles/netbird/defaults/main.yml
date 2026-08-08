@@ -11,3 +11,40 @@ netbird_api_url: https://api.netbird.io
 # The NetBird groups this peer joins: the fleet-wide one, plus its workflow if it has one.
 # tofu/netbird declares both — nothing here creates a group.
 netbird_join_groups: "{{ [mesh_node_group] + ([node.workflow] if node.workflow is defined else []) }}"
+
+# --- watchdog ---------------------------------------------------------------------------------
+# The escalation ladder the watchdog climbs while NetBird is unhealthy. Rungs are counted in
+# consecutive failed probes, so each is also a duration: at a 2min interval, restart lands at ~6min
+# and the reboot rung at ~24min. Full rationale: docs/src/ansible/mesh-watchdog.md.
+netbird_watchdog_interval: 2min
+# Rungs 1 and 2 are skipped on purpose — a single management blip is not worth a daemon restart.
+netbird_watchdog_restart_after: 3
+netbird_watchdog_reup_after: 6
+netbird_watchdog_reboot_after: 12
+# One rung per window, so a repair gets several probes to take effect before the next escalates
+# on top of it.
+netbird_watchdog_action_cooldown: 600
+
+# A peer NetBird calls Connected can have a long-dead tunnel, so freshness is read off the
+# WireGuard handshake. NetBird's own keepalive is 25s; this is generous enough that a quiet link
+# is not mistaken for a broken one.
+netbird_watchdog_handshake_max_age: 300
+
+# The last rung. On by default because the nodes this whole mechanism exists for are the ones
+# nobody can reach to reboot by hand; set it false per node in ansible/nodes/<host>/host.yml to
+# cap the ladder at re-up, which is worth doing while first observing a node's behaviour.
+netbird_watchdog_reboot: true
+# Guards. The uptime floor keeps the watchdog out of any boot loop; the cooldown is persisted
+# under /var/lib so it survives the reboot it is guarding.
+netbird_watchdog_reboot_min_uptime: 1800
+netbird_watchdog_reboot_cooldown: 86400
+
+netbird_watchdog_state_dir: /var/lib/futhark
+# Where node-exporter's textfile collector reads from — the hostPath mounted into the DaemonSet in
+# infra/monitoring/app/exporters/node-exporter.yaml. Both spellings have to agree.
+netbird_watchdog_textfile_dir: /var/lib/node_exporter/textfile_collector
+
+# This node's healthchecks.io ping URL, resolved from Proton Pass by `just ans render-secrets`.
+# Empty is a supported state: a node whose check does not exist yet still runs the ladder, it just
+# reports nothing. One `healthchecks` item, one field per node.
+netbird_watchdog_ping_url: "{{ (secrets.healthchecks | default({}))[inventory_hostname] | default('') }}"

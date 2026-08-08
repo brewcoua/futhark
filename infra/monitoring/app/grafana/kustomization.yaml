@@ -19,6 +19,7 @@ configMapGenerator:
       - alerting/policies.yaml
       - alerting/watchdog.yaml
       - alerting/node-health.yaml
+      - alerting/mesh.yaml
       - alerting/kubernetes.yaml
       - alerting/backup.yaml
 generatorOptions:

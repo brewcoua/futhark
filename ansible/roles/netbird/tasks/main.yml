@@ -14,7 +14,10 @@
 
 - name: Install netbird
   ansible.builtin.dnf:
-    name: netbird
+    name:
+      - netbird
+      # Both the routing script and the watchdog read `netbird status --json`.
+      - jq
     state: present
   when: node.os == 'fedora'
 
@@ -180,48 +183,21 @@
 # and the fix is one narrow rule per peer. konnectivity-agent does exactly this, so while it's
 # broken, kubectl exec/logs/port-forward are down cluster-wide. Full write-up:
 # docs/src/ansible/networking.md. The systemd oneshot exists because neither `ip rule` nor
-# iptables state survives a reboot.
-- name: Resolve every other mesh peer's mesh IP
-  ansible.builtin.command:
-    cmd: "getent hosts {{ hostvars[item].node.hostname }}.{{ mesh_dns_domain }}"
-  register: netbird_peer_getent
-  loop: "{{ groups['all'] }}"
-  loop_control:
-    label: "{{ item }}"
-  when:
-    - item != inventory_hostname
-    - hostvars[item].node.mesh | default(false)
-  changed_when: false
-  # A from-scratch multi-node run, or setup.yml limited to one host at a time, can hit this
-  # before every peer has finished its own "Join the mesh" task above and the peer's record has
-  # propagated. Retry instead of aborting the whole play on the first race.
-  retries: 6
-  delay: 5
-  until: netbird_peer_getent.rc == 0
-
-- name: Build a hostname -> peer mesh IP map
-  ansible.builtin.set_fact:
-    netbird_peer_ips: >-
-      {{ netbird_peer_ips | default({}) |
-         combine({item.item: item.stdout_lines[0].split()[0]}) }}
-  loop: "{{ netbird_peer_getent.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-  when: item.skipped is not defined
-
+# iptables state survives a reboot. The script discovers the peer set from the running client
+# at each run, so nothing here has to resolve or pass in peer addresses.
 - name: Install the pod -> mesh routing/SNAT script
   ansible.builtin.template:
     src: futhark-mesh-routes.sh.j2
     dest: /usr/local/bin/futhark-mesh-routes.sh
     mode: "0755"
-  when: node.os == 'fedora' and netbird_peer_ips is defined
+  when: node.os == 'fedora'
 
 - name: Install the pod -> mesh routing/SNAT systemd unit
   ansible.builtin.template:
     src: futhark-mesh-routes.service.j2
     dest: /etc/systemd/system/futhark-mesh-routes.service
     mode: "0644"
-  when: node.os == 'fedora' and netbird_peer_ips is defined
+  when: node.os == 'fedora'
 
 - name: Enable and (re)run the pod -> mesh routing/SNAT service now
   ansible.builtin.systemd:
@@ -229,4 +205,64 @@
     daemon_reload: true
     enabled: true
     state: restarted
-  when: node.os == 'fedora' and netbird_peer_ips is defined
+  when: node.os == 'fedora'
+
+# The watchdog. A mesh node is reached over the mesh — ansible_host is
+# <hostname>.{{ mesh_dns_domain }}, see inventory/group_vars/all/main.yml — so a broken client
+# takes this playbook's own path to the node down with it. Everything below therefore has to work
+# with no help from outside: docs/src/ansible/mesh-watchdog.md.
+- name: Create the watchdog's directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ netbird_watchdog_state_dir }}"
+    # Read by node-exporter's textfile collector through a hostPath mount —
+    # infra/monitoring/app/exporters/node-exporter.yaml.
+    - "{{ netbird_watchdog_textfile_dir }}"
+    - /etc/futhark
+    - /etc/systemd/system/netbird.service.d
+  when: node.os == 'fedora'
+
+- name: Keep netbird restarting no matter how often it crashes
+  ansible.builtin.template:
+    src: netbird-restart.conf.j2
+    dest: /etc/systemd/system/netbird.service.d/10-restart.conf
+    mode: "0644"
+  when: node.os == 'fedora'
+
+# Its own file rather than a line in the script, so the ping URL is never world-readable and a
+# rotated URL is one converge away without regenerating the script.
+- name: Install the watchdog's environment file
+  ansible.builtin.template:
+    src: mesh-watchdog.env.j2
+    dest: /etc/futhark/mesh-watchdog.env
+    mode: "0600"
+  when: node.os == 'fedora'
+  no_log: true
+
+- name: Install the watchdog script
+  ansible.builtin.template:
+    src: futhark-mesh-watchdog.sh.j2
+    dest: /usr/local/bin/futhark-mesh-watchdog.sh
+    mode: "0755"
+  when: node.os == 'fedora'
+
+- name: Install the watchdog systemd unit and timer
+  ansible.builtin.template:
+    src: "futhark-mesh-watchdog.{{ item }}.j2"
+    dest: "/etc/systemd/system/futhark-mesh-watchdog.{{ item }}"
+    mode: "0644"
+  loop:
+    - service
+    - timer
+  when: node.os == 'fedora'
+
+- name: Enable the watchdog timer
+  ansible.builtin.systemd:
+    name: futhark-mesh-watchdog.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+  when: node.os == 'fedora'

@@ -26,6 +26,7 @@
 - [Inventory and roles](ansible/index.md)
 - [Nodes](ansible/nodes.md)
 - [Pod to mesh networking](ansible/networking.md)
+- [The mesh watchdog](ansible/mesh-watchdog.md)
 
 # Flux — the cluster plane
 
