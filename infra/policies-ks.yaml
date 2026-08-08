@@ -19,11 +19,6 @@ spec:
     - name: auth
     - name: traefik-internal
     - name: traefik-edge
-    - name: substitutions
-  # netpol-allow-from-ingress-edge needs kenaz's mesh IP — traefik-edge's hostNetwork pod
-  # connects to backends as itself, not as a namespaced pod identity. Same Secret
-  # infra/traefik-edge consumes as ${PUBLIC_IP}/${MESH_IP}.
-  postBuild:
-    substituteFrom:
-      - kind: Secret
-        name: edge-ips
+  # No postBuild here. netpol-allow-from-ingress-edge used to substitute ${MESH_IP} out of the
+  # edge-ips Secret — hence a `substitutions` edge as well — and now spells the mesh CIDR
+  # literally, for the reasons in that template's own comment.

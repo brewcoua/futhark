@@ -23,12 +23,46 @@ refs := '''
     fi
 '''
 
-# Init one tofu module, or all of them (no secrets needed: provider download only)
+# The s3 backend's non-secret settings, for the one module that has one — tofu/b2, whose state
+# cannot be local (backend.tf says why). Env vars rather than more `-backend-config` flags for two
+# reasons: `endpoints` is a nested object, which that flag's KEY=VALUE form cannot express, and
+# flag values are cached in .terraform while env vars are not, so plan and apply have to re-export
+# them anyway. Spliced after `refs`, which is where TF_VAR_region comes from.
+#
+# A no-op for a module without a backend.tf, which is all the others.
+backend_env := '''
+    if [ -f backend.tf ]; then
+      export AWS_REGION="$TF_VAR_region"
+      export AWS_ENDPOINT_URL_S3="https://s3.$TF_VAR_region.backblazeb2.com"
+    fi
+'''
+
+# Init one tofu module, or all of them (a module with a backend also needs both secret stores)
 init module='':
     #!/usr/bin/env bash
     set -euo pipefail
+    root='{{ justfile_directory() }}'
     for d in {{ if module == '' { '$(find tofu -mindepth 1 -maxdepth 1 -type d)' } else { 'tofu/' + module } }}; do
-      (cd "$d" && tofu init -input=false)
+      if [ ! -f "$d/backend.tf" ]; then
+        (cd "$d" && tofu init -input=false)
+        continue
+      fi
+      # Skipped rather than failed when the module's secrets do not exist yet: `just ops setup`
+      # calls this recipe at step 3 of the cold bootstrap, and the encrypted files are not written
+      # until step 5. Without this, a fresh operator machine cannot finish setup at all.
+      if [ ! -f "$d/secrets.sops.env" ]; then
+        echo "$d: has a backend but no secrets.sops.env yet — run \`just tf init $(basename "$d")\` once it exists" >&2
+        continue
+      fi
+      # Same composition as plan/apply below, because initialising a remote backend authenticates
+      # against it. This is why `just tf init` is no longer secret-free.
+      (
+        cd "$d"
+        {{ refs }}
+        {{ backend_env }}
+        export TF_BACKEND_KEY="$(basename "$d")/terraform.tfstate"
+        sops exec-env secrets.sops.env 'pass-cli run -- tofu init -input=false -backend-config="bucket=$TF_BACKEND_BUCKET" -backend-config="key=$TF_BACKEND_KEY"'
+      )
     done
 
 # Both stores, composed, in this order and no other. `sops exec-env` puts the module's whole
@@ -53,6 +87,7 @@ plan module:
     root='{{ justfile_directory() }}'
     cd tofu/{{ module }}
     {{ refs }}
+    {{ backend_env }}
     sops exec-env secrets.sops.env 'pass-cli run -- tofu plan'
 
 # Apply a tofu module
@@ -62,7 +97,21 @@ apply module:
     root='{{ justfile_directory() }}'
     cd tofu/{{ module }}
     {{ refs }}
+    {{ backend_env }}
     sops exec-env secrets.sops.env 'pass-cli run -- tofu apply'
+
+# Needed once when a module takes over something created by hand — see docs/src/tofu/b2.md — and
+# never again on another machine, for a module whose state is remote.
+
+# Adopt an already-existing provider resource into a module's state
+adopt module address id:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root='{{ justfile_directory() }}'
+    cd tofu/{{ module }}
+    {{ refs }}
+    {{ backend_env }}
+    sops exec-env secrets.sops.env 'pass-cli run -- tofu import {{ address }} {{ id }}'
 
 # Validate a tofu module
 [working-directory('tofu')]

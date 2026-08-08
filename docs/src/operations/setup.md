@@ -2,16 +2,16 @@
 
 Building the whole thing from nothing, in order. Every step is re-runnable.
 
-Two values cannot exist until something else is running, so they are filled in twice: the edge
-node's mesh address (step 7) and the Pocket ID API token (step 10). Both are called out where
-they land.
+Three values cannot exist until something else is running, so they are filled in twice: the edge
+node's mesh address (step 7), Velero's B2 application key (step 8) and the Pocket ID API token
+(step 10). Each is called out where it lands.
 
 ```d2
 direction: down
 
 stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and folders"
 repo: "3-6. This machine and this repo\njust ops setup, age key, node definitions,\nthe encrypted files, push"
-hosts: "7-8. The hosts and the mesh\njust ans setup, then just tf apply netbird"
+hosts: "7-8. The hosts, the mesh, the bucket\njust ans setup, then just tf apply netbird, b2"
 cluster: "9. The cluster\njust ans k0s — k0sctl, local-path, Flux"
 cloud: "10. The cloud plane\njust tf apply bunny, oidc"
 after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps"
@@ -21,13 +21,16 @@ stores -> repo -> hosts -> cluster -> cloud -> after
 hosts -> repo: "MESH_IP was a placeholder in step 5 —\nthe node had not joined the mesh yet" {
   style: { stroke-dash: 4; stroke: "#c00" }
 }
+hosts -> stores: "Velero's B2 key was a placeholder in step 2 —\ntofu/b2 mints it here" {
+  style: { stroke-dash: 4; stroke: "#c00" }
+}
 cloud -> stores: "POCKETID_API_TOKEN was a placeholder in step 1 —\nPocket ID did not exist yet" {
   style: { stroke-dash: 4; stroke: "#c00" }
 }
 ```
 
-The two red edges are the only backward ones, and they are why the phases are not simply a
-list: both values are produced by a step that needs a file written several steps earlier.
+The three red edges are the only backward ones, and they are why the phases are not simply a
+list: each of those values is produced by a step that needs a file written several steps earlier.
 
 ## 1. Proton Pass
 
@@ -64,6 +67,9 @@ this table has to agree with. Item and field names are lowercase-with-spaces, pe
 | `netbird-policy`           | `token`                                                                              | A **second** PAT on the same service user, used by `tofu/netbird`                                                            |
 | `infisical-cluster-reader` | `client id`, `client secret`                                                         | The `cluster-reader` identity from step 2                                                                                    |
 | `infisical-tofu-writer`    | `client id`, `client secret`                                                         | The `tofu-writer` identity from step 2                                                                                       |
+| `infisical-backup-reader`  | `client id`, `client secret`                                                         | The `backup-reader` identity from step 2 — the one path with an identity of its own                                          |
+| `backblaze-tofu`           | `key id`, `application key`                                                          | A B2 application key for `tofu/b2`'s provider. Capabilities, and why it is not the master key: [b2](../tofu/b2.md)           |
+| `backblaze-tofu-state`     | `key id`, `application key`, `sse-c key`                                             | A second B2 key restricted to `tofu/b2`'s state bucket, plus the key that state is encrypted under                           |
 | `storagebox`               | `ssh key`                                                                            | The Storage Box key pair's private half, generated at [The rclone remotes](rclone.md#the-storage-box)                        |
 | `rclone-crypt`             | `storagebox password`, `storagebox password2`, `gdrive password`, `gdrive password2` | The four obscured crypt passwords. Placeholders for now — they are minted after step 3                                       |
 
@@ -82,9 +88,10 @@ points at. Their consumers read Infisical, not the vault, so these copies exist 
 credentials are recoverable — you retype them into `/infra/csi-rclone`. For the crypt passwords
 that is not a convenience: lose one and the data it wrapped is ciphertext forever.
 
-Two Infisical identities, not one, for the same reason — and a sharper one: `cluster-reader` is
+Three Infisical identities, not one, for the same reason — and a sharper one: `cluster-reader` is
 seeded into the cluster, `tofu-writer` never leaves this machine. Collapsing them would hand the
-cluster a write credential.
+cluster a write credential. `backup-reader` is split off for a different reason again: the cluster's
+read credential must not also be the one that decrypts B2.
 
 **The admin SSH private key goes in no store at all.** Ansible authenticates with your own
 `~/.ssh` identity rather than reading it; only its public half is committed, SOPS-encrypted, at
@@ -107,25 +114,35 @@ Sign up at **eu.infisical.com**. That is a separate data region, not a mirror of
 `app.infisical.com` — an account on one is invisible to the other. Create a project `futhark`
 with a `prod` environment.
 
-Create two Universal Auth machine identities. With yourself that is 3 of the 5 the free tier
+Create three Universal Auth machine identities. With yourself that is 4 of the 5 the free tier
 allows:
 
-- **`cluster-reader`** — read-only on the whole project. Leave `accessTokenTrustedIps` alone for
-  now; you set it at step 12, once the cluster has an egress address.
+- **`cluster-reader`** — read-only on the whole project, **denied** `/infra/velero`. Leave
+  `accessTokenTrustedIps` alone for now; you set it at step 12, once the cluster has an egress
+  address.
 - **`tofu-writer`** — write on `/nodes/kenaz/actual` only.
+- **`backup-reader`** — read on `/infra/velero` and nothing else. The split is deliberate: losing
+  the cluster's read credential must not also mean losing the ability to decrypt B2. See
+  [Secrets](../conventions/secrets.md).
 
-Copy both client ID/secret pairs into Proton Pass per the table above.
+Copy all three client ID/secret pairs into Proton Pass per the table above.
 
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
 
-| Folder                | Secrets                                                                      | Consumed by                                |
-| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------ |
-| `/infra/cert-manager` | `BUNNY_API_KEY`                                                              | `infra/cert-manager/config/secret.yaml`    |
-| `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                              | `infra/storage/app/secret.yaml`            |
-| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL` | `infra/monitoring/app/grafana/secret.yaml` |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                             | `infra/auth/app/infisicalsecret.yaml`      |
-| `/nodes/kenaz/actual` | none — leave empty                                                           | written by `just tf apply oidc`            |
+| Folder                | Secrets                                                                        | Consumed by                                                                    |
+| --------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `/infra/cert-manager` | `BUNNY_API_KEY`                                                                | `infra/cert-manager/config/secret.yaml`                                        |
+| `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                                | `infra/storage/app/secret.yaml`                                                |
+| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`   | `infra/monitoring/app/grafana/secret.yaml`                                     |
+| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                               | `infra/auth/app/infisicalsecret.yaml`                                          |
+| `/infra/velero`       | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_SSE_C_KEY`, `KOPIA_REPOSITORY_PASSWORD` | `infra/backup/app/secret.yaml` and `secret-repo.yaml`, read as `backup-reader` |
+| `/nodes/kenaz/actual` | none — leave empty                                                             | written by `just tf apply oidc`                                                |
+
+`B2_KEY_ID` and `B2_APPLICATION_KEY` are placeholders for now: `tofu/b2` mints that key at step 8.
+The other two are yours to generate — `B2_SSE_C_KEY` and `KOPIA_REPOSITORY_PASSWORD` both from
+`openssl rand -base64 32`. Lose either and the backups are ciphertext forever, which is the whole
+point of them; the durability table is in [Backup and recovery](recovery.md).
 
 That table goes stale as apps are added. The authoritative version is the tree itself: every
 `InfisicalStaticSecret` names its `secretPath`, and any that remaps a key names the Infisical
@@ -261,9 +278,9 @@ sops infra/substitutions/app/edge-ips.sops.yaml     # set MESH_IP
 git commit -am 'fix(edge-ips): real mesh address' && git push
 ```
 
-## 8. Mesh policy, route and DNS
+## 8. Mesh policy, and the backup bucket
 
-Do this **before** the cluster, not after. Cross-node pod networking needs the all-protocol
+Both before the cluster, not after. Cross-node pod networking needs the all-protocol
 node-to-node rule, and without it the cluster fails in ways that look like anything but a
 network fault.
 
@@ -283,6 +300,20 @@ a peer registered under the old ones has to re-register. The DNS zone it creates
 fine and stays fine: the record is static, the Service address is pinned in
 `infra/traefik-internal/app/helmrelease.yaml`, and the name starts answering usefully once step
 9 brings the workload up.
+
+Then the bucket Velero backs up to, and the key it uses:
+
+```bash
+just tf init b2
+just tf plan b2 && just tf apply b2
+```
+
+Read [b2](../tofu/b2.md) first — it needs a state bucket and an SSE-C key created by hand, and if a
+bucket already exists it has to be imported rather than created. File the two outputs into
+Infisical `/infra/velero` as `B2_KEY_ID` and `B2_APPLICATION_KEY`, replacing the placeholders from
+step 2. Before the cluster because `infra/backup` reconciles at step 9 and reads them there; get it
+wrong and the symptom is a `BackupStorageLocation` stuck `Unavailable` with the daily `Schedule`
+still reading green.
 
 ## 9. Cluster and Flux
 

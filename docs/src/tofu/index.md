@@ -36,13 +36,20 @@ plaintext even when marked `sensitive` — that only suppresses console and plan
 state on the operator machine. `.terraform.lock.hcl` is the provider version lockfile and
 **is** committed.
 
+_Exception: [`b2`](b2.md)._ Local state makes a module non-portable, and for that one module
+non-portable means broken: `b2_bucket` can only be imported by bucket id, and B2 bucket names are
+globally unique, so a second operator machine starting from empty state does not adopt the bucket
+— it fails the apply with `duplicate_bucket_name`. Its state lives in a B2 bucket instead, written
+under SSE-C with a key from Proton Pass, so the plaintext credential in it is ciphertext to
+Backblaze. Every other module keeps its state local.
+
 **Verify provider resource and attribute names** against current provider docs before the
 first apply.
 
 ## Running a module
 
 ```bash
-just tf init [<module>]   # no secrets needed, provider download only
+just tf init [<module>]   # provider download only, unless the module has a backend
 just tf plan <module>
 just tf apply <module>
 ```
@@ -51,6 +58,11 @@ just tf apply <module>
 `just ops setup`. `plan` and `apply` compose both stores, in this order:
 `sops exec-env secrets.sops.env 'pass-cli run -- tofu <cmd>'`. That needs a Proton Pass session
 (`pass-cli info`) and the GPG smartcard present; neither ever writes a value to disk.
+
+`init` composes them too, but only for a module that ships a `backend.tf` — initialising a remote
+backend means authenticating against it. `just tf init` with no argument therefore asks for the
+card and a Pass session as soon as one such module exists; the other modules still init on nothing
+but a network connection.
 
 ### Values another plane owns
 
@@ -66,10 +78,11 @@ TF_VAR_domain=config/dns/dns.sops.yaml#["stringData"]["DOMAIN"]
 The expression goes to `sops --extract` verbatim, so one line shape reaches a node fact and a
 Flux Secret alike. Who owns what:
 
-| Value                               | Owner                                | Why                                                                                                       |
-| ----------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| node addresses                      | `ansible/nodes/<node>/host.sops.yml` | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join — recorded where it is discovered |
-| the domain and its subdomain labels | `config/dns/dns.sops.yaml`           | Flux substitutes the same keys into manifests, and Ansible reads them too                                 |
+| Value                               | Owner                                               | Why                                                                                                                                                       |
+| ----------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| node addresses                      | `ansible/nodes/<node>/host.sops.yml`                | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join — recorded where it is discovered                                                 |
+| the domain and its subdomain labels | `config/dns/dns.sops.yaml`                          | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                 |
+| the backup bucket and its region    | `infra/substitutions/app/backup-location.sops.yaml` | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it — [`b2`](b2.md) provisions what it names |
 
 A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads
 the mesh CIDR, the k0s service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
@@ -99,6 +112,7 @@ touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a fil
 | [`bunny`](bunny.md)     | Public DNS records in the existing Bunny DNS zone                                        |
 | [`oidc`](oidc.md)       | Pocket ID OIDC clients, writing the minted secret into Infisical                         |
 | [`netbird`](netbird.md) | Mesh access policy, the route onto the cluster's service CIDR, and the internal DNS zone |
+| [`b2`](b2.md)           | The Backblaze B2 bucket Velero backs up to, and the application key it uses              |
 
 What each touches. Every arrow into a secret store is a read, except the one marked — that is
 the whole read-only rule, and its single exception:
@@ -114,6 +128,7 @@ modules: "tofu/" {
   bunny
   oidc
   netbird
+  b2
 }
 
 pass -> modules: provider tokens\n(pass-cli run)
@@ -122,10 +137,14 @@ sops -> modules: identifying values\n(sops exec-env, refs.env)
 modules.bunny -> bunny-api: DNS records
 modules.netbird -> nb-api: policies, route, DNS zone
 modules.oidc -> pocketid: OIDC clients
+modules.b2 -> b2-api: bucket, Velero's key
+modules.b2 -> b2-state: "its own state, SSE-C\n(the one remote backend)"
 
 bunny-api: Bunny DNS API
 nb-api: NetBird API
 pocketid: "Pocket ID API\n(a Flux-managed workload)"
+b2-api: Backblaze B2 API
+b2-state: "B2 state bucket\n(created by hand, unmanaged)"
 
 modules.oidc -> infisical: "WRITES the minted secret\nseparate identity, scoped to /nodes/<host>/<app>" {
   style: { bold: true; stroke: "#c00" }

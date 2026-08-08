@@ -39,3 +39,4 @@
 - [bunny](tofu/bunny.md)
 - [oidc](tofu/oidc.md)
 - [netbird](tofu/netbird.md)
+- [b2](tofu/b2.md)

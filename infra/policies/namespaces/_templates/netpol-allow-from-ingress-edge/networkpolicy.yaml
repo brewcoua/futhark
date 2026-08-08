@@ -10,8 +10,15 @@
 # helmrelease.yaml), so its connections to backend pods carry kenaz's own IP, not a pod
 # identity in the ingress-edge namespace — a namespaceSelector rule never matches and every
 # such request gets dropped by the namespace's default-deny, surfacing as 502 Bad Gateway.
-# ${MESH_IP} is substituted by postBuild.substituteFrom in infra/policies-ks.yaml, from the
-# same edge-ips Secret infra/traefik-edge uses.
+# The whole mesh CIDR, not kenaz's /32: ipBlock takes a literal, so a /32 meant substituting
+# ${MESH_IP} out of the edge-ips Secret — a hand-maintained second copy of an address ansible
+# already records in ansible/nodes/kenaz/host.sops.yml, with nothing catching drift between them.
+# The CIDR is mesh_cidr from ansible/inventory/group_vars/all/network.yml, committed in the clear
+# because it grants nothing on its own.
+#
+# The cost is real and deliberate: this rule now trusts every mesh peer — ogma, the operator
+# machine — not only the edge. What keeps that bounded is tofu/netbird/policy.tf, which decides
+# which peers may reach the cluster at all.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -22,4 +29,4 @@ spec:
   ingress:
     - from:
         - ipBlock:
-            cidr: ${MESH_IP}/32
+            cidr: 100.80.0.0/24

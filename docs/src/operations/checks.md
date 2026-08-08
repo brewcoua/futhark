@@ -35,7 +35,8 @@ since SOPS ciphertext otherwise trips the entropy rules on every commit.
 **`tofu-validate` deliberately does not run `tofu init`.** `init` can touch
 `.terraform.lock.hcl`, and pre-commit treats a hook that modifies a tracked file as a failure.
 So run `just tf init` once locally before committing a `.tf` change, or validate fails on an
-uninitialized module. CI runs init as its own step instead.
+uninitialized module. CI runs init as its own step instead — with `-backend=false`, which is also
+why a module with a remote backend needs no credentials in CI.
 
 **`ansible-lint` needs `always_run: false` set explicitly.** Upstream's own hook manifest sets
 `always_run: true`, which overrides the `files: ^ansible/` scoping — without the override it
@@ -151,3 +152,14 @@ What stops is changing anything — no policy applies, no new node joins.
 
 Issue the replacement in the dashboard, update the Proton Pass item in place, and the `pass://`
 references keep resolving without a repo change.
+
+## Rotating Velero's B2 key
+
+Unlike the NetBird PATs, this one does not expire — but it is the only credential in the backup
+path that can be replaced at all, so it is the only one worth rotating on a schedule. The loop is
+in [b2](../tofu/b2.md#filing-and-rotating-the-key): taint, apply, file the new value into Infisical
+`/infra/velero`, wait for a backup to succeed, then revoke the old key in the console.
+
+Do the revoke last and prove it. A backup that still succeeds afterwards is the evidence nothing
+else was using that key; the 26h "no backup succeeded" alert in
+`infra/monitoring/app/grafana/alerting/backup.yaml` is what catches it if something was.

@@ -9,6 +9,11 @@
 # postBuild.substituteFrom in infra/backup/ks.yaml. The endpoint is not a third value — it
 # derives as https://s3.${B2_REGION}.backblazeb2.com.
 #
+# This file owns both, and tofu/b2 reads them back out of it through its refs.env: the bucket it
+# provisions is the one named here, rather than a second name that could disagree. tofu/b2 also
+# asserts B2_REGION against the account's own S3 endpoint, because nothing else does — a wrong
+# region renders cleanly and surfaces as a permanently Unavailable BackupStorageLocation.
+#
 # These are here rather than in Infisical, where the B2 keys themselves live, because a
 # BackupStorageLocation is a CR: its bucket and region are fixed when the manifest renders, and
 # Velero has no runtime Secret input for them. Reaching them from Infisical would mean writing a

@@ -90,8 +90,8 @@ Three edges are less obvious than they look:
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
   cluster: the `dns`, `edge-ips` and `backup-location` Secrets, and the `monitoring-sizing`
   ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
-  reconciles, and the obvious home — `infra-policies` — is downstream of `traefik-edge`, one of
-  those consumers.
+  reconciles, and `traefik-edge` — one of those consumers — is upstream of `infra-policies`, the
+  otherwise obvious home for them.
 
 `infra-policies` sits behind every infra controller. Its overlays attach policy to namespaces
 that are already there, so the ordering it needs is the controllers': `middleware-ratelimit`

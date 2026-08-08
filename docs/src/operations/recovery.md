@@ -78,6 +78,11 @@ Both keys, and the B2 application key, are read with a machine identity of their
 the cluster-reader every other namespace uses. See
 [Secrets](../conventions/secrets.md#infisical-and-how-tier-isolation-is-enforced).
 
+The B2 application key is the one of the three that is replaceable, and [`b2`](../tofu/b2.md) is
+what mints it — along with the bucket, its lifecycle rules and the reason there is no object lock
+on it. Rotating it is a `tofu apply` and a refile; rotating either encryption key is not possible
+at all.
+
 ## Restore a namespace
 
 ```bash
@@ -140,6 +145,7 @@ the Kopia repository password and the SSE-C key, since without them the bucket i
 | Velero release, credentials, repo password | `infra/backup/app/`                                 |
 | The nightly `Schedule`                     | `infra/backup/config/schedule.yaml`                 |
 | Which bucket, which region                 | `infra/substitutions/app/backup-location.sops.yaml` |
+| The bucket itself, and Velero's B2 key     | `tofu/b2` — see [b2](../tofu/b2.md)                 |
 | The B2 keys and both encryption keys       | Infisical, `/infra/velero`                          |
 | Restore and inspection tasks               | `.just/velero.just`                                 |
 | Failure alerts                             | `infra/monitoring/app/grafana/alerting/backup.yaml` |

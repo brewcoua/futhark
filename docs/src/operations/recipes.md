@@ -28,6 +28,10 @@ that argument, `[<x>]` takes an optional one.
 `just` itself is the one thing `ops deps` cannot install for you — it has to be there to run the
 recipe. `sudo dnf install just` first.
 
+The `tf init` inside `ops setup` skips any module with a `backend.tf` whose `secrets.sops.env` is
+not written yet, and says so. That is the cold-bootstrap case: setup runs at step 3, the encrypted
+files land at step 5. Run `just tf init <module>` for it afterwards.
+
 `ops age-key` is not part of `ops setup`: it mints key material, so it is deliberately explicit.
 It prints the public recipient for `.sops.yaml` and leaves the private key in a temporary file
 for you to store in Proton Pass and shred.
@@ -110,17 +114,19 @@ and why a hand-run `velero restore` is not equivalent.
 
 ## `tf` — the cloud plane
 
-| Recipe                 | Does                                                         |
-| ---------------------- | ------------------------------------------------------------ |
-| `tf init [<module>]`   | All modules if no argument. No secrets needed                |
-| `tf plan <module>`     | Plan, through `sops exec-env` and `pass-cli run` — see below |
-| `tf apply <module>`    | Apply                                                        |
-| `tf validate <module>` | `tofu validate`                                              |
+| Recipe                             | Does                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `tf init [<module>]`               | All modules if no argument. No secrets, unless the module has a backend  |
+| `tf plan <module>`                 | Plan, through `sops exec-env` and `pass-cli run` — see below             |
+| `tf apply <module>`                | Apply                                                                    |
+| `tf adopt <module> <address> <id>` | `tofu import` — take over a resource that already exists at the provider |
+| `tf validate <module>`             | `tofu validate`                                                          |
 
-`plan` and `apply` need a Proton Pass session and the GPG smartcard plugged in. There is no
-editing secrets from here — secret values live in Proton Pass, and each module's
-`secrets.sops.env` holds only identifying values and the `pass://` references that point at
-them. Edit it with `sops`.
+`plan`, `apply` and `adopt` need a Proton Pass session and the GPG smartcard plugged in, and so
+does `init` for a module that ships a `backend.tf` — initialising a remote backend authenticates
+against it. There is no editing secrets from here — secret values live in Proton Pass, and each
+module's `secrets.sops.env` holds only identifying values and the `pass://` references that point
+at them. Edit it with `sops`.
 
 ## `docs` — this book
 

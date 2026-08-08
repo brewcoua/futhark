@@ -101,10 +101,28 @@ config:
         - targets: ["traefik-internal.ingress-internal.svc.cluster.local:9180"]
           labels:
             instance: traefik-internal
-    # traefik-edge is still hostNetwork-bound (kenaz's public IP), so its metrics port is
-    # only reachable over the mesh IP — see infra/monitoring/ks.yaml.
+    # traefik-edge is hostNetwork, so its status.podIP is kenaz's kubelet --node-ip — which
+    # ansible/roles/k0s_cluster/templates/k0sctl.yaml.j2 sets to the node's mesh IP. That is the
+    # address the metrics entryPoint binds to, so discovery finds it without the address being
+    # written down anywhere; this was a static ${MESH_IP} target out of the edge-ips Secret.
+    #
+    # role: pod, not endpoints — the chart's metrics Service targets a port on a hostNetwork pod,
+    # and a Service adds nothing here when there is exactly one replica pinned to one node.
     - job_name: traefik-edge
-      static_configs:
-        - targets: ["${MESH_IP}:9181"]
-          labels:
-            instance: traefik-edge
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names: [ingress-edge]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: traefik
+        # The discovered address carries whichever container port came first; force the metrics
+        # entryPoint's, so the job never silently scrapes 443 or the dashboard.
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $1:9181
+          target_label: __address__
+        - target_label: instance
+          replacement: traefik-edge

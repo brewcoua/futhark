@@ -42,6 +42,12 @@ The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
 That Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
 consumers reconcile, and `infra-policies` — the obvious home for it — depends on `traefik-edge`.
 
+This release is the Secret's only consumer, and the reason it has to be one: `hostIP` in a pod
+spec takes no `fieldRef`, so an address bound there has to be written down. Where the same address
+was needed as data rather than as a bind target, it is discovered instead — the `traefik-edge`
+scrape job in `infra/monitoring` reads it off the API server, since a `hostNetwork` pod's
+`status.podIP` is the kubelet's `--node-ip`, which `k0sctl.yaml.j2` sets to the mesh address.
+
 ## Monitoring
 
 One Flux `Kustomization`, four workloads, one directory each under `infra/monitoring/app/`:

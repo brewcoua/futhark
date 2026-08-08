@@ -10,13 +10,11 @@ spec:
     - name: traefik-internal
     - name: infisical-operator-config
     - name: substitutions
-  # The public-ingress host's mesh IP — used to scrape traefik-edge's metrics port, still
-  # hostNetwork-bound — and the internal hostnames. Both committed SOPS-encrypted, alongside
-  # monitoring-sizing's retention and volume knobs.
+  # The internal hostnames, committed SOPS-encrypted, alongside monitoring-sizing's retention and
+  # volume knobs. edge-ips was here too, for a static ${MESH_IP} traefik-edge scrape target;
+  # app/metrics/scrape-configs.yaml discovers that address from the API server instead.
   postBuild:
     substituteFrom:
-      - kind: Secret
-        name: edge-ips
       - kind: Secret
         name: dns
       - kind: ConfigMap
