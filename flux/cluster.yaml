@@ -12,7 +12,7 @@ spec:
     # Pinned exactly, not "2.x": the operator resolves a floating range at every reconcile, so
     # the controllers could move without a commit. Renovate raises the bump instead.
     # renovate: datasource=github-releases depName=fluxcd/flux2 extractVersion=^v(?<version>.+)$
-    version: "2.9.3"
+    version: "2.9.4"
     registry: ghcr.io/fluxcd
   sync:
     kind: GitRepository
