@@ -121,14 +121,31 @@ that touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify 
 | [`b2`](b2.md)           | The Backblaze B2 bucket Velero backs up to, and the application key it uses              |
 
 What each touches. Every arrow into a secret store is a read except the one marked in red, which
-is the whole read-only rule and its single exception.
+is the whole read-only rule and its single exception: `oidc` writes under a separate identity,
+scoped to `/nodes/<host>/<app>`. Amber marks a third party this repository calls but does not
+own, including the state bucket, which was created by hand.
 
 ```d2
 direction: down
 
+classes: {
+  external: {
+    style: {
+      stroke: goldenrod
+      fill: cornsilk
+    }
+  }
+  danger: {
+    style: {
+      bold: true
+      stroke: firebrick
+    }
+  }
+}
+
 pass: Proton Pass
 sops: SOPS in git
-infisical: Infisical
+infisical: Infisical { class: external }
 
 modules: "tofu/" {
   bunny
@@ -146,13 +163,11 @@ modules.oidc -> pocketid: OIDC clients
 modules.b2 -> b2-api: bucket, Velero's key
 modules.b2 -> b2-state: "its own state, SSE-C\n(the one remote backend)"
 
-bunny-api: Bunny DNS API
-nb-api: NetBird API
+bunny-api: Bunny DNS API { class: external }
+nb-api: NetBird API { class: external }
 pocketid: "Pocket ID API\n(a Flux-managed workload)"
-b2-api: Backblaze B2 API
-b2-state: "B2 state bucket\n(created by hand, unmanaged)"
+b2-api: Backblaze B2 API { class: external }
+b2-state: "B2 state bucket\n(created by hand, unmanaged)" { class: external }
 
-modules.oidc -> infisical: "WRITES the minted secret\nseparate identity, scoped to /nodes/<host>/<app>" {
-  style: { bold: true; stroke: "#c00" }
-}
+modules.oidc -> infisical: WRITES the minted secret { class: danger }
 ```

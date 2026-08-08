@@ -24,10 +24,34 @@ operational secret, rotatable without touching anything else, so that is Infisic
 **The cluster holds no Proton Pass credential at all.** That is the whole tier boundary, and it
 rests on absence rather than on a console-side path grant that could be misconfigured or drift. A
 compromise of the cluster cannot reach the keys that rebuild it, because there is nothing in the
-cluster to reach them with. Drawn out, the boundary is the arrow that is not there:
+cluster to reach them with. Drawn out, the boundary is the arrow that is not there: the red one,
+barred rather than pointed. Green is Proton Pass, the tier everything else is rebuilt from, and
+amber is a third party this repository can write to but does not own.
 
 ```d2
 direction: down
+
+classes: {
+  boundary: {
+    style: {
+      stroke-width: 3
+      stroke: seagreen
+      fill: honeydew
+    }
+  }
+  external: {
+    style: {
+      stroke: goldenrod
+      fill: cornsilk
+    }
+  }
+  denied: {
+    style: {
+      stroke: firebrick
+      stroke-dash: 4
+    }
+  }
+}
 
 operator: operator machine {
   gpg: GPG smartcard
@@ -35,10 +59,10 @@ operator: operator machine {
 }
 
 pass: "Proton Pass, futharkd\ndeploy key, age key, API tokens, API keys" {
-  style.stroke-width: 3
+  class: boundary
 }
 sops: SOPS in git\nnode addresses, domain, account IDs
-infisical: "Infisical Cloud (EU)\nper-app runtime secrets"
+infisical: "Infisical Cloud (EU)\nper-app runtime secrets" { class: external }
 
 cluster: k0s cluster {
   flux: Flux
@@ -65,7 +89,7 @@ cluster.flux -> sops: decrypts, with the age key only
 cluster.infop -> infisical: reads
 
 pass -> cluster: "no credential, no path" {
-  style: { stroke-dash: 4; stroke: "#888" }
+  class: denied
   target-arrowhead.shape: cf-many
 }
 ```

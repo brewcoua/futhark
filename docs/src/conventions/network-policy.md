@@ -15,12 +15,38 @@ assembled per namespace from shared templates in `infra/policies/namespaces/_tem
 | `netpol-allow-from-ingress-edge`     | Only if the namespace ships an `Ingress` with `ingressClassName: edge`     |
 
 What that composes to, for one namespace: a wall with named holes in it, and one path that goes
-around the wall entirely.
+around the wall entirely. Each edge is labelled with the template that opens it, minus the
+`netpol-` prefix every template name carries. Red is the traffic the baseline drops. The
+`ingress-edge` bridge is the loose one: `traefik-edge` runs on `hostNetwork`, so the rule that
+admits it matches the mesh CIDR rather than a pod identity.
 
 ```d2
 direction: down
 
+classes: {
+  denied: {
+    style: {
+      stroke: firebrick
+      stroke-dash: 4
+    }
+  }
+  note: {
+    style: {
+      stroke: dimgray
+      stroke-dash: 4
+      fill: transparent
+    }
+  }
+  noteline: {
+    style: {
+      stroke: dimgray
+      stroke-dash: 4
+    }
+  }
+}
+
 ns: "any namespace" {
+  label.near: outside-top-left
   pods: its pods
 }
 
@@ -30,21 +56,19 @@ int: "ingress-internal\n(traefik-internal)"
 edge: "ingress-edge\n(traefik-edge, hostNetwork)"
 other: everything else { style.stroke-dash: 3 }
 
-same -> ns.pods: netpol-allow-same-namespace
-mon -> ns.pods: netpol-allow-from-monitoring
-int -> ns.pods: netpol-allow-from-ingress-internal
-edge -> ns.pods: "netpol-allow-from-ingress-edge\nmatches the mesh CIDR, not a pod identity"
-other -> ns.pods: "netpol-default-deny" {
-  style: { stroke-dash: 4; stroke: "#888" }
+same -> ns.pods: allow-same-namespace
+mon -> ns.pods: allow-from-monitoring
+int -> ns.pods: allow-from-ingress-internal
+edge -> ns.pods: allow-from-ingress-edge
+other -> ns.pods: "default-deny" {
+  class: denied
   target-arrowhead.shape: cf-many
 }
 
 ns.pods -> anywhere: egress is never denied
 
-firewalld: "firewalld + Traefik rate limiting\nCNI policy never sees traefik-edge's sockets" {
-  style: { stroke-dash: 4; fill: transparent }
-}
-firewalld -> edge: { style.stroke-dash: 4 }
+firewalld: "firewalld + Traefik rate limiting\nCNI policy never sees traefik-edge's sockets" { class: note }
+firewalld -> edge { class: noteline }
 ```
 
 Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace rather than

@@ -38,19 +38,21 @@ A reader unfamiliar with the author's context should be able to complete the doc
 Diagrams are ```d2 fences rendered inline by `mdbook-d2`. `docs/theme/d2.css` remaps d2's theme slots to the mdbook theme variables so a diagram follows the reader's selected theme.
 
 - Use d2's default colors for the subject of the diagram. They carry the slot classes that `docs/theme/d2.css` repaints. Express meaning with `stroke-width`, `stroke-dash`, and arrowhead shape before reaching for color.
-- Explicit color is drawn from a fixed palette, and each hex is load-bearing because the stylesheet matches on the exact value:
+- Declare every style once in a `classes:` block at the top of the fence and attach it with `class:`. Do not repeat a `style` block per node or edge, and do not write a color at the point of use.
+- Explicit color comes from this palette. The stylesheet matches on the color name, so the name is the contract:
 
-  | Hex                | Property      | Means                                                           |
-  | ------------------ | ------------- | --------------------------------------------------------------- |
-  | `#c00`             | stroke, fill  | Denied or danger edge                                           |
-  | `#888`             | stroke        | Annotation, or an edge deliberately drawn back from the subject |
-  | `#2d8` / `#eafaf2` | stroke / fill | Graph boundary: roots and sinks                                 |
-  | `#a7f` / `#f5eefe` | stroke / fill | A secondary kind of node, distinct but not de-emphasized        |
+  | Class name  | stroke / fill               | Means                                                           |
+  | ----------- | --------------------------- | --------------------------------------------------------------- |
+  | `muted`     | `dimgray`                   | Annotation, or an edge deliberately drawn back from the subject |
+  | `denied`    | `firebrick`                 | Denied, blocked, or danger                                      |
+  | `boundary`  | `seagreen` / `honeydew`     | Roots and sinks, or the start and end of a sequence             |
+  | `secondary` | `mediumpurple` / `lavender` | A second kind of node, distinct but not de-emphasized           |
+  | `external`  | `goldenrod` / `cornsilk`    | A third party or resource outside this repository's control     |
 
-- Adding a color outside that table requires a matching rule in `docs/theme/d2.css`. Without one it stays fixed across all five themes.
-- Declare repeated styles once in a `classes:` block and attach them with `class:`, rather than repeating a `style` block per node or edge.
-- A diagram dense enough that edges are hard to follow renders better under ELK, set per-file with `vars: { d2-config: { layout-engine: elk } }`. It routes orthogonally instead of curving. `docs/src/conventions/ordering.md` does this; the rest use the default dagre.
+- An edge's stroke color also fills its arrowhead, so an edge may only take a color from the palette. Anything else leaves the arrowhead at the literal color while the line follows the theme.
+- Adding a color outside the palette requires a matching `[stroke=…]` and `[fill=…]` pair in `docs/theme/d2.css`. Without them it stays fixed across all five themes.
 - State what the colors and line styles mean in the prose immediately above the fence. Do not draw a legend inside the diagram.
+- ELK, set per-file with `vars: { d2-config: { layout-engine: elk } }`, routes orthogonally instead of curving. It helps a diagram whose edges are too dense to follow, which is why `docs/src/conventions/ordering.md` uses it; the rest use the default dagre. It does not fix overlapping labels. Those come from label length against converging edges, so shorten the label or move the detail into the prose.
 
 ## Accuracy and uncertainty
 

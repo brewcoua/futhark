@@ -42,49 +42,68 @@ svg.d2-svg .fill-B6 {
   fill: color-mix(in srgb, var(--links) 7%, var(--bg));
 }
 
-/* Colors set explicitly in the d2 source carry no slot class, so they are matched on their
-   exact value and remapped onto mdbook's alert palette. The hexes are the whole contract:
-   see the diagram convention in docs/CLAUDE.md before changing one. */
+/* A color set explicitly in the d2 source replaces the slot class, so these are matched on the
+   value instead and remapped onto mdbook's alert palette. d2 passes CSS named colors through
+   verbatim, so the name is the contract: `dimgray` here is the same `dimgray` a fence writes.
+   Each role needs both rules. An edge's stroke color also becomes the fill of its arrowhead
+   <polygon>, and a stroke-only rule leaves that arrowhead stuck at the literal color.
 
-/* Denied or danger edge. */
-svg.d2-svg [stroke="#c00"] {
-  stroke: var(--blockquote-caution-color, #f21424);
-}
-svg.d2-svg [fill="#c00"] {
-  fill: var(--blockquote-caution-color, #f21424);
-}
+   The vocabulary and which class in a fence carries which color is in docs/CLAUDE.md. Read it
+   before adding a color: one that is not listed below stays fixed across all five themes. */
 
-/* Annotation, and any edge deliberately drawn back from the diagram's main subject.
-   An edge color needs the fill rule too: d2 draws the arrowhead as a filled <polygon>. */
-svg.d2-svg [stroke="#888"] {
+/* muted: annotation, or an edge deliberately drawn back from the diagram's subject. */
+svg.d2-svg [stroke="dimgray"] {
   stroke: var(--icons);
 }
-svg.d2-svg [fill="#888"] {
+svg.d2-svg [fill="dimgray"] {
   fill: var(--icons);
 }
 
-/* Graph boundary: roots and sinks. */
-svg.d2-svg [stroke="#2d8"] {
+/* denied: denied, blocked, or danger. */
+svg.d2-svg [stroke="firebrick"] {
+  stroke: var(--blockquote-caution-color, #f21424);
+}
+svg.d2-svg [fill="firebrick"] {
+  fill: var(--blockquote-caution-color, #f21424);
+}
+
+/* boundary: roots and sinks, or the start and end of a sequence. */
+svg.d2-svg [stroke="seagreen"] {
   stroke: var(--blockquote-tip-color, #09ca09);
 }
-svg.d2-svg [fill="#2d8"] {
+svg.d2-svg [fill="seagreen"] {
   fill: var(--blockquote-tip-color, #09ca09);
 }
-svg.d2-svg [fill="#eafaf2"] {
+svg.d2-svg [fill="honeydew"] {
   fill: color-mix(in srgb, var(--blockquote-tip-color, #09ca09) 14%, var(--bg));
 }
 
-/* Secondary kind of node, distinct from the subject but not de-emphasized. */
-svg.d2-svg [stroke="#a7f"] {
+/* secondary: a second kind of node, distinct from the subject but not de-emphasized. */
+svg.d2-svg [stroke="mediumpurple"] {
   stroke: var(--blockquote-important-color, #ab7df8);
 }
-svg.d2-svg [fill="#a7f"] {
+svg.d2-svg [fill="mediumpurple"] {
   fill: var(--blockquote-important-color, #ab7df8);
 }
-svg.d2-svg [fill="#f5eefe"] {
+svg.d2-svg [fill="lavender"] {
   fill: color-mix(
     in srgb,
     var(--blockquote-important-color, #ab7df8) 14%,
+    var(--bg)
+  );
+}
+
+/* external: a third-party service or resource outside this repository's control. */
+svg.d2-svg [stroke="goldenrod"] {
+  stroke: var(--blockquote-warning-color, #d29922);
+}
+svg.d2-svg [fill="goldenrod"] {
+  fill: var(--blockquote-warning-color, #d29922);
+}
+svg.d2-svg [fill="cornsilk"] {
+  fill: color-mix(
+    in srgb,
+    var(--blockquote-warning-color, #d29922) 14%,
     var(--bg)
   );
 }

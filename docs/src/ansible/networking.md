@@ -22,6 +22,22 @@ fixes below are not interchangeable:
 ```d2
 direction: down
 
+classes: {
+  note: {
+    style: {
+      stroke: dimgray
+      stroke-dash: 4
+      fill: transparent
+    }
+  }
+  noteline: {
+    style: {
+      stroke: dimgray
+      stroke-dash: 4
+    }
+  }
+}
+
 a: node A {
   pod: pod\nsrc = pod IP
   tun: kube-router\nIPIP tunnel
@@ -39,19 +55,13 @@ b: node B {
 a.ts -> b.bts: mesh
 b.bts -> b.bpod
 
-fix1: "1. ip rule per peer /32 at mesh_route_priority\nkube-router's rule would send this into the tunnel\nwhose endpoint IS that address" {
-  style: { stroke-dash: 4; fill: transparent }
-}
-fix2: "2. SNAT to the node's mesh IP\nthe WireGuard peer drops foreign source addresses,\nfailing as 'no route to host'" {
-  style: { stroke-dash: 4; fill: transparent }
-}
-acl: "the mesh policy must pass every protocol\nor the IPIP tunnel blackholes silently" {
-  style: { stroke-dash: 4; fill: transparent }
-}
+fix1: "1. ip rule per peer /32 at mesh_route_priority\nkube-router's rule would send this into the tunnel\nwhose endpoint IS that address" { class: note }
+fix2: "2. SNAT to the node's mesh IP\nthe WireGuard peer drops foreign source addresses,\nfailing as 'no route to host'" { class: note }
+acl: "the mesh policy must pass every protocol\nor the IPIP tunnel blackholes silently" { class: note }
 
-fix1 -> a.ts: { style.stroke-dash: 4 }
-fix2 -> a.ts: { style.stroke-dash: 4 }
-acl -> a.tun: { style.stroke-dash: 4 }
+fix1 -> a.ts { class: noteline }
+fix2 -> a.ts { class: noteline }
+acl -> a.tun { class: noteline }
 ```
 
 ## 1. Routing

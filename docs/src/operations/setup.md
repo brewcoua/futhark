@@ -21,28 +21,48 @@ Before step 1, have:
 
 Three values cannot exist until something else is running, so they are filled in twice: the edge
 node's mesh address (step 7), Velero's B2 application key (step 8) and the Pocket ID API token
-(step 10). Each is called out where it lands.
+(step 10). Each is called out where it lands. Blue runs forward through the twelve steps, green
+marks the first and last, and each red dashed arrow reaches back to a step that has to be
+revisited once the value it needed finally exists.
 
 ```d2
 direction: down
 
-stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and folders"
+classes: {
+  boundary: {
+    style: {
+      stroke-width: 3
+      stroke: seagreen
+      fill: honeydew
+    }
+  }
+  backfill: {
+    style: {
+      stroke: firebrick
+      stroke-dash: 4
+    }
+  }
+}
+
+stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and folders" {
+  class: boundary
+}
 repo: "3-6. This machine and this repo\njust ops setup, age key, node definitions,\nthe encrypted files, push"
 hosts: "7-8. The hosts, the mesh, the bucket\njust ans setup, then just tf apply netbird, b2"
 cluster: "9. The cluster\njust ans k0s: k0sctl, local-path, Flux"
 cloud: "10. The cloud plane\njust tf apply bunny, oidc"
-after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps"
+after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps" { class: boundary }
 
 stores -> repo -> hosts -> cluster -> cloud -> after
 
 hosts -> repo: "MESH_IP was a placeholder in step 5.\nThe node had not joined the mesh yet" {
-  style: { stroke-dash: 4; stroke: "#c00" }
+  class: backfill
 }
 hosts -> stores: "Velero's B2 key was a placeholder in step 2.\ntofu/b2 mints it here" {
-  style: { stroke-dash: 4; stroke: "#c00" }
+  class: backfill
 }
 cloud -> stores: "POCKETID_API_TOKEN was a placeholder in step 1.\nPocket ID did not exist yet" {
-  style: { stroke-dash: 4; stroke: "#c00" }
+  class: backfill
 }
 ```
 

@@ -14,15 +14,32 @@ The tree splits along three planes, and almost every question about the reposito
 | Cloud   | Provider APIs no Kustomization can express: DNS, OIDC clients, the mesh policy | OpenTofu         | [`tofu/`](tofu/index.md)                      |
 
 The table says who owns what. What it cannot say is how the three meet: each plane hands off to
-the next exactly once, and nothing reaches back the other way.
+the next exactly once, and nothing reaches back the other way. Green is this repository, the one
+source of truth. Amber is a third party, the things this repository can call but never own.
 
 ```d2
 direction: down
 
+classes: {
+  boundary: {
+    style: {
+      stroke-width: 3
+      stroke: seagreen
+      fill: honeydew
+    }
+  }
+  external: {
+    style: {
+      stroke: goldenrod
+      fill: cornsilk
+    }
+  }
+}
+
 operator: operator machine {
   ansible: Ansible
   tofu: OpenTofu
-  pass: pass-cli -> Proton Pass
+  pass: pass-cli -> Proton Pass { class: external }
 }
 
 hosts: the machines {
@@ -36,15 +53,15 @@ cluster: k0s cluster {
   flux -> workloads: reconciles
 }
 
-git: this repository { style.stroke-width: 3 }
+git: this repository { class: boundary }
 
 cloud: provider APIs {
-  bunny: Bunny DNS
-  netbird: NetBird
-  pocketid: Pocket ID
+  bunny: Bunny DNS { class: external }
+  netbird: NetBird { class: external }
+  pocketid: Pocket ID { class: external }
 }
 
-operator.ansible -> hosts: provisions, then k0sctl installs k0s
+operator.ansible -> hosts: provisions
 operator.ansible -> cluster.flux: bootstraps once
 operator.tofu -> cloud: applies
 operator.pass -> operator.ansible: crown jewels, never committed

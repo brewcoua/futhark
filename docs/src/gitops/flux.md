@@ -47,10 +47,29 @@ just fx sources    # the GitRepository is Ready at the pushed revision
 just fx failing    # empty
 ```
 
-The handoff, and the one line it never crosses back over:
+The handoff, and the one line it never crosses back over. Green is the handoff point itself, the
+moment Ansible stops and Flux owns the cluster. The two Kustomization labels are paths under
+`flux/`.
 
 ```d2
 direction: down
+
+classes: {
+  boundary: {
+    style: {
+      stroke-width: 3
+      stroke: seagreen
+      fill: honeydew
+    }
+  }
+  note: {
+    style: {
+      stroke: dimgray
+      stroke-dash: 4
+      fill: transparent
+    }
+  }
+}
 
 ansible: "ansible/playbooks/k0s.yml" {
   k0s: k0s_cluster\nk0sctl apply
@@ -64,17 +83,15 @@ ansible: "ansible/playbooks/k0s.yml" {
   boot.op -> boot.seeds -> boot.inst
 }
 
-flux: Flux { style.stroke-width: 3 }
+flux: Flux { class: boundary }
 git: this repository
 
 ansible.boot.inst -> flux: hands over
 git -> flux: sync.path flux/
-flux -> infra: "flux/infra/ks.yaml -> ./infra"
-flux -> nodes: "flux/nodes/ks.yaml -> ./nodes"
+flux -> infra: infra/ks.yaml
+flux -> nodes: nodes/ks.yaml
 
-cluster: "flux/cluster.yaml is applied, never reconciled.\nFlux would otherwise watch its own bootstrap" {
-  style: { stroke-dash: 4; fill: transparent; stroke: "#888" }
-}
+cluster: "flux/cluster.yaml is applied, never reconciled.\nFlux would otherwise watch its own bootstrap" { class: note }
 ```
 
 Every Kustomization carries a `decryption` block naming `flux-system/sops-age`, patched in once

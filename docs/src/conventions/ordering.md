@@ -28,25 +28,25 @@ classes: {
   boundary: {
     style: {
       stroke-width: 3
-      stroke: "#2d8"
-      fill: "#eafaf2"
+      stroke: seagreen
+      fill: honeydew
     }
   }
   config: {
     style: {
       stroke-dash: 3
-      stroke: "#a7f"
-      fill: "#f5eefe"
+      stroke: mediumpurple
+      fill: lavender
     }
   }
   presence: {
     style: {
-      stroke: "#888"
+      stroke: dimgray
       stroke-dash: 4
     }
   }
   bulk: {
-    style.stroke: "#888"
+    style.stroke: dimgray
   }
 }
 
