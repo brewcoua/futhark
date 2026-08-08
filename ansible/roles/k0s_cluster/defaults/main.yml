@@ -7,4 +7,4 @@
 # Upgrading is not free: k0sctl drains and restarts each node in turn. Read the k0s release
 # notes for skipped minors before merging that PR.
 # renovate: datasource=github-releases depName=k0sproject/k0s versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\+k0s\.(?<build>\d+)$
-k0s_cluster_version: "v1.36.3+k0s.0"
+k0s_cluster_version: "v1.36.3+k0s.1"
