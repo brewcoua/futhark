@@ -37,9 +37,20 @@ A reader unfamiliar with the author's context should be able to complete the doc
 
 Diagrams are ```d2 fences rendered inline by `mdbook-d2`. `docs/theme/d2.css` remaps d2's theme slots to the mdbook theme variables so a diagram follows the reader's selected theme.
 
-- Use d2's default colors. They carry the slot classes that `docs/theme/d2.css` repaints. Express meaning with `stroke-width`, `stroke-dash`, and arrowhead shape instead of color where you can.
-- Two explicit colors are allowed, and their exact hex is load-bearing because the stylesheet matches on it: `#c00` for denied or danger edges, `#888` for annotation edges.
-- Adding a third explicit color requires a matching rule in `docs/theme/d2.css`. Without one, that color stays fixed across all five themes.
+- Use d2's default colors for the subject of the diagram. They carry the slot classes that `docs/theme/d2.css` repaints. Express meaning with `stroke-width`, `stroke-dash`, and arrowhead shape before reaching for color.
+- Explicit color is drawn from a fixed palette, and each hex is load-bearing because the stylesheet matches on the exact value:
+
+  | Hex                | Property      | Means                                                           |
+  | ------------------ | ------------- | --------------------------------------------------------------- |
+  | `#c00`             | stroke, fill  | Denied or danger edge                                           |
+  | `#888`             | stroke        | Annotation, or an edge deliberately drawn back from the subject |
+  | `#2d8` / `#eafaf2` | stroke / fill | Graph boundary: roots and sinks                                 |
+  | `#a7f` / `#f5eefe` | stroke / fill | A secondary kind of node, distinct but not de-emphasized        |
+
+- Adding a color outside that table requires a matching rule in `docs/theme/d2.css`. Without one it stays fixed across all five themes.
+- Declare repeated styles once in a `classes:` block and attach them with `class:`, rather than repeating a `style` block per node or edge.
+- A diagram dense enough that edges are hard to follow renders better under ELK, set per-file with `vars: { d2-config: { layout-engine: elk } }`. It routes orthogonally instead of curving. `docs/src/conventions/ordering.md` does this; the rest use the default dagre.
+- State what the colors and line styles mean in the prose immediately above the fence. Do not draw a legend inside the diagram.
 
 ## Accuracy and uncertainty
 

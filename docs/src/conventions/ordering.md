@@ -9,20 +9,56 @@ controller either. A substitution target has to exist before any consumer reconc
 wait on anything. The two controllers that need nothing else from the cluster,
 `infisical-operator` and `cert-manager`, sit directly behind `namespaces`.
 
-The real graph, as declared in each `ks.yaml`. Thick borders are the roots and the two sinks.
+The real graph, as declared in each `ks.yaml`. Green marks the boundary: the two roots and the two
+sinks. Purple dashed marks a `config-ks.yaml`. Blue is the ordering spine, the chain that actually
+has to reconcile in sequence. The two grey bundles are not part of that chain and are drawn back
+so it reads through them: dashed grey is a substitution source that only has to exist, and solid
+grey is the fan-in onto `infra-policies`.
 
 ```d2
+vars: {
+  d2-config: {
+    layout-engine: elk
+  }
+}
+
 direction: down
 
-namespaces: namespaces\n(no dependsOn) { style.stroke-width: 3 }
-substitutions: substitutions\n(no dependsOn) { style.stroke-width: 3 }
+classes: {
+  boundary: {
+    style: {
+      stroke-width: 3
+      stroke: "#2d8"
+      fill: "#eafaf2"
+    }
+  }
+  config: {
+    style: {
+      stroke-dash: 3
+      stroke: "#a7f"
+      fill: "#f5eefe"
+    }
+  }
+  presence: {
+    style: {
+      stroke: "#888"
+      stroke-dash: 4
+    }
+  }
+  bulk: {
+    style.stroke: "#888"
+  }
+}
 
-infisical-operator-config: infisical-operator-config
-cert-manager-config: cert-manager-config
-backup-config: backup-config
+namespaces: namespaces\n(no dependsOn) { class: boundary }
+substitutions: substitutions\n(no dependsOn) { class: boundary }
 
-nodes: nodes { style.stroke-width: 3 }
-actual: nodes/kenaz.k0s/actual
+infisical-operator-config: infisical-operator-config { class: config }
+cert-manager-config: cert-manager-config { class: config }
+backup-config: backup-config { class: config }
+
+nodes: nodes { class: boundary }
+actual: nodes/kenaz.k0s/actual { class: boundary }
 
 namespaces -> cert-manager
 namespaces -> infisical-operator
@@ -48,21 +84,21 @@ traefik-edge -> auth
 storage -> actual
 backup -> backup-config
 
-substitutions -> traefik-internal
-substitutions -> traefik-edge
-substitutions -> monitoring
-substitutions -> backup
-substitutions -> actual
-substitutions -> infra-policies
+substitutions -> traefik-internal { class: presence }
+substitutions -> traefik-edge { class: presence }
+substitutions -> monitoring { class: presence }
+substitutions -> backup { class: presence }
+substitutions -> actual { class: presence }
+substitutions -> infra-policies { class: presence }
 
-cert-manager -> infra-policies
-infisical-operator -> infra-policies
-traefik-internal -> infra-policies
-traefik-edge -> infra-policies
-storage -> infra-policies
-backup -> infra-policies
-monitoring -> infra-policies
-auth -> infra-policies
+cert-manager -> infra-policies { class: bulk }
+infisical-operator -> infra-policies { class: bulk }
+traefik-internal -> infra-policies { class: bulk }
+traefik-edge -> infra-policies { class: bulk }
+storage -> infra-policies { class: bulk }
+backup -> infra-policies { class: bulk }
+monitoring -> infra-policies { class: bulk }
+auth -> infra-policies { class: bulk }
 
 infra-policies -> nodes
 infra-policies -> actual

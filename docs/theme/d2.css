@@ -42,14 +42,49 @@ svg.d2-svg .fill-B6 {
   fill: color-mix(in srgb, var(--links) 7%, var(--bg));
 }
 
-/* Colors set explicitly in the d2 source carry no slot class. Matched by exact value;
-   see the diagram convention in docs/CLAUDE.md before changing either hex. */
+/* Colors set explicitly in the d2 source carry no slot class, so they are matched on their
+   exact value and remapped onto mdbook's alert palette. The hexes are the whole contract:
+   see the diagram convention in docs/CLAUDE.md before changing one. */
+
+/* Denied or danger edge. */
 svg.d2-svg [stroke="#c00"] {
   stroke: var(--blockquote-caution-color, #f21424);
 }
 svg.d2-svg [fill="#c00"] {
   fill: var(--blockquote-caution-color, #f21424);
 }
+
+/* Annotation, and any edge deliberately drawn back from the diagram's main subject.
+   An edge color needs the fill rule too: d2 draws the arrowhead as a filled <polygon>. */
 svg.d2-svg [stroke="#888"] {
   stroke: var(--icons);
+}
+svg.d2-svg [fill="#888"] {
+  fill: var(--icons);
+}
+
+/* Graph boundary: roots and sinks. */
+svg.d2-svg [stroke="#2d8"] {
+  stroke: var(--blockquote-tip-color, #09ca09);
+}
+svg.d2-svg [fill="#2d8"] {
+  fill: var(--blockquote-tip-color, #09ca09);
+}
+svg.d2-svg [fill="#eafaf2"] {
+  fill: color-mix(in srgb, var(--blockquote-tip-color, #09ca09) 14%, var(--bg));
+}
+
+/* Secondary kind of node, distinct from the subject but not de-emphasized. */
+svg.d2-svg [stroke="#a7f"] {
+  stroke: var(--blockquote-important-color, #ab7df8);
+}
+svg.d2-svg [fill="#a7f"] {
+  fill: var(--blockquote-important-color, #ab7df8);
+}
+svg.d2-svg [fill="#f5eefe"] {
+  fill: color-mix(
+    in srgb,
+    var(--blockquote-important-color, #ab7df8) 14%,
+    var(--bg)
+  );
 }
