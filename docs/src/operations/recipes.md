@@ -31,6 +31,11 @@ argument, and `[<x>]` takes an optional one.
 `just` itself is the one thing `ops deps` cannot install for you. It has to be there to run the
 recipe. `sudo dnf install just` first.
 
+Every tool that is only a binary on `PATH` is pinned in `mise.toml` and installed with `mise
+install`; the dnf packages, their daemons and the `uv` tools are the rest of the recipe. The
+binaries land in `~/.local/share/mise/shims`, which
+[Cold bootstrap](setup.md#3-the-operator-machine) covers putting on `PATH`.
+
 The `tf init` inside `ops setup` skips any module with a `backend.tf` while
 `config/sops/ops.sops.yaml` does not exist yet, and says so. That is the cold-bootstrap case: setup
 runs at step 3, the encrypted files land at step 5. Run `just tf init <module>` for it afterwards.

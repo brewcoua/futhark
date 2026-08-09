@@ -17,7 +17,7 @@ Before step 1, have:
   Backblaze B2, Bunny, and a GCP project if you want the Google Drive storage class.
 - One or more hosts you can reach over SSH as root or as a sudo-capable user.
 - Fedora or another `dnf` distribution on the operator machine, plus `uv`. `just ops deps`
-  requires both.
+  requires both, and installs everything else itself.
 
 Three values cannot exist until something else is running, so they are filled in twice: the edge
 node's mesh address (step 7), Velero's B2 application key (step 8) and the Pocket ID API token
@@ -218,6 +218,24 @@ GPG smartcard stack, and `mdbook` with `d2` and `mdbook-d2` for the diagrams. It
 pre-commit hooks, runs `tofu init` in every module but `b2`, and checks you have a Proton Pass
 session and a place on the mesh. `b2` is skipped with a message, since its remote backend
 authenticates against secrets step 5 has not written yet. Step 8 initialises it.
+
+Most of those are pinned in `mise.toml` and installed by `mise`, which puts them in
+`~/.local/share/mise/shims` rather than on `PATH`. Put that directory on `PATH` in your login
+profile, not only in an interactive shell configuration. The `kustomize build`, `just --fmt` and
+`tofu validate` pre-commit hooks run outside an interactive shell and call those binaries by name:
+
+```bash
+echo 'export PATH="$HOME/.local/share/mise/shims:$PATH"' >> ~/.profile
+```
+
+Verify from a shell that has read the new profile:
+
+```bash
+kustomize version
+```
+
+It prints the `kustomize` version in `mise.toml`. If the command is not found, `PATH` has not
+picked up the shims, and pre-commit will fail on the `kustomize build` hook.
 
 `rclone` and `b2` are the two there purely for bootstrap. Nothing in `just` calls either.
 `rclone` exists so you can go back and finish [The rclone remotes](rclone.md) from step 2, and

@@ -16,15 +16,16 @@ the repository.
 
 ## What it covers
 
-| Manager                    | Reaches                                                                      |
-| -------------------------- | ---------------------------------------------------------------------------- |
-| `flux`                     | `HelmRelease` chart versions and the images inside their `values`            |
-| `kubernetes`               | Images in plain manifests under `infra/` and `nodes/`                        |
-| `terraform`                | `tofu/*/provider.tf` constraints and `.terraform.lock.hcl`                   |
-| `ansible-galaxy`           | `ansible/requirements.yml`                                                   |
-| `github-actions`           | Action pins in every workflow                                                |
-| `pre-commit`               | Hook `rev:`s in `.pre-commit-config.yaml`                                    |
-| `custom.regex` (annotated) | `config/versions.env`, and the k0s, flux-operator and Flux distribution pins |
+| Manager                    | Reaches                                                           |
+| -------------------------- | ----------------------------------------------------------------- |
+| `flux`                     | `HelmRelease` chart versions and the images inside their `values` |
+| `kubernetes`               | Images in plain manifests under `infra/` and `nodes/`             |
+| `terraform`                | `tofu/*/provider.tf` constraints and `.terraform.lock.hcl`        |
+| `ansible-galaxy`           | `ansible/requirements.yml`                                        |
+| `github-actions`           | Action pins in every workflow                                     |
+| `pre-commit`               | Hook `rev:`s in `.pre-commit-config.yaml`                         |
+| `mise`                     | The pinned tool binaries in `mise.toml`                           |
+| `custom.regex` (annotated) | The k0s, flux-operator and Flux distribution pins                 |
 
 The built-in managers are scoped to the directories they belong to, because a manager with no
 file patterns walks the whole tree. SOPS files are excluded outright: their `version:` field
@@ -32,17 +33,16 @@ records the sops binary that encrypted them, which is history, not a dependency.
 
 ## The annotation convention
 
-Renovate cannot guess the upstream of a bare shell variable or a Jinja-templated YAML value. Those
-pins carry a comment on the line directly above:
+Renovate cannot guess the upstream of a YAML value no built-in manager understands. Those pins
+carry a comment on the line directly above:
 
-```bash
-# renovate: datasource=github-releases depName=terrastruct/d2
-D2_VERSION=v0.7.1
+```yaml
+# renovate: datasource=github-releases depName=fluxcd/flux2 extractVersion=^v(?<version>.+)$
+version: "2.9.4"
 ```
 
 `versioning=` and `extractVersion=` are both optional and go after `depName=`, in that order.
-`kustomize` needs `extractVersion` because it tags releases `kustomize/v5.5.0`, and `k0s` needs
-`versioning` because `v1.36.3+k0s.0` is not plain semver.
+`k0s` needs `versioning` because `v1.36.3+k0s.1` is not plain semver.
 
 The comment must stay immediately above its pin. Insert a line between them, or move the pin
 without its comment, and it silently stops being tracked. There is no error, just an update that
@@ -50,7 +50,7 @@ never arrives. `.github/workflows/validate.yml` validates the config itself on e
 nothing can validate an annotation that is simply absent.
 
 Group rules exist for the pins that are one decision written twice: the `gitleaks` version in both
-`config/versions.env` and `.pre-commit-config.yaml`, the Velero chart and its CLI, the
+`mise.toml` and `.pre-commit-config.yaml`, the Velero chart and its CLI, the
 VictoriaMetrics stack, mdbook and its d2 preprocessor, the Flux operator and the distribution it
 installs.
 

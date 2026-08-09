@@ -1,0 +1,47 @@
+# Every tool this repo installs that is just a binary on PATH, pinned once for operators and CI
+# alike: both run `mise install` off this file. Nothing builds a download URL by hand any more,
+# so nothing hardcodes an architecture and every fetch is checksummed.
+#
+# Anything that is more than a binary — the netbird daemon, the smartcard stack, the helm-diff
+# plugin, the Python kubernetes library — stays in `just ops deps`.
+#
+# Renovate reads this natively, so no pin here needs a `# renovate:` annotation.
+
+[tools]
+kustomize = "5.8.1"
+k0sctl = "0.32.2"
+sops = "3.13.3"
+age = "1.3.1"
+helm = "4.2.3"
+d2 = "0.7.1"
+mdbook = "0.5.4"
+opentofu = "1.11.5"
+
+# Tracks k0s_cluster_version in ansible/roles/k0s_cluster/defaults/main.yml.
+kubectl = "1.36.3"
+
+# CLIs whose server side is pinned elsewhere and must match: the Velero chart in
+# infra/backup/app/helmrelease.yaml, the Flux distribution in flux/cluster.yaml. Velero is
+# addressed at its release page because mise's registry entry still names the pre-rename
+# vmware-tanzu repo, which is what Renovate would then track.
+"github:velero-io/velero" = "1.18.2"
+flux2 = "2.9.4"
+
+# Also the `rev:` of the gitleaks hook in .pre-commit-config.yaml.
+gitleaks = "8.30.1"
+
+# In dnf as well: just has to exist before `just ops deps` can run. This pin is what CI and the
+# just-fmt hook use.
+just = "1.58.0"
+
+# Bootstrap only, driven by hand: rclone mints the Drive OAuth token and obscures the crypt
+# passwords, b2 creates the bucket and keys tofu/b2 needs before it can run.
+rclone = "1.75.0"
+"github:Backblaze/B2_Command_Line_Tool" = "4.7.1"
+
+# Not in mise's registry, so addressed at their release pages.
+"github:protonpass/pass-cli" = "2.2.5"
+
+# mdbook invokes this as a preprocessor and it shells out to `d2`; without both, every ```d2
+# fence renders as a code block.
+"github:danieleades/mdbook-d2" = "0.3.8"

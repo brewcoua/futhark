@@ -22,32 +22,10 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v9.0.0
-      - uses: opentofu/setup-opentofu@v2.0.2
-      # config/versions.env is already in the KEY=value shape $GITHUB_ENV wants, so the pins CI
-      # uses are the same ones `just ops deps` installs, with no parsing step. See
-      # .just/operator.just.
-      - name: Load pinned tool versions
-        run: grep -v '^#' config/versions.env | grep . >> "$GITHUB_ENV"
-      # kustomize-build (in .pre-commit-config.yaml) shells out to both binaries with
-      # language: system — neither ships on the runner image, and neither was previously
-      # installed here, so the hook only ever passed if the image happened to carry them.
-      - name: Install kustomize
-        run: |
-          curl -fsSL -o /tmp/kustomize.tar.gz "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          tar -xzf /tmp/kustomize.tar.gz -C /tmp
-          sudo install -m 755 /tmp/kustomize /usr/local/bin/kustomize
-      - name: Install helm
-        run: |
-          curl -fsSL -o /tmp/helm.tar.gz "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          tar -xzf /tmp/helm.tar.gz -C /tmp
-          sudo install -m 755 /tmp/linux-amd64/helm /usr/local/bin/helm
-      # just-fmt (in .pre-commit-config.yaml) is language: system and the runner image does not
-      # ship just. Same pinned-release pattern as the two above.
-      - name: Install just
-        run: |
-          curl -fsSL -o /tmp/just.tar.gz "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          tar -xzf /tmp/just.tar.gz -C /tmp just
-          sudo install -m 755 /tmp/just /usr/local/bin/just
+      # The kustomize-build, just-fmt and tofu-validate hooks are all language: system, and the
+      # runner image ships none of those binaries. mise.toml puts the same versions on PATH here
+      # as `just ops deps` does on an operator machine.
+      - uses: jdx/mise-action@v4.2.4
       - uses: actions/cache@v6
         with:
           path: ~/.cache/pre-commit
@@ -60,12 +38,7 @@ jobs:
       # gitleaks' own pre-commit hook only diffs the staged index (`--staged`), which is empty
       # under `run --all-files` — it silently scans nothing above. Run a real full-tree scan.
       - name: gitleaks (full tree, not just the staged index)
-        run: |
-          # The tag carries a leading v, the tarball's name does not — hence the ${x#v} strip.
-          curl -fsSL -o /tmp/gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_x64.tar.gz"
-          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
-          sudo install -m 755 /tmp/gitleaks /usr/local/bin/gitleaks
-          gitleaks dir . --config .gitleaks.toml
+        run: gitleaks dir . --config .gitleaks.toml
 
   # A malformed .github/renovate.json5 fails silently: Renovate skips the repo at 03:00 in a
   # workflow nobody is watching, and updates simply stop arriving. Catch it on the PR instead.

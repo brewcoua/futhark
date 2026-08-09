@@ -32,20 +32,13 @@
   // .pre-commit-config.yaml's hook revs.
   "pre-commit": { enabled: true },
 
+  // mise.toml's [tools] table — every pinned binary the operator and CI install.
+  mise: { enabled: true },
+
   // Refreshes tofu/*/.terraform.lock.hcl, whose recorded constraints already trail the .tf files.
   lockFileMaintenance: { enabled: true },
 
   customManagers: [
-    {
-      // config/versions.env — bare shell variables, so the upstream repo is only knowable from
-      // the annotation comment directly above each pin.
-      customType: "regex",
-      description: "Pinned release binaries in config/versions.env",
-      managerFilePatterns: ["/^config/versions\\.env$/"],
-      matchStrings: [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s+\\w+=(?<currentValue>.+)",
-      ],
-    },
     {
       // Same annotation shape, but for YAML values no built-in manager understands: the
       // FluxInstance distribution, the flux-operator chart, the k0s version k0sctl installs.
@@ -61,14 +54,14 @@
   packageRules: [
     // --- Grouping: things that are one decision, not N ---
     {
-      // Same version written in two files (config/versions.env and .pre-commit-config.yaml).
+      // Same version written in two files (mise.toml and .pre-commit-config.yaml).
       // Ungrouped, they drift and CI installs a different gitleaks than the hook pins.
       description: "gitleaks: binary and pre-commit hook move together",
       groupName: "gitleaks",
       matchPackageNames: ["gitleaks/gitleaks"],
     },
     {
-      // The chart's appVersion is the server; VELERO_VERSION is the client driving restores.
+      // The chart's appVersion is the server; the mise.toml pin is the client driving restores.
       description: "velero: chart and CLI move together",
       groupName: "velero",
       matchPackageNames: ["velero", "velero-io/velero"],

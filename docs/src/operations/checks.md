@@ -93,14 +93,11 @@ host key, which is trust-on-first-use, because Codeberg publishes no authenticat
 GitHub's `api.github.com/meta`. The blast radius is this mirror push only, not the live Flux
 deploy-key channel.
 
-All four workflows check out with `persist-credentials: false`, and every version they install is
-pinned in `config/versions.env`, the same file `just ops deps` reads. A local `just docs build`
-therefore renders with the mdbook CI publishes, and pre-commit runs the kustomize CI installs.
-Both sides consume the file natively: `just` via `set dotenv-path` in the root `justfile`, whose
-values every submodule inherits, and the workflows via
-`grep -v '^#' config/versions.env >> "$GITHUB_ENV"`. It is dotenv rather than YAML because nothing
-in it nests, and parsing YAML would mean a `yq` dependency inside the very recipe whose job is
-installing dependencies.
+All four workflows check out with `persist-credentials: false`, and every tool they install is
+pinned in `mise.toml`, the same file `just ops deps` reads. A local `just docs build` therefore
+renders with the mdbook CI publishes, and pre-commit runs the kustomize CI installs. Neither side
+constructs a download URL: `validate.yml` and `docs.yml` run `jdx/mise-action`, `just ops deps`
+runs `mise install`, and both get the same checksummed binaries.
 
 **CI holds no decryption key and must never need one.** Nothing above decrypts: `kustomize build`
 parses SOPS output fine, because SOPS encrypts values and leaves keys alone, and `sops-encrypted`
