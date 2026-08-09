@@ -213,13 +213,16 @@ just ops setup
 ```
 
 That installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`,
-`k0sctl`, `flux`, `rclone`, `tofu`, `netbird`, `pre-commit`, `sops`, `age`, `pass-cli`, the GPG
-smartcard stack, and `mdbook` with `d2` and `mdbook-d2` for the diagrams. It also installs the
-pre-commit hooks, runs `tofu init` in every module, and checks you have a Proton Pass session and
-a place on the mesh.
+`k0sctl`, `flux`, `rclone`, `b2`, `tofu`, `netbird`, `pre-commit`, `sops`, `age`, `pass-cli`, the
+GPG smartcard stack, and `mdbook` with `d2` and `mdbook-d2` for the diagrams. It also installs the
+pre-commit hooks, runs `tofu init` in every module but `b2`, and checks you have a Proton Pass
+session and a place on the mesh. `b2` is skipped with a message, since its remote backend
+authenticates against secrets step 5 has not written yet. Step 8 initialises it.
 
-`rclone` is the one there purely for bootstrap. Nothing in `just` calls it, and it exists so you
-can go back and finish [The rclone remotes](rclone.md) from step 2.
+`rclone` and `b2` are the two there purely for bootstrap. Nothing in `just` calls either.
+`rclone` exists so you can go back and finish [The rclone remotes](rclone.md) from step 2, and
+`b2` so you can create the state bucket and the two application keys that
+[b2](../tofu/b2.md#before-the-first-apply) needs before step 8 can run.
 
 You need two things of your own: the GPG smartcard plugged in, and the Proton Pass session from
 step 1. The third, this machine's own membership of the mesh, is what `just ops mesh` checks.

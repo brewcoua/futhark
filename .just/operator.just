@@ -38,7 +38,8 @@ mesh:
     exit 1
 
 # Install required packages (ansible-core, ansible-lint, yamllint, sops, age, pass-cli,
-# pre-commit, kubectl, helm, kustomize, k0sctl, flux, velero, rclone, tofu, netbird, mdbook, d2)
+# pre-commit, kubectl, helm, kustomize, k0sctl, flux, velero, rclone, b2, tofu, netbird,
+# mdbook, d2)
 deps: (_require 'dnf') (_require 'uv')
     # netbird ships in no Fedora repo, so its own one comes first. Same fields as the
     # yum_repository in ansible/roles/netbird, so operator and node install from one place —
@@ -82,6 +83,11 @@ deps: (_require 'dnf') (_require 'uv')
     # `rclone config`/`obscure` are the only way to mint a Drive OAuth token and encode a crypt
     # password. See docs/src/operations/setup.md.
     @just ops _fetch rclone "https://github.com/rclone/rclone/releases/download/$RCLONE_VERSION/rclone-$RCLONE_VERSION-linux-amd64.zip" "rclone-$RCLONE_VERSION-linux-amd64/rclone"
+    # Bootstrap only, same as rclone: tofu/b2 cannot create the bucket holding its own state, nor
+    # the keys it authenticates with, so those are made by hand first. `b2-linux` rather than
+    # `b2v4-linux` — the unversioned asset is the release's own major, and the pin above fixes it.
+    # See docs/src/tofu/b2.md#before-the-first-apply.
+    @just ops _fetch b2 "https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/$B2_CLI_VERSION/b2-linux"
     # Same pin .github/workflows/docs.yml reads, so a local `just docs build` renders what CI
     # publishes. The docs draw their graphs from ```d2 fences: mdbook-d2 is the preprocessor
     # mdbook invokes, and it shells out to the `d2` binary, so both have to be present or
