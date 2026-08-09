@@ -4,9 +4,9 @@
 # postBuild.substituteFrom target must exist before any consumer reconciles, and infra-policies
 # depends on traefik-edge, which is itself a consumer.
 #
-# One Kustomization for all three sources. A consumer still names the individual Secret or
-# ConfigMap it substitutes from, so `dependsOn: substitutions` says "the values exist" and the
-# substituteFrom list says which ones this manifest actually reads.
+# One Kustomization for both sources. A consumer still names the Secret or ConfigMap it
+# substitutes from, so `dependsOn: substitutions` says "the values exist" and the substituteFrom
+# list says which one this manifest actually reads.
 #
 # ${DOMAIN} is here because `replacements` cannot reach every shape. A Kustomize replacement
 # rewrites one delimiter-separated segment of a field, which covers a bare hostname

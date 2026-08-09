@@ -82,9 +82,9 @@ sops -d <the file>          # works for you via the GPG card, independently of t
 ```
 
 If `sops -d` succeeds locally but Flux fails, the file was sealed without the cluster age
-recipient. Check it matches the `(infra|nodes|config)` rule in `.sops.yaml` and re-run
-`sops updatekeys` on it. Files under `ansible/` and `tofu/` are _supposed_ to fail this way in
-cluster context; they are deliberately not sealed to the cluster key.
+recipient. Check it against the `config/sops/cluster.sops.yaml` rule in `.sops.yaml` and re-run
+`sops updatekeys` on it. `config/sops/ops.sops.yaml` is _supposed_ to fail this way in cluster
+context; it is deliberately not sealed to the cluster key, and Flux is never given it.
 
 ## An `InfisicalStaticSecret` never syncs
 

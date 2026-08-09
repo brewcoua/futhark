@@ -153,7 +153,8 @@ some: Pocket ID is pinned to `ogma`, Actual to `kenaz`, and the monitoring stack
    ```
 
    The `netbird` role registers the node again and writes the new mesh IP back into
-   `ansible/nodes/<host>/host.sops.yml`. Commit that change.
+   `nodes.<host>.mesh_ip` in `config/sops/ops.sops.yaml`. Commit that change. If the node is the edge
+   one, update `MESH_IP` in `config/sops/cluster.sops.yaml` to match.
 
 2. Delete the node's old peer from the NetBird dashboard. The rejoin creates a new one, and the
    stale peer otherwise sits in the groups holding an address nothing answers on.
@@ -192,7 +193,7 @@ Kopia repository password and the SSE-C key.
 | ------------------------------------------ | --------------------------------------------------- |
 | Velero release, credentials, repo password | `infra/backup/app/`                                 |
 | The nightly `Schedule`                     | `infra/backup/config/schedule.yaml`                 |
-| Which bucket, which region                 | `infra/substitutions/app/backup-location.sops.yaml` |
+| Which bucket, which region                 | `config/sops/cluster.sops.yaml`                     |
 | The bucket itself, and Velero's B2 key     | `tofu/b2`, see [b2](../tofu/b2.md)                  |
 | The B2 keys and both encryption keys       | Infisical, `/infra/velero`                          |
 | Restore and inspection tasks               | `.just/velero.just`                                 |

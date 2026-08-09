@@ -1,0 +1,13 @@
+---
+# Every node's addresses, from the one place they are written down: the `nodes` key of
+# config/sops/ops.sops.yaml, which `just ans render-secrets` decrypts into
+# ansible/.generated/nodes.yml. ansible/nodes/<host>/host.yml reads them as
+# nodes[inventory_hostname].
+#
+# Inventory-level rather than a playbook's vars_files, because playbooks/k0s.yml runs against
+# localhost and still reaches hostvars[<node>].node.mesh_ip — which only resolves if every host
+# has this var of its own.
+#
+# A lookup rather than a symlink into .generated/, because `sops --extract` yields the subtree's
+# own keys and a group_vars file of that shape would put every hostname in the global namespace.
+nodes: "{{ lookup('file', generated_dir + '/nodes.yml') | from_yaml }}"

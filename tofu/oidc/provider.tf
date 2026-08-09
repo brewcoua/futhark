@@ -16,8 +16,8 @@ terraform {
 }
 
 # base_url/api_token come from POCKETID_BASE_URL / POCKETID_API_TOKEN, both declared in this
-# module's SOPS-encrypted secrets.sops.env — the first as a value, the second as a pass://
-# reference that `pass-cli run` resolves. See docs/src/tofu/oidc.md.
+# module's `tofu.oidc` section of config/sops/ops.sops.yaml — the first as a value, the second as a
+# pass:// reference that `pass-cli run` resolves. See docs/src/tofu/oidc.md.
 provider "pocketid" {}
 
 # eu.infisical.com is a separate data region, not a mirror of app.infisical.com — pointing at

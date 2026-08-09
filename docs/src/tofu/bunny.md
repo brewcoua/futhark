@@ -24,9 +24,9 @@ just tf apply bunny
 
 ## Prerequisites
 
-`secrets.sops.env` holds one line. The edge node's address comes from `refs.env`, which reads it
+The `tofu.bunny` section of `config/sops/ops.sops.yaml` holds one line. The edge node's address comes from `refs.env`, which reads it
 from the plane that owns it. Store a Bunny API key in Proton Pass and reference it as
-`BUNNYNET_API_KEY=pass://futharkd/bunny/api key`. The API key needs the same permissions as the
+`BUNNYNET_API_KEY: pass://<vault>/bunny/api key`. The API key needs the same permissions as the
 one already used by `infra/cert-manager`'s DNS-01 webhook, because Bunny API keys are account-wide
 rather than zone-scoped. That is also why rotating it moves both consumers at once:
 [Credential rotation](../operations/rotation.md#the-bunny-api-key).

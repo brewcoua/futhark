@@ -13,7 +13,7 @@ and paste the result in.
 - `rclone` on the operator machine. `just ops setup` installs it at bootstrap step 3.
 - A Hetzner account, for the Storage Box.
 - A Google account and a GCP project you can create an OAuth client in.
-- Access to write Infisical `/infra/csi-rclone`, and to the Proton Pass `futharkd` vault.
+- Access to write Infisical `/infra/csi-rclone`, and to the Proton Pass vault.
 
 Expect an hour, most of it in two web consoles.
 

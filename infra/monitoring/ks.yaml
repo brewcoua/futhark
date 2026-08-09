@@ -10,12 +10,12 @@ spec:
     - name: traefik-internal
     - name: infisical-operator-config
     - name: substitutions
-  # The internal hostnames, committed SOPS-encrypted, alongside monitoring-sizing's retention and
-  # volume knobs. edge-ips was here too, for a static ${MESH_IP} traefik-edge scrape target;
+  # ${SUB_INTERNAL}/${DOMAIN}, committed SOPS-encrypted, alongside monitoring-sizing's retention
+  # and volume knobs. ${MESH_IP} was read here too, for a static traefik-edge scrape target;
   # app/metrics/scrape-configs.yaml discovers that address from the API server instead.
   postBuild:
     substituteFrom:
       - kind: Secret
-        name: dns
+        name: cluster-values
       - kind: ConfigMap
         name: monitoring-sizing

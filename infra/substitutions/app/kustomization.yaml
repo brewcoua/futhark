@@ -1,17 +1,13 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
-# Every `postBuild.substituteFrom` source in the cluster, in one place. They were separate
-# Kustomizations, each dependency-free and each holding a single object — several roots to
-# express one idea.
+# Every `postBuild.substituteFrom` source in the cluster, in one place.
 #
-# `dns` lives under config/ rather than here: tofu reads the same file through its refs.env, so
-# it is not a cluster-only value. The Secrets are SOPS-encrypted and sealed to the cluster age
-# key as well as the operator's, since Flux decrypts them in-cluster. monitoring-sizing is a
-# plain ConfigMap — its values are tuning knobs, not identifying ones.
+# The identifying ones are the single `cluster-values` Secret under config/sops/, which is where
+# every encrypted file in this repo lives — ansible and tofu read the same file, so it is not a
+# cluster-only value. monitoring-sizing is a plain ConfigMap: its values are tuning knobs, not
+# identifying ones.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - edge-ips.sops.yaml
-  - ../../../config/dns
-  - backup-location.sops.yaml
+  - ../../../config/sops
   - monitoring-sizing.yaml

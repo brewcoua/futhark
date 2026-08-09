@@ -119,13 +119,13 @@ age-key:
     out="$dir/cluster.agekey"
     age-keygen -o "$out" 2>/dev/null
     echo
-    echo "Public recipient — put this in .sops.yaml under the (infra|nodes|config) rule:"
+    echo "Public recipient — put this in .sops.yaml under the config/sops/cluster.sops.yaml rule:"
     grep -o 'age1[a-z0-9]*' "$out" | head -1
     echo
     echo "Private key is at $out and is NOT in the repo. Store it in Proton Pass as the"
-    echo "'age key' field of the 'sops' item in the futharkd vault, then shred it:"
+    echo "'age key' field of the 'sops' item in your Proton Pass vault, then shred it:"
     echo "  shred -u $out"
-    echo "config/secrets.sops.yaml points at it; flux_bootstrap creates flux-system/sops-age."
+    echo "config/sops/ops.sops.yaml points at it; flux_bootstrap creates flux-system/sops-age."
 
 # Edit an encrypted file, creating it from its .example if absent. With no argument, lists
 # the files that still need creating.

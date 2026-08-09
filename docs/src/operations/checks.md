@@ -104,9 +104,10 @@ installing dependencies.
 
 **CI holds no decryption key and must never need one.** Nothing above decrypts: `kustomize build`
 parses SOPS output fine, because SOPS encrypts values and leaves keys alone, and `sops-encrypted`
-only greps. `ansible-playbook --syntax-check` is the exception to watch. It loads vars plugins, so
-`community.sops` will try to open `group_vars` and `host_vars`. Keep that non-fatal in CI rather
-than putting a key into GitHub Actions.
+only greps. `ansible-playbook --syntax-check` parses playbooks without templating inventory
+variables, so the `file` lookups in `group_vars/all/` are never evaluated and the missing
+`ansible/.generated/` files do not fail it. Keep it that way rather than putting a key into GitHub
+Actions.
 
 ## Infisical tier isolation
 
@@ -185,10 +186,10 @@ reports on the cluster, not on the mesh underneath it.
 NetBird Personal Access Tokens expire, 365 days out at most. Two are in use, one on each of the
 two service users:
 
-| Token                | Referenced from                 | Breaks when it expires                             |
-| -------------------- | ------------------------------- | -------------------------------------------------- |
-| `netbird-policy`     | `tofu/netbird/secrets.sops.env` | `just tf plan netbird` fails with a 401            |
-| `netbird-enrollment` | `config/secrets.sops.yaml`      | A node join fails at "Mint a single-use setup key" |
+| Token                | Referenced from           | Breaks when it expires                             |
+| -------------------- | ------------------------- | -------------------------------------------------- |
+| `netbird-policy`     | `tofu.netbird`            | `just tf plan netbird` fails with a 401            |
+| `netbird-enrollment` | `ansible.secrets.netbird` | A node join fails at "Mint a single-use setup key" |
 
 Neither takes the mesh down when it lapses. Peers keep their configuration and keep connecting.
 What stops is changing anything: no policy applies, and no new node joins.

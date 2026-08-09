@@ -1,4 +1,4 @@
-# The one base domain. Declared in refs.env and read from config/dns/dns.sops.yaml, the Secret
+# The one base domain. Declared in refs.env and read from config/sops/cluster.sops.yaml, the Secret
 # Flux also substitutes into manifests — so the NetBird peer domain, the internal zone and every
 # Ingress host are the same decision made once. See docs/src/conventions/domains.md.
 variable "domain" {

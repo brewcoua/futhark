@@ -19,10 +19,10 @@ itself, the two service users and their tokens.
 - A NetBird Cloud account, with the shipped `Default` policy deleted. [Bootstrap](#bootstrap)
   below creates both.
 - Two service users and a Personal Access Token on each. Roles matter and are covered below.
-- `tofu/netbird/secrets.sops.env`, written from its `.example`, holding `NB_PAT` as a `pass://`
-  reference.
-- The common module rules in [Rules for every module](index.md), including how `refs.env` and
-  `secrets.sops.env` are composed at plan time.
+- The `tofu.netbird` section of `config/sops/ops.sops.yaml`, written from its `.example`, holding
+  `NB_PAT` as a `pass://` reference.
+- The common module rules in [Rules for every module](index.md), including how `refs.env` and a
+  module's own section are composed at plan time.
 - Provider `netbirdio/netbird` pinned to exactly `0.0.9`, and OpenTofu `>= 1.7.0`. The pin is
   exact because a `0.0.x` provider promises nothing between patch releases.
 
@@ -52,14 +52,14 @@ Sign up at <https://app.netbird.io>.
 a NetBird token has: a PAT inherits the role of the user it belongs to, and carries neither more
 nor less.
 
-| Service user | Role              | Token                | Used by                                                             |
-| ------------ | ----------------- | -------------------- | ------------------------------------------------------------------- |
-| enrollment   | **Admin**         | `netbird-enrollment` | `ansible/roles/netbird`, referenced from `config/secrets.sops.yaml` |
-| policy       | **Network Admin** | `netbird-policy`     | this module, referenced from `secrets.sops.env`                     |
+| Service user | Role              | Token                | Used by                                                    |
+| ------------ | ----------------- | -------------------- | ---------------------------------------------------------- |
+| enrollment   | **Admin**         | `netbird-enrollment` | `ansible/roles/netbird`, referenced from `ansible.secrets` |
+| policy       | **Network Admin** | `netbird-policy`     | this module, referenced from `tofu.netbird`                |
 
 Then **Access Tokens** on each user, one token each, named for the token column. Expiry is
 mandatory and capped at 365 days. The plaintext is shown once and stored hashed, so file it in
-Proton Pass under `futharkd/` before closing the dialog.
+Proton Pass before closing the dialog.
 
 Issue both to service users, never to your own account. A PAT tied to a person dies with that
 person's membership and takes its plane with it. Two users rather than one because the roles
@@ -96,7 +96,7 @@ Verify: the policy list is empty before the first apply.
 ### 4. Write the secrets file and apply
 
 ```bash
-just ops sops tofu/netbird/secrets.sops.env
+just ops sops config/sops/ops.sops.yaml
 just tf init netbird
 just tf plan netbird
 just tf apply netbird
@@ -109,7 +109,7 @@ Do it before any node joins. A peer that registered under the old peer domain or
 range has to re-register.
 
 Verify: **Settings → Network** shows the peer DNS domain and network range from
-`config/dns/dns.sops.yaml` and `ansible/inventory/group_vars/all/network.yml`, and
+`config/sops/cluster.sops.yaml` and `ansible/inventory/group_vars/all/network.yml`, and
 `just tf plan netbird` is a no-op.
 
 ### 5. Enrol your own devices
@@ -256,5 +256,5 @@ IPv6 overlay addressing (NetBird v0.71 and later) has no field in provider 0.0.9
 It is keyed on group names and CIDRs, not on people or addresses. That is architecture, which this
 repository already publishes in far more detail. Keep it that way: no user emails, no local
 usernames, no peer addresses. The domain is identifying and is read at plan time from
-`config/dns/dns.sops.yaml` via `refs.env`, never inlined. If a rule ever needs a literal user, pass
+`config/sops/cluster.sops.yaml` via `refs.env`, never inlined. If a rule ever needs a literal user, pass
 it as a `TF_VAR` the same way.

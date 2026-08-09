@@ -1,8 +1,8 @@
 # Shared defaults for every node. Per-node overrides live in
 # ansible/nodes/<host>/host.yml under the `node:` key.
 
-# `admin` is identifying rather than secret, so it lives encrypted in secrets.sops.yml beside
-# this file — see docs/src/conventions/secrets.md.
+# `admin` is identifying rather than secret, so it lives encrypted in config/sops/ops.sops.yaml and
+# arrives through .generated/secrets.yml — see docs/src/conventions/secrets.md.
 
 # Mesh, pod and service CIDRs, the mesh DNS domain and the mesh node group live in network.yml
 # beside this file.

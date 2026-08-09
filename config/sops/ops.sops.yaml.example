@@ -1,0 +1,53 @@
+---
+# Template for the operator-only store: everything the Ansible, node and OpenTofu planes need,
+# sealed to the operator GPG key and never to the cluster age key. Fill in, then encrypt with
+# `just ops sops config/ops.sops.yaml`. What each key is, and why the values are references
+# rather than secrets, is in docs/src/conventions/secrets.md.
+ansible:
+  admin:
+    user: opsuser
+    ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleExampleExampleExampleExampleExa"
+  secrets:
+    flux:
+      deploy_key: "{{ pass://<vault>/flux/deploy key }}"
+    sops:
+      age_key: "{{ pass://<vault>/sops/age key }}"
+    netbird:
+      api_token: "{{ pass://<vault>/netbird-enrollment/token }}"
+    healthchecks:
+      kenaz: "{{ pass://<vault>/healthchecks/kenaz }}"
+      ogma: "{{ pass://<vault>/healthchecks/ogma }}"
+    infisical:
+      cluster_reader:
+        client_id: "{{ pass://<vault>/infisical-cluster-reader/client id }}"
+        client_secret: "{{ pass://<vault>/infisical-cluster-reader/client secret }}"
+      backup_reader:
+        client_id: "{{ pass://<vault>/infisical-backup-reader/client id }}"
+        client_secret: "{{ pass://<vault>/infisical-backup-reader/client secret }}"
+
+nodes:
+  kenaz:
+    ip: 203.0.113.10
+    mesh_ip: ""
+  ogma:
+    ip: 203.0.113.11
+    mesh_ip: ""
+
+tofu:
+  b2:
+    B2_APPLICATION_KEY_ID: pass://<vault>/backblaze-tofu/key id
+    B2_APPLICATION_KEY: pass://<vault>/backblaze-tofu/application key
+    AWS_ACCESS_KEY_ID: pass://<vault>/backblaze-tofu-state/key id
+    AWS_SECRET_ACCESS_KEY: pass://<vault>/backblaze-tofu-state/application key
+    AWS_SSE_CUSTOMER_KEY: pass://<vault>/backblaze-tofu-state/sse-c key
+    TF_BACKEND_BUCKET: example-tofu-state
+  bunny:
+    BUNNYNET_API_KEY: pass://<vault>/bunny/api key
+  netbird:
+    NB_PAT: pass://<vault>/netbird-policy/token
+  oidc:
+    POCKETID_BASE_URL: https://auth.example.eu
+    POCKETID_API_TOKEN: pass://<vault>/pocketid/api token
+    INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: pass://<vault>/infisical-tofu-writer/client id
+    INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: pass://<vault>/infisical-tofu-writer/client secret
+    TF_VAR_infisical_project_id: 00000000-0000-0000-0000-000000000000

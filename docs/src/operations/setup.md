@@ -71,7 +71,7 @@ Each of those values is produced by a step that needs a file written several ste
 
 ## 1. Proton Pass
 
-Create a vault named **`futharkd`**, the same slug as the Infisical project, so the two remote
+Create a vault, named after the Infisical project so the two remote
 stores are named alike. Then mint a **personal access token** in the Proton Pass web app. That
 token, plus your GPG smartcard, is everything a new operator machine needs out of band.
 
@@ -92,7 +92,7 @@ Add `/tmp/flux-deploy.pub` to the repository's Deploy Keys on GitHub. Read-only 
 private half in the vault as below, then `shred -u /tmp/flux-deploy*`.
 
 Now the items. Nothing is matched by name here. Every consumer addresses a
-`pass://futharkd/<item>/<field>` path, and the committed files that hold those paths are what this
+`pass://<vault>/<item>/<field>` path, and the committed files that hold those paths are what this
 table has to agree with. Item and field names are lowercase-with-spaces, per
 [Naming](../conventions/secrets.md#naming).
 
@@ -142,22 +142,12 @@ cluster's read credential must not also be the one that decrypts B2.
 `~/.ssh` identity rather than reading it, and only its public half is committed, SOPS-encrypted,
 at step 4.
 
-Finally, seal the reference map that points at all of this:
-
-```bash
-just ops sops config/secrets.sops.yaml
-```
-
-The template is already filled in, and the paths above are exactly what it contains, so unless you
-named the vault something other than `futharkd` this is a save-and-encrypt with no edits. It is
-sealed to your GPG key only, never the cluster age key. The reasoning is in
-[Secrets](../conventions/secrets.md#why-the-reference-map-is-encrypted).
-
-Verify:
-
-```bash
-grep -q 'ENC\[' config/secrets.sops.yaml && echo encrypted
-```
+Nothing here is committed. What the repository holds is the map: `pass://<vault>/<item>/<field>`
+references, already written into `config/sops/ops.sops.yaml.example`, so unless you named the vault
+something other than the name the templates assume there is nothing to edit in that half. You seal the file at
+[step 5](#5-the-encrypted-files), sealed to your GPG key only and never the cluster age key. The
+reasoning is in
+[Secrets](../conventions/secrets.md#why-the-operator-store-is-separate).
 
 ## 2. Infisical
 
@@ -261,15 +251,16 @@ key file is gone.
 
 ## 4. Node definitions
 
-One `ansible/nodes/<hostname>/host.yml` per machine plus its encrypted `host.sops.yml`, both
-symlinked into `ansible/inventory/host_vars/<hostname>/`, and the hostname listed in
-`ansible/inventory/hosts.yml`. The schema and exact commands are in
+One `ansible/nodes/<hostname>/host.yml` per machine, symlinked into
+`ansible/inventory/host_vars/<hostname>/`, and the hostname listed in
+`ansible/inventory/hosts.yml`. Each machine's address goes in `config/sops/ops.sops.yaml` at
+[step 5](#5-the-encrypted-files). The schema and exact commands are in
 [Nodes](../ansible/nodes.md#adding-a-node).
 
 ## 5. The encrypted files
 
-Every `*.sops.*` file ships as a `.example` template. Ask which are still missing, then work
-through them:
+Two encrypted files, each shipping as a `.example` template. Ask which are still missing, then
+work through them:
 
 ```bash
 just ops sops                    # lists what has no real file yet
@@ -280,31 +271,36 @@ Re-run the same command later to edit one. It decrypts and re-encrypts around yo
 fails closed: an aborted edit or a failed encrypt removes the plaintext rather than leaving it at
 a `*.sops.*` path.
 
-What goes in each. The three under `tofu/` each carry two kinds of line, identifying values and
-the `pass://` references `pass-cli run` resolves at plan time, and both templates arrive with the
-references already written, so only the identifying half needs filling in:
+Both templates arrive with every `pass://` reference already written, so only the identifying half
+needs filling in.
 
-- `config/secrets.sops.yaml`: done at step 1, and nothing to fill in beyond the vault name.
-- `ansible/inventory/group_vars/all/secrets.sops.yml`: `admin.user` and `admin.ssh_pubkey`.
-- `ansible/nodes/<hostname>/host.sops.yml`: that node's public address. Leave `node_mesh_ip` out.
-  The node has not joined the mesh yet, and `roles/netbird` writes it in at step 7.
-- `infra/substitutions/app/edge-ips.sops.yaml`: the edge node's public and mesh addresses. **Put a
-  placeholder in `MESH_IP` for now**, because the node has not joined the mesh yet. Step 7 fills
-  it.
-- `config/dns/dns.sops.yaml`: the base domain and its subdomain labels. Flux, all three tofu
-  modules and Ansible read this one file, and nothing else spells a domain out. See
+`config/sops/ops.sops.yaml`, sealed to your GPG key only:
+
+- `ansible.admin`: the admin user's name and SSH public key.
+- `ansible.secrets`: nothing to change beyond the vault name, per [step 1](#1-proton-pass).
+- `nodes.<hostname>.ip`: that node's public address. Leave `mesh_ip` empty. The node has not
+  joined the mesh yet, and `roles/netbird` writes it in at step 7.
+- `tofu.<module>`: each module's own credentials and identifying values. `netbird` needs its PAT,
+  `bunny` its API key, `oidc` the Pocket ID base URL and the Infisical project ID, `b2` its two
+  key pairs, the SSE-C key and the state bucket.
+
+`config/sops/cluster.sops.yaml`, sealed to the cluster age key as well, holding one `cluster-values`
+Secret:
+
+- `DOMAIN`, `SUB_INTERNAL`, `SUB_NODES`: the base domain and its subdomain labels. Flux, all four
+  tofu modules and Ansible read these, and nothing else spells a domain out. See
   [Domains](../conventions/domains.md).
-- `tofu/netbird/secrets.sops.env`: its PAT only.
-- `tofu/bunny/secrets.sops.env`: its API key only.
-- `tofu/oidc/secrets.sops.env`: the Pocket ID base URL and the Infisical project ID.
+- `PUBLIC_IP`, `MESH_IP`: the edge node's addresses. **Put a placeholder in `MESH_IP` for now**,
+  because the node has not joined the mesh yet. Step 7 fills it.
+- `B2_BUCKET`, `B2_REGION`: where Velero writes.
 
-None of the three `tofu/` files carries a node address or a domain. Each module declares those in
-its `refs.env` and reads them from the plane that owns them, at plan and apply time. See
+No `tofu.<module>` section carries a node address or a domain. Each module declares those in its
+`refs.env` and reads them from whichever of the two files owns them, at plan and apply time. See
 [Values another plane owns](../tofu/index.md#values-another-plane-owns).
 
-Nothing builds until `config/dns/dns.sops.yaml` and `infra/substitutions/app/edge-ips.sops.yaml`
-exist. Both are referenced by a `kustomization.yaml`, so `kustomize build` fails without them.
-That is deliberate: better a loud failure than a cluster reconciling with half its inputs missing.
+Nothing builds until `config/sops/cluster.sops.yaml` exists. `config/kustomization.yaml` references
+it, so `kustomize build` fails without it. That is deliberate: better a loud failure than a
+cluster reconciling with half its inputs missing.
 
 ## 6. Verify and push
 
@@ -332,17 +328,17 @@ fine, because the mesh-peer resolution in `roles/netbird` retries while the new 
 propagates.
 
 Each host's mesh address is read back out of `netbird status --json` and written into
-`ansible/nodes/<hostname>/host.sops.yml` as `node_mesh_ip` by the same run, so `just ans setup`
-leaves those files modified. Commit them. `playbooks/k0s.yml` reads the value from there, and
-`tofu/bunny` gets the public address from the same file.
+`nodes.<hostname>.mesh_ip` in `config/sops/ops.sops.yaml` by the same run, so `just ans setup` leaves
+that file modified. Commit it. `playbooks/k0s.yml` reads the value from there, and `tofu/bunny`
+gets the public address from the same map.
 
-The `edge-ips` Secret is sealed to the cluster age key as well as yours, so it cannot share that
-file and still needs filling by hand:
+`MESH_IP` in `config/sops/cluster.sops.yaml` is the edge node's copy of that address, and Flux cannot
+read the operator store, so it still needs filling by hand:
 
 ```bash
 ssh <edge host> netbird status --json | jq -r .netbirdIp
-sops infra/substitutions/app/edge-ips.sops.yaml     # set MESH_IP
-git commit -am 'fix(edge-ips): real mesh address' && git push
+just ops sops config/sops/cluster.sops.yaml     # set MESH_IP
+git commit -am 'fix(cluster-values): real mesh address' && git push
 ```
 
 Verify: each host answers as the admin user on the hardened port, and

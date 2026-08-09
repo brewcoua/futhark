@@ -5,8 +5,9 @@
 # are one decision per store and the two stores share a single local-path disk, so they are set
 # together here rather than in five places across infra/monitoring/app/.
 #
-# Not SOPS-encrypted, unlike its two neighbours: nothing here identifies the deployment. It is a
-# ConfigMap for the same reason — see edge-ips.sops.yaml.example on why those are Secrets.
+# Not SOPS-encrypted, unlike its neighbour: nothing here identifies the deployment. It is a
+# ConfigMap for the same reason — see docs/src/conventions/secrets.md on why the other one is a
+# Secret.
 #
 # A postBuild.substituteFrom source has to exist in-cluster before its consumer reconciles, which
 # is why this cannot live inside infra/monitoring/ and reference itself.

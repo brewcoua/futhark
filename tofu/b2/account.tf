@@ -11,6 +11,6 @@ data "b2_account_info" "this" {}
 check "region_matches_account" {
   assert {
     condition     = data.b2_account_info.this.s3_api_url == "https://s3.${var.region}.backblazeb2.com"
-    error_message = "B2_REGION in infra/substitutions/app/backup-location.sops.yaml says ${var.region}, but this account's S3 endpoint is ${data.b2_account_info.this.s3_api_url}. Velero's s3Url derives from that value, so fix the Secret."
+    error_message = "B2_REGION in config/sops/cluster.sops.yaml says ${var.region}, but this account's S3 endpoint is ${data.b2_account_info.this.s3_api_url}. Velero's s3Url derives from that value, so fix the Secret."
   }
 }

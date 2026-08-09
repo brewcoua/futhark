@@ -10,22 +10,19 @@
 #
 # A GPG fingerprint and an age public key are neither credentials nor identifying values, so
 # unlike everything else in this repo they are committed literally.
+# Two files, two rules, and no pattern that could match a third: a path this file does not name
+# fails to encrypt at all rather than being sealed to the wrong recipients.
+# Both are anchored on a path separator as well as the start, so an absolute `sops -e -i` matches.
 creation_rules:
-  # The crown-jewel reference map — operator only, and FIRST, because SOPS takes the first
-  # matching rule and the broader (infra|nodes|config) rule below would otherwise seal this to
-  # the cluster age key too. That would hand flux-system a map to the Flux deploy key and to the
-  # age key that decrypts it, which is the one boundary this repo is built around.
-  # Anchored on a path separator as well as the start, so an absolute `sops -e -i` still matches.
-  - path_regex: (^|/)config/secrets\.sops\.yaml$
+  # Operator only — the Ansible, node and OpenTofu planes. The cluster age key is deliberately
+  # absent: this file is a map to the Flux deploy key and to the age key that decrypts everything
+  # else, so a compromise of flux-system must not be able to follow it. That is the one boundary
+  # this repo is built around.
+  - path_regex: (^|/)config/sops/ops\.sops\.yaml$
     pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
 
-  # Host and cloud plane — operator only. The cluster key is deliberately absent: a compromise
-  # of flux-system must not expose node addresses or provider tokens.
-  - path_regex: (ansible|tofu)/.*\.sops\.(ya?ml|env)$
-    pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
-
-  # Cluster plane — operator, so these stay editable, plus the cluster age key that Flux mounts
-  # as flux-system/sops-age to decrypt at apply time.
-  - path_regex: (infra|nodes|config)/.*\.sops\.ya?ml$
+  # Cluster plane — operator, so it stays editable, plus the cluster age key that Flux mounts as
+  # flux-system/sops-age to decrypt at apply time.
+  - path_regex: (^|/)config/sops/cluster\.sops\.yaml$
     pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
     age: age1hxdu4pkrvy9k7u5wcpsa75cxls7p5q0plnsw6mscymwwflezda4qh9xvsw

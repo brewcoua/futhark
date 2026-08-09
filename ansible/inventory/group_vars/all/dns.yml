@@ -1,15 +1,18 @@
 # The one base domain and its subdomain labels, as a nested view of the flat keys
-# `just ans render-secrets` decrypts out of config/dns/dns.sops.yaml into
-# ansible/.generated/dns.yml. Flux substitutes those same keys into manifests and tofu reads
+# `just ans render-secrets` decrypts out of config/sops/cluster.sops.yaml into
+# ansible/.generated/cluster.yml. Flux substitutes those same keys into manifests and tofu reads
 # them through refs.env, so a hostname is never spelled twice.
 # See docs/src/conventions/domains.md.
 #
-# Use `{{ dns.sub.<use>.<domain> }}` rather than the flat names — the flat ones exist only
-# because a Kubernetes Secret cannot nest.
+# Inventory-level rather than a playbook's vars_files, for the reason in nodes.yml beside this
+# file. The flat names exist only because a Kubernetes Secret cannot nest, so they stay private
+# to this file: use `{{ dns.sub.<use> }}.{{ dns.domain }}`.
+cluster_values: "{{ lookup('file', generated_dir + '/cluster.yml') | from_yaml }}"
+
 dns:
-  domain: "{{ DOMAIN }}"
+  domain: "{{ cluster_values.DOMAIN }}"
   sub:
     # NetBird's peer domain: <hostname>.<sub.nodes>.<domain>. Set on the account by tofu/netbird.
-    nodes: "{{ SUB_NODES }}"
+    nodes: "{{ cluster_values.SUB_NODES }}"
     # Internal services, served by traefik-internal and reachable only over the mesh.
-    internal: "{{ SUB_INTERNAL }}"
+    internal: "{{ cluster_values.SUB_INTERNAL }}"

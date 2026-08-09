@@ -24,18 +24,18 @@ just tf apply oidc
 ## Prerequisites
 
 A **Pocket ID admin API key**, created at Settings → Admin → API Keys on `auth.$DOMAIN`, stored
-in Proton Pass and referenced from `secrets.sops.env` as
-`POCKETID_API_TOKEN=pass://futharkd/pocketid/api token`.
+in Proton Pass and referenced from `tofu.oidc` in `config/sops/ops.sops.yaml` as
+`POCKETID_API_TOKEN: pass://<vault>/pocketid/api token`.
 
 An **Infisical machine identity** with write access scoped to the folder this module targets,
 `/nodes/<hostname>/<app>`, and nothing else. Deliberately not the read-only identity the cluster
 authenticates with: this one writes, that one reads, and neither should substitute for the other.
 Store its Universal Auth credentials in Proton Pass as the `client id` and `client secret` fields
-of `infisical-tofu-writer`, and reference them from `secrets.sops.env` as
+of `infisical-tofu-writer`, and reference them from `tofu.oidc` as
 `INFISICAL_UNIVERSAL_AUTH_CLIENT_ID` and `INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET`. The provider
 reads both from the environment, where `pass-cli run` has already resolved them.
 
-The project ID goes in `secrets.sops.env` as `TF_VAR_infisical_project_id`. It identifies an
+The project ID goes in `tofu.oidc` as `TF_VAR_infisical_project_id`. It identifies an
 account rather than granting anything, which is why it sits there as a literal value rather than
 as a `pass://` reference. See [Secrets](../conventions/secrets.md).
 

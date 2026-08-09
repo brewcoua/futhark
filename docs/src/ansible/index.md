@@ -13,19 +13,19 @@ the working directory `ansible.cfg` expects. See [Recipe reference](../operation
 ## Inventory
 
 `ansible/inventory/hosts.yml` is a bare list of node names. Everything about a node lives in
-`ansible/nodes/<hostname>/host.yml` and its encrypted sibling `host.sops.yml`, surfaced to
-Ansible by symlinks in `ansible/inventory/host_vars/<hostname>/`. See [Nodes](nodes.md) for the
-schema and how to add one.
+`ansible/nodes/<hostname>/host.yml`, surfaced to Ansible by a symlink in
+`ansible/inventory/host_vars/<hostname>/`. Its one identifying value, the address, comes from
+`config/sops/ops.sops.yaml`. See [Nodes](nodes.md) for the schema and how to add one.
 
-`ansible/inventory/group_vars/all/` holds what is shared, with `main.yml` in the clear and
-`secrets.sops.yml` encrypted:
+`ansible/inventory/group_vars/all/` holds what is shared, all of it in the clear:
 
-| Variable                                       | Notes                                                      |
-| ---------------------------------------------- | ---------------------------------------------------------- |
-| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Encrypted |
-| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to           |
-| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                              |
-| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed |
+| Variable                                       | Notes                                                                                   |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `admin.user`, `admin.ssh_pubkey`               | The non-root sudo account created on every host. Rendered, not committed                |
+| `nodes`, `dns`                                 | Node addresses and the domain, loaded out of `.generated/` by `nodes.yml` and `dns.yml` |
+| `ssh_port`                                     | The hardened SSH port `ssh_harden` moves sshd to                                        |
+| `ansible_host`, `ansible_user`, `ansible_port` | How Ansible reaches each host                                                           |
+| `repo_root`, `generated_dir`                   | Repo-relative paths for artifacts that are never committed                              |
 
 `network.yml` beside it holds every constant more than one role has an opinion about:
 
@@ -167,7 +167,7 @@ pins it to the controller's mesh address instead, read from inventory as `node.m
 That value is not resolved at converge time. The management server assigns a mesh address at
 registration and it cannot be chosen in advance, so `roles/netbird` reads it back out of
 `netbird status --json` after the join and records it into
-`ansible/nodes/<host>/host.sops.yml`, which `inventory/host_vars/<host>/` symlinks to. Writing
+the `nodes` map in `config/sops/ops.sops.yaml`, which `group_vars/all/nodes.yml` loads back. Writing
 it down rather than looking it up each run is what lets `playbooks/k0s.yml` stay
 `hosts: localhost` in a separate invocation from `setup.yml`, without requiring the operator's
 own workstation to be on the mesh. The write is guarded by a compare, because SOPS
@@ -180,8 +180,8 @@ and every kubelet's `--node-ip`.
 
 The public IP still has to reach Kubernetes somehow, since kubelet can only ever register
 `--node-ip` as `InternalIP`. It arrives as the `k0sproject.io/node-ip-external` annotation,
-which the k0s cloud provider reads. `node.ip` comes from the encrypted `host.sops.yml`, so the
-public IP is never committed in the clear.
+which the k0s cloud provider reads. `node.ip` comes from the encrypted `config/sops/ops.sops.yaml`, so
+the public IP is never committed in the clear.
 
 This decision is also what makes cross-node pod networking non-trivial. See
 [Pod to mesh networking](networking.md).
@@ -197,17 +197,20 @@ into "never changed". `kubectl annotate` needs no such guess, since `--overwrite
 
 Two mechanisms, no custom code in this repo any more.
 
-Identifying values are decrypted transparently by the `community.sops` vars plugin, enabled by
-`vars_plugins_enabled` in `ansible/ansible.cfg`. Any `*.sops.yml` under `group_vars/` or
-`host_vars/` is opened on load, so `admin.user` and `node.ip` are ordinary variables at the
-point of use and no task mentions SOPS at all. `host_group_vars` has to stay listed alongside
-it: naming any plugin there replaces the default set rather than adding to it.
+Both go through `just ans render-secrets`, which decrypts into `ansible/.generated/`. Nothing is
+decrypted at load time, and no task mentions SOPS.
 
-Crown-jewel values come from Proton Pass, but not through a lookup plugin.
-`just ans render-secrets` decrypts `config/secrets.sops.yaml` and pipes it through
-`pass-cli inject` into `ansible/.generated/secrets.yml`. The playbooks load that with
-`vars_files`, so the roles that need one, `flux_bootstrap` and `netbird`, both `no_log: true`,
-reference an ordinary variable like `secrets.flux.deploy_key`. `ans setup` and `ans k0s` depend on
+Identifying values land in `nodes.yml` and `cluster.yml`, which `group_vars/all/nodes.yml` and
+`group_vars/all/dns.yml` read with a `file` lookup. They are inventory-level rather than a
+playbook's `vars_files` because `playbooks/k0s.yml` runs against `localhost` and still reaches
+`hostvars[<node>].node.mesh_ip`, which resolves only if every host carries the variable itself.
+So `admin.user` and `node.ip` are ordinary variables at the point of use.
+
+Crown-jewel values come from Proton Pass. `just ans render-secrets` decrypts the `ansible` subtree
+of `config/sops/ops.sops.yaml` and pipes it through `pass-cli inject` into
+`ansible/.generated/secrets.yml`. The playbooks load that with `vars_files`, so the roles that need
+one, `flux_bootstrap` and `netbird`, both `no_log: true`, reference an ordinary variable like
+`secrets.flux.deploy_key`. `ans setup` and `ans k0s` depend on
 that render, so it is not a step you run by hand. It needs a Proton Pass session, and
 `pass-cli info` checks for one.
 

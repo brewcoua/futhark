@@ -2,7 +2,8 @@
 
 Where the base domain is declared, how each plane reads it, and what to re-apply when it changes.
 
-One base domain, one file: `config/dns/dns.sops.yaml`, a SOPS-encrypted Secret with three keys.
+One base domain, one file: `config/sops/cluster.sops.yaml`, a SOPS-encrypted Secret whose three
+relevant keys are:
 
 | Key            | Is                                     | Example host                 |
 | -------------- | -------------------------------------- | ---------------------------- |
@@ -16,7 +17,7 @@ app.
 
 ## Reading it
 
-**Flux.** `infra/substitutions` publishes the Secret as `dns`. A consumer declares the
+**Flux.** `infra/substitutions` publishes the Secret as `cluster-values`. A consumer declares the
 dependency and the source in its `ks.yaml`, then uses `${DOMAIN}` and `${SUB_INTERNAL}`
 directly in its manifests:
 
@@ -27,7 +28,7 @@ spec:
   postBuild:
     substituteFrom:
       - kind: Secret
-        name: dns
+        name: cluster-values
 ```
 
 `infra/monitoring/ks.yaml` is the reference implementation. `dependsOn` names the Kustomization
@@ -37,12 +38,12 @@ that publishes the values, and `substituteFrom` names the object this manifest r
 which cannot reach a domain sitting mid-string. An OIDC discovery URL has a path after the host.
 Mixing both mechanisms would also mean two ways to spell one value.
 
-**Tofu.** `bunny`, `oidc` and `netbird` each declare the keys they need in their `refs.env`
+**Tofu.** `bunny`, `oidc` and `netbird` each declare the keys they need in their `refs.env`,
 and `sops --extract` them at plan time. No module keeps a copy. See
 [Values another plane owns](../tofu/index.md#values-another-plane-owns).
 
 **Ansible.** `just ans render-secrets` decrypts the same file into
-`ansible/.generated/dns.yml`, and `inventory/group_vars/all/dns.yml` gives it a nested shape.
+`ansible/.generated/cluster.yml`, and `inventory/group_vars/all/dns.yml` gives it a nested shape.
 Use `{{ dns.domain }}`, `{{ dns.sub.nodes }}` and `{{ dns.sub.internal }}`. The flat capitals
 exist only because a Kubernetes Secret cannot nest.
 
@@ -51,7 +52,7 @@ exist only because a Kubernetes Secret cannot nest.
 Edit the one file, then re-apply everything that resolved it:
 
 ```bash
-just ops sops config/dns/dns.sops.yaml
+just ops sops config/sops/cluster.sops.yaml
 just tf apply bunny
 just tf apply netbird
 just tf apply oidc

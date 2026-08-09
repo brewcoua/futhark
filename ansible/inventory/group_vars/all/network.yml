@@ -22,7 +22,7 @@ mesh_interface: netbird0
 
 # The domain NetBird answers peer names under: <hostname>.<this>. NetBird's default is
 # netbird.cloud; tofu/netbird sets the account's dns_domain to this instead, so both planes
-# spell it out of config/dns.sops.yaml. See group_vars/all/dns.yml.
+# spell it out of config/sops/cluster.sops.yaml. See group_vars/all/dns.yml.
 mesh_dns_domain: "{{ dns.sub.nodes }}.{{ dns.domain }}"
 
 # The group every mesh peer is placed in at join, via the setup key's auto_groups — alongside

@@ -1,8 +1,8 @@
-# Declared in this module's refs.env and read from infra/substitutions/app/backup-location.sops.yaml
-# at plan/apply time — that file is the canonical record, because Velero's BackupStorageLocation is
-# a CR whose bucket is fixed when the manifest renders, so Flux has to have it. Not held in this
-# module's secrets.sops.env: a second encrypted copy of the same name drifts silently, and it
-# would also *win*, since `sops exec-env` runs after the refs are exported.
+# Declared in this module's refs.env and read from config/sops/cluster.sops.yaml at plan/apply time —
+# that file is the canonical record, because Velero's BackupStorageLocation is a CR whose bucket is
+# fixed when the manifest renders, so Flux has to have it. Not held in this module's own
+# `tofu.b2` section: a second encrypted copy of the same name drifts silently, and it would also
+# *win*, since a module's own values are exported after the refs.
 variable "backups_bucket" {
   description = "Name of the B2 bucket Velero writes to — same value Flux substitutes into $${B2_BUCKET}."
   type        = string
@@ -12,7 +12,7 @@ variable "backups_bucket" {
   }
 }
 
-# Also from backup-location.sops.yaml. A B2 bucket has no region argument — the region is a fact
+# Also from config/sops/cluster.sops.yaml. A B2 bucket has no region argument — the region is a fact
 # of the account, fixed when it was created — so nothing here sets it. It is declared because the
 # S3 endpoint derives from it, for this module's own backend and for Velero's s3Url alike, and
 # account.tf asserts the account agrees.

@@ -31,9 +31,9 @@ argument, and `[<x>]` takes an optional one.
 `just` itself is the one thing `ops deps` cannot install for you. It has to be there to run the
 recipe. `sudo dnf install just` first.
 
-The `tf init` inside `ops setup` skips any module with a `backend.tf` whose `secrets.sops.env` is
-not written yet, and says so. That is the cold-bootstrap case: setup runs at step 3, the encrypted
-files land at step 5. Run `just tf init <module>` for it afterwards.
+The `tf init` inside `ops setup` skips any module with a `backend.tf` while
+`config/sops/ops.sops.yaml` does not exist yet, and says so. That is the cold-bootstrap case: setup
+runs at step 3, the encrypted files land at step 5. Run `just tf init <module>` for it afterwards.
 
 `ops mesh` only reports: `netbird up` is an interactive SSO login, and the `admin` group it has
 to land in is filled from the dashboard, not from `tofu/netbird`. `ops deps` installs the client
@@ -50,7 +50,7 @@ a `*.sops.*` path.
 
 ```bash
 just ops sops                                 # what is still missing
-just ops sops tofu/bunny/secrets.sops.env     # create it, or edit it
+just ops sops config/sops/ops.sops.yaml           # create it, or edit it
 ```
 
 ## `ans`, hosts
@@ -124,16 +124,16 @@ and why a hand-run `velero restore` is not equivalent.
 | Recipe                             | Does                                                                    |
 | ---------------------------------- | ----------------------------------------------------------------------- |
 | `tf init [<module>]`               | All modules if no argument. No secrets, unless the module has a backend |
-| `tf plan <module>`                 | Plan, through `sops exec-env` and `pass-cli run`, see below             |
+| `tf plan <module>`                 | Plan, through `sops --extract` and `pass-cli run`, see below            |
 | `tf apply <module>`                | Apply                                                                   |
 | `tf adopt <module> <address> <id>` | `tofu import`, taking over a resource that exists at the provider       |
 | `tf validate <module>`             | `tofu validate`                                                         |
 
 `plan`, `apply` and `adopt` need a Proton Pass session and the GPG smartcard plugged in, and so
 does `init` for a module that ships a `backend.tf`, because initialising a remote backend
-authenticates against it. There is no editing secrets from here. Secret values live in Proton Pass, and each
-module's `secrets.sops.env` holds only identifying values and the `pass://` references that point
-at them. Edit it with `sops`.
+authenticates against it. There is no editing secrets from here. Secret values live in Proton Pass, and each module's
+`tofu.<module>` section of `config/sops/ops.sops.yaml` holds only identifying values and the `pass://`
+references that point at them. Edit it with `just ops sops`.
 
 ## `docs`, this book
 

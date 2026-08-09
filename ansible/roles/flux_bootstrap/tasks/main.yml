@@ -64,8 +64,8 @@
 # The two secrets that exist to seed the ones Flux resolves for itself, so neither can come from
 # Flux. Everything else in the cluster arrives through the Infisical operator.
 #
-#   sops-age                  Flux needs it to decrypt any *.sops.yaml, including this repo's
-#                             edge-ips and dns Secrets.
+#   sops-age                  Flux needs it to decrypt config/sops/cluster.sops.yaml, the only
+#                             encrypted file it is sealed to.
 #   infisical-universal-auth  the operator's only credential, one copy per tier namespace so a
 #                             tier's scoped RBAC is what gates access to it.
 #

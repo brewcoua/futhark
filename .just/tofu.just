@@ -23,11 +23,30 @@ refs := '''
     fi
 '''
 
+# The module's own secrets, out of the `tofu.<module>` map in config/sops/ops.sops.yaml — identifying
+# values as themselves, credentials as bare `pass://` URIs that `pass-cli run` resolves later.
+# `--output-type dotenv` flattens the map to KEY=VALUE; splitting those by hand rather than
+# sourcing them, because a value may contain spaces (`pass://<vault>/bunny/api key`) and dotenv
+# output is unquoted.
+#
+# A herestring, not a pipe: a pipeline would run the loop in a subshell and the exports would not
+# survive it. Spliced *after* `refs`, so a module's own value still wins over a ref of the same
+# name. `$mod` and `$root` are set by each recipe before the splice.
+module_env := '''
+    env_out=$(sops -d --output-type dotenv --extract "[\"tofu\"][\"$mod\"]" "$root/config/sops/ops.sops.yaml") || {
+      echo "config/sops/ops.sops.yaml: no tofu.$mod section" >&2; exit 1; }
+    while IFS= read -r line; do
+      case "$line" in ''|\#*) continue ;; esac
+      export "${line%%=*}=${line#*=}"
+    done <<< "$env_out"
+'''
+
 # The s3 backend's non-secret settings, for the one module that has one — tofu/b2, whose state
 # cannot be local (backend.tf says why). Env vars rather than more `-backend-config` flags for two
 # reasons: `endpoints` is a nested object, which that flag's KEY=VALUE form cannot express, and
 # flag values are cached in .terraform while env vars are not, so plan and apply have to re-export
-# them anyway. Spliced after `refs`, which is where TF_VAR_region comes from.
+# them anyway. Spliced last, after `refs` — which is where TF_VAR_region comes from — and after
+# `module_env`, so it reads whichever of the two won.
 #
 # A no-op for a module without a backend.tf, which is all the others.
 backend_env := '''
@@ -47,58 +66,64 @@ init module='':
         (cd "$d" && tofu init -input=false)
         continue
       fi
-      # Skipped rather than failed when the module's secrets do not exist yet: `just ops setup`
-      # calls this recipe at step 3 of the cold bootstrap, and the encrypted files are not written
-      # until step 5. Without this, a fresh operator machine cannot finish setup at all.
-      if [ ! -f "$d/secrets.sops.env" ]; then
-        echo "$d: has a backend but no secrets.sops.env yet — run \`just tf init $(basename "$d")\` once it exists" >&2
+      # Skipped rather than failed when the secrets do not exist yet: `just ops setup` calls this
+      # recipe at step 3 of the cold bootstrap, and the encrypted file is not written until step 5.
+      # Without this, a fresh operator machine cannot finish setup at all.
+      if [ ! -f "$root/config/sops/ops.sops.yaml" ]; then
+        echo "$d: has a backend but config/sops/ops.sops.yaml does not exist yet — run \`just tf init $(basename "$d")\` once it does" >&2
         continue
       fi
       # Same composition as plan/apply below, because initialising a remote backend authenticates
       # against it. This is why `just tf init` is no longer secret-free.
       (
         cd "$d"
+        mod="$(basename "$d")"
         {{ refs }}
+        {{ module_env }}
         {{ backend_env }}
-        export TF_BACKEND_KEY="$(basename "$d")/terraform.tfstate"
-        sops exec-env secrets.sops.env 'pass-cli run -- tofu init -input=false -backend-config="bucket=$TF_BACKEND_BUCKET" -backend-config="key=$TF_BACKEND_KEY"'
+        export TF_BACKEND_KEY="$mod/terraform.tfstate"
+        pass-cli run -- tofu init -input=false -backend-config="bucket=$TF_BACKEND_BUCKET" -backend-config="key=$TF_BACKEND_KEY"
       )
     done
 
-# Both stores, composed, in this order and no other. `sops exec-env` puts the module's whole
-# secrets.sops.env into the environment — identifying values as themselves, credentials as
-# bare `pass://` URIs — and `pass-cli run` then rewrites every variable whose value is such a
-# URI into the real secret before exec'ing tofu. Neither ever writes a value to disk. Needs a
-# Proton Pass session (`pass-cli info`) and the GPG card for sops.
+# Both stores, composed, in this order and no other: `module_env` puts the module's own values
+# into the environment as themselves and its credentials as bare `pass://` URIs, and `pass-cli
+# run` then rewrites every variable whose value is such a URI into the real secret before exec'ing
+# tofu. Neither ever writes a value to disk. Needs a Proton Pass session (`pass-cli info`) and the
+# GPG card for sops.
 #
-# Braces are deliberately absent here, unlike config/secrets.sops.yaml: `run` resolves bare
-# URIs and ignores braced ones, which is the exact inverse of `inject`. Getting it backwards
-# fails by passing the literal string through to the provider, which reads as a bad credential.
+# Braces are deliberately absent from the `tofu.*` values in config/sops/ops.sops.yaml, unlike the
+# `ansible.*` ones: `run` resolves bare URIs and ignores braced ones, which is the exact inverse
+# of `inject`. Getting it backwards fails by passing the literal string through to the provider,
+# which reads as a bad credential.
 #
-# A third source, for values another plane already owns: refs.env above. A module's own
-# secrets.sops.env holds only what nothing else has — everything shared is read from its one
-# canonical home instead, because two encrypted copies of a value drift silently and nothing
-# catches it. All of them seal to the same operator key, so this costs no extra card touch.
+# A third source, for values another plane already owns: refs.env above. A module's own section
+# holds only what nothing else has — everything shared is read from its one canonical home
+# instead, because two encrypted copies of a value drift silently and nothing catches it.
 
 # Plan a tofu module
 plan module:
     #!/usr/bin/env bash
     set -euo pipefail
     root='{{ justfile_directory() }}'
+    mod='{{ module }}'
     cd tofu/{{ module }}
     {{ refs }}
+    {{ module_env }}
     {{ backend_env }}
-    sops exec-env secrets.sops.env 'pass-cli run -- tofu plan'
+    pass-cli run -- tofu plan
 
 # Apply a tofu module
 apply module:
     #!/usr/bin/env bash
     set -euo pipefail
     root='{{ justfile_directory() }}'
+    mod='{{ module }}'
     cd tofu/{{ module }}
     {{ refs }}
+    {{ module_env }}
     {{ backend_env }}
-    sops exec-env secrets.sops.env 'pass-cli run -- tofu apply'
+    pass-cli run -- tofu apply
 
 # Needed once when a module takes over something created by hand — see docs/src/tofu/b2.md — and
 # never again on another machine, for a module whose state is remote.
@@ -108,10 +133,12 @@ adopt module address id:
     #!/usr/bin/env bash
     set -euo pipefail
     root='{{ justfile_directory() }}'
+    mod='{{ module }}'
     cd tofu/{{ module }}
     {{ refs }}
+    {{ module_env }}
     {{ backend_env }}
-    sops exec-env secrets.sops.env 'pass-cli run -- tofu import {{ address }} {{ id }}'
+    pass-cli run -- tofu import {{ address }} {{ id }}
 
 # Validate a tofu module
 [working-directory('tofu')]

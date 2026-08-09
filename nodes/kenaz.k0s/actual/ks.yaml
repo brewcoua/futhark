@@ -19,4 +19,4 @@ spec:
   postBuild:
     substituteFrom:
       - kind: Secret
-        name: dns
+        name: cluster-values

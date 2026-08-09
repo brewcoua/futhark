@@ -1,8 +1,8 @@
 ---
 # Public edge ingress: binds 443 (TLS only) on the edge node's own interface. Give a public Ingress
 # the class "edge" to route through here. ${PUBLIC_IP}/${MESH_IP} are substituted by
-# postBuild.substituteFrom in ks.yaml, from the SOPS-encrypted edge-ips Secret committed in
-# infra/substitutions. MESH_IP is filled by hand — see docs/src/operations/setup.md step 7.
+# postBuild.substituteFrom in ks.yaml, from the SOPS-encrypted cluster-values Secret committed in
+# config/. MESH_IP is filled by hand — see docs/src/operations/setup.md step 7.
 #
 # hostNetwork: true means CNI NetworkPolicy enforcement never sees these sockets, so the
 # ingress-edge baseline cannot govern this traffic — firewalld and the rate limiting below are

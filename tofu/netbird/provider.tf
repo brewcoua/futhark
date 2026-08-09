@@ -13,8 +13,8 @@ terraform {
   }
 }
 
-# token comes from NB_PAT — pass-cli run resolves the `pass://` reference in
-# secrets.sops.env before tofu ever sees it. management_url is left at its default
+# token comes from NB_PAT — pass-cli run resolves the `pass://` reference in the `tofu.netbird`
+# section of config/sops/ops.sops.yaml before tofu ever sees it. management_url is left at its default
 # (https://api.netbird.io), which is NetBird Cloud; self-hosting later means setting it here
 # and in ansible/roles/netbird, and nothing else. See docs/src/tofu/netbird.md.
 provider "netbird" {}

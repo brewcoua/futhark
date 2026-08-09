@@ -25,9 +25,9 @@
       selectattr('node.k0s_role', 'search', 'controller') |
       map(attribute='inventory_hostname') | first }}
 
-# Mesh IPs come from each node's own `netbird status`, recorded into
-# ansible/nodes/<host>/host.sops.yml by the netbird role at join time and surfaced here as
-# node.mesh_ip (host_vars/<host>/host.sops.yml symlinks to it). Read from inventory rather
+# Mesh IPs come from each node's own `netbird status`, recorded into config/sops/ops.sops.yaml by the
+# netbird role at join time and surfaced here as node.mesh_ip (group_vars/all/nodes.yml loads the
+# decrypted copy for every host). Read from inventory rather
 # than resolved per-run: this play is `hosts: localhost` in a separate run from setup.yml, so
 # resolving a peer name here would require the operator's own workstation to be on the mesh and
 # would lag a node's join by seconds. See docs/src/ansible/index.md#k0s_cluster.
@@ -47,8 +47,8 @@
       {{ item }} has node.mesh_ip
       '{{ hostvars[item].node.mesh_ip | default('') }}', which isn't an address in the mesh's
       {{ mesh_cidr }} pool — run playbooks/setup.yml against it first, which joins the mesh
-      and writes the address into ansible/nodes/{{ item }}/host.sops.yml, or check that file
-      for a stale value.
+      and writes the address into nodes.{{ item }}.mesh_ip in config/sops/ops.sops.yaml, or check
+      that key for a stale value.
   loop: "{{ k0s_cluster_hosts }}"
   loop_control:
     label: "{{ item }}"
@@ -91,7 +91,7 @@
 
 # kubelet can only ever register --node-ip as InternalIP, so the public IP arrives via this
 # annotation, which the k0s cloud provider reads. node.ip comes from the SOPS-encrypted
-# host.sops.yml — never committed in the clear.
+# config/sops/ops.sops.yaml — never committed in the clear.
 - name: Annotate nodes with their external IP (k0s cloud provider)
   ansible.builtin.command:
     cmd: >-

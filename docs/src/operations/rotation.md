@@ -76,29 +76,27 @@ key, which is a separate recipient.
 1. Generate the new key and move its encryption subkey to the smartcard.
 2. Add the new fingerprint alongside the old one under **every** `creation_rules` entry in
    `.sops.yaml`. All three rules name the same PGP recipient today.
-3. Re-encrypt the data key of every file to both recipients:
+3. Re-encrypt the data key of both files to both recipients:
 
    ```bash
-   find . -name '*.sops.*' -not -name '*.example' -not -path './.git/*' \
-     -exec sops updatekeys -y {} +
+   sops updatekeys -y config/sops/ops.sops.yaml config/sops/cluster.sops.yaml
    ```
 
    `updatekeys` rewrites the recipient list only. It does not change any value, so the diff is
    confined to the SOPS metadata block.
 
-4. Verify by decrypting one file matched by each `.sops.yaml` rule, using the new key:
+4. Verify by decrypting the file matched by each `.sops.yaml` rule, using the new key:
 
    ```bash
-   sops -d config/secrets.sops.yaml >/dev/null
-   sops -d tofu/netbird/secrets.sops.env >/dev/null
-   sops -d infra/substitutions/app/edge-ips.sops.yaml >/dev/null
+   sops -d config/sops/ops.sops.yaml >/dev/null
+   sops -d config/sops/cluster.sops.yaml >/dev/null
    ```
 
-   All three must exit 0. A rule you forget in step 2 fails here, not later.
+   Both must exit 0. A rule you forget in step 2 fails here, not later.
 
 5. Remove the old fingerprint from `.sops.yaml`, run the same `updatekeys` sweep again, and repeat
-   the three decrypts.
-6. Commit. The diff touches `.sops.yaml` and the metadata block of every encrypted file.
+   both decrypts.
+6. Commit. The diff touches `.sops.yaml` and the metadata block of both encrypted files.
 7. Revoke the old key and publish the revocation.
 
 **Rollback:** until step 5, the old key is still a recipient and still decrypts everything. After
@@ -140,8 +138,8 @@ Do this on every operator machine. The session is per machine.
 ### Admin SSH key
 
 This key is in no store. It is your own identity in `~/.ssh`, and Ansible authenticates with it
-rather than reading it. Only the public half is committed, as `admin.ssh_pubkey` in
-`ansible/inventory/group_vars/all/secrets.sops.yml`.
+rather than reading it. Only the public half is committed, as `ansible.admin.ssh_pubkey` in
+`config/sops/ops.sops.yaml`.
 
 **Blast radius:** this is the path back into a node. Getting it wrong locks you out of every host
 at once.
@@ -159,7 +157,7 @@ at once.
 4. Set `admin.ssh_pubkey` to the new key and re-encrypt:
 
    ```bash
-   just ops sops ansible/inventory/group_vars/all/secrets.sops.yml
+   just ops sops config/sops/ops.sops.yaml
    ```
 
 5. Apply it, which rewrites `authorized_keys` and drops the old key:
@@ -175,7 +173,7 @@ at once.
 **Rollback:** while the session from step 6 is still open, put the old public key back in the SOPS
 file and re-run `just ans setup`.
 
-## Proton Pass, the `futharkd` vault
+## Proton Pass, the crown-jewel vault
 
 The item and field names are in the table at
 [Cold bootstrap](setup.md#1-proton-pass). Rotation updates the item in place, so the committed
@@ -197,12 +195,11 @@ reconciles. Running workloads keep running.
 
    It prints the `age1…` public recipient and the path to a temporary private key file.
 
-2. Add the new recipient **alongside** the old one on the `(infra|nodes|config)` rule in
-   `.sops.yaml`, then re-encrypt those files to both:
+2. Add the new recipient **alongside** the old one on the `config/sops/cluster.sops.yaml` rule in
+   `.sops.yaml`, then re-encrypt that file to both:
 
    ```bash
-   find infra nodes config -name '*.sops.ya?ml' -not -name '*.example' \
-     -exec sops updatekeys -y {} +
+   sops updatekeys -y config/sops/cluster.sops.yaml
    ```
 
 3. Store the new private key in the `age key` field of the `sops` item, then shred the temporary
@@ -224,7 +221,7 @@ reconciles. Running workloads keep running.
    Empty output. A decryption failure surfaces on the Kustomization, not the HelmRelease, so also
    check `just fx get` shows every Kustomization `Ready`.
 
-6. Remove the old recipient from `.sops.yaml`, re-run the `updatekeys` sweep from step 2, commit,
+6. Remove the old recipient from `.sops.yaml`, re-run `updatekeys` from step 2, commit,
    push, and confirm `just fx failing` is still empty after Flux has pulled the new commit.
 
 **Rollback:** before step 6 the old key is still a recipient. Restore the previous

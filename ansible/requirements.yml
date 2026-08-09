@@ -9,7 +9,3 @@ collections:
     version: "2.2.2"
   - name: kubernetes.core
     version: "6.5.0"
-  # Decrypts *.sops.yml under group_vars/host_vars via its vars plugin — enabled in
-  # ansible/ansible.cfg. Also provides the community.sops.sops lookup.
-  - name: community.sops
-    version: "2.4.0"

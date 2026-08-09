@@ -104,7 +104,7 @@ config:
     # traefik-edge is hostNetwork, so its status.podIP is kenaz's kubelet --node-ip — which
     # ansible/roles/k0s_cluster/templates/k0sctl.yaml.j2 sets to the node's mesh IP. That is the
     # address the metrics entryPoint binds to, so discovery finds it without the address being
-    # written down anywhere; this was a static ${MESH_IP} target out of the edge-ips Secret.
+    # written down anywhere; this was a static ${MESH_IP} target out of the cluster-values Secret.
     #
     # role: pod, not endpoints — the chart's metrics Service targets a port on a hostNetwork pod,
     # and a Service adds nothing here when there is exactly one replica pinned to one node.

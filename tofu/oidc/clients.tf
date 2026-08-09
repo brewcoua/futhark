@@ -1,5 +1,5 @@
 # The domain is SOPS-encrypted, so it comes in as a Tofu variable — extracted from
-# config/dns/dns.sops.yaml via refs.env. See docs/src/conventions/domains.md.
+# config/sops/cluster.sops.yaml via refs.env. See docs/src/conventions/domains.md.
 
 # One pocketid_client + infisical_secret pair per app — add a block per app as it adopts OIDC
 # login. Each app owns its own non-secret OIDC config (client ID, discovery URL, hostname) in

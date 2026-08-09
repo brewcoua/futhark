@@ -123,7 +123,7 @@
 # so writing unconditionally would leave a spurious diff after every converge. Compare first.
 - name: Read the mesh IP currently recorded for this node
   ansible.builtin.command:
-    cmd: sops -d --extract '["node_mesh_ip"]' {{ netbird_node_sops_file }}
+    cmd: sops -d --extract '{{ netbird_node_sops_key }}' {{ netbird_node_sops_file }}
   register: netbird_recorded_mesh_ip
   changed_when: false
   failed_when: false
@@ -134,7 +134,7 @@
   ansible.builtin.command:
     cmd: >-
       sops set {{ netbird_node_sops_file }}
-      '["node_mesh_ip"]' '"{{ netbird_mesh_ip }}"'
+      '{{ netbird_node_sops_key }}' '"{{ netbird_mesh_ip }}"'
   when: netbird_recorded_mesh_ip.stdout | trim != netbird_mesh_ip
   changed_when: true
   delegate_to: localhost

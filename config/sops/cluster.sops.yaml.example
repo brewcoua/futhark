@@ -1,0 +1,20 @@
+---
+# Template for the cluster store: the identifying values Flux substitutes into manifests, sealed
+# to the cluster age key as well as the operator's because kustomize-controller decrypts it
+# in-cluster. Fill in, then encrypt with `just ops sops config/cluster.sops.yaml`. Why these are
+# a Secret, and why they are the only values the cluster may read, is in
+# docs/src/conventions/secrets.md.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-values
+  namespace: flux-system
+type: Opaque
+stringData:
+  DOMAIN: example.eu
+  SUB_INTERNAL: in
+  SUB_NODES: n
+  PUBLIC_IP: 203.0.113.10
+  MESH_IP: 100.80.0.1
+  B2_BUCKET: example-cluster-backups
+  B2_REGION: eu-central-003

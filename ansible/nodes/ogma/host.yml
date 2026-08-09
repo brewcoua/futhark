@@ -5,10 +5,10 @@ node:
   workflow: k0s
   k0s_role: worker
   mesh: true
-  # Identifying, so the literal lives encrypted in host.sops.yml beside this file.
-  ip: "{{ node_ip }}"
-  # Written back into host.sops.yml by the netbird role after the join — see
+  # Identifying, so the literal lives encrypted in config/sops/ops.sops.yaml under ansible.nodes.
+  ip: "{{ nodes[inventory_hostname].ip }}"
+  # Written back into that file by the netbird role after the join — see
   # ansible/nodes/kenaz/host.yml.
-  mesh_ip: "{{ node_mesh_ip | default('') }}"
+  mesh_ip: "{{ nodes[inventory_hostname].mesh_ip | default('') }}"
   initial_user: fedora
   initial_port: 22

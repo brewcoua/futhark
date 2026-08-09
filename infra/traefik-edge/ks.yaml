@@ -9,9 +9,9 @@ spec:
   dependsOn:
     - name: traefik-internal
     - name: substitutions
-  # The public-ingress host's public/mesh IPs, committed SOPS-encrypted in infra/substitutions.
+  # The public-ingress host's public/mesh IPs, committed SOPS-encrypted in config/sops/.
   # Consumed as ${PUBLIC_IP}/${MESH_IP} in app/helmrelease.yaml.
   postBuild:
     substituteFrom:
       - kind: Secret
-        name: edge-ips
+        name: cluster-values

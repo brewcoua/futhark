@@ -21,10 +21,11 @@ secrets straight to Infisical. It authenticates as a machine identity scoped to 
 `/nodes/<hostname>/<app>`, and is deliberately not the read-only identity the cluster uses. Every
 other module stays read-only.
 
-**Provider tokens are never committed, in any form.** A module's `secrets.sops.env` holds two
-kinds of line, and neither is a value. Identifying values that grant nothing, such as a real
-public IP or an account ID, appear as `TF_VAR_<name>=...`. Credentials appear as bare `pass://`
-references that `pass-cli run` resolves after `sops exec-env` has loaded the file. No braces:
+**Provider tokens are never committed, in any form.** A module's `tofu.<module>` section of
+`config/sops/ops.sops.yaml` holds two kinds of entry, and neither is a value. Identifying values that
+grant nothing, such as a real public IP or an account ID, appear as `TF_VAR_<name>: ...`.
+Credentials appear as bare `pass://` references that `pass-cli run` resolves after `just tf` has
+loaded the section into the environment. No braces:
 `run` resolves bare URIs and ignores braced ones, the inverse of `inject`. See
 [Secrets](../conventions/secrets.md).
 
@@ -57,8 +58,9 @@ just tf apply <module>
 ```
 
 `just tf init` with no module argument inits every module under `tofu/`, and runs as part of
-`just ops setup`. `plan` and `apply` compose both stores, in this order:
-`sops exec-env secrets.sops.env 'pass-cli run -- tofu <cmd>'`. That needs a Proton Pass session
+`just ops setup`. `plan` and `apply` compose both stores, in this order: the module's section is
+exported with `sops -d --output-type dotenv --extract '["tofu"]["<module>"]'`, then
+`pass-cli run -- tofu <cmd>` resolves the references in it. That needs a Proton Pass session
 (`pass-cli info`) and the GPG smartcard present. Neither ever writes a value to disk.
 
 `init` composes them too, but only for a module that ships a `backend.tf`, because initialising a
@@ -77,34 +79,35 @@ reference in `refs.env`, which `plan` and `apply` resolve before running:
 
 ```
 # <variable>=<repo-relative .sops file>#<sops --extract expression>
-TF_VAR_kenaz_public_ip=ansible/nodes/kenaz/host.sops.yml#["node_ip"]
-TF_VAR_domain=config/dns/dns.sops.yaml#["stringData"]["DOMAIN"]
+TF_VAR_kenaz_public_ip=config/sops/ops.sops.yaml#["nodes"]["kenaz"]["ip"]
+TF_VAR_domain=config/sops/cluster.sops.yaml#["stringData"]["DOMAIN"]
 ```
 
 The expression goes to `sops --extract` verbatim, so one line shape reaches a node fact and a
 Flux Secret alike. Who owns what:
 
-| Value                               | Owner                                               | Why                                                                                                                                                      |
-| ----------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| node addresses                      | `ansible/nodes/<node>/host.sops.yml`                | `roles/netbird` writes `node_mesh_ip` back into it after each mesh join, so it is recorded where it is discovered                                        |
-| the domain and its subdomain labels | `config/dns/dns.sops.yaml`                          | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                |
-| the backup bucket and its region    | `infra/substitutions/app/backup-location.sops.yaml` | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it. [`b2`](b2.md) provisions what it names |
+| Value                               | Owner                                      | Why                                                                                                                                                      |
+| ----------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| node addresses                      | `config/sops/ops.sops.yaml`, under `nodes` | `roles/netbird` writes each node's `mesh_ip` back into it after a mesh join, so it is recorded where it is discovered                                    |
+| the domain and its subdomain labels | `config/sops/cluster.sops.yaml`            | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                |
+| the backup bucket and its region    | `config/sops/cluster.sops.yaml`            | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it. [`b2`](b2.md) provisions what it names |
 
 A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads
 the mesh CIDR, the k0s service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
 the committed files that own them, as `local`s.
 
-`refs.env` holds only references, so it is committed in the clear even though every file it
-names is encrypted. All of them seal to the same operator key, so resolving one costs no extra
-card touch. A module without the file is unaffected.
+`refs.env` holds only references, so it is committed in the clear even though both files it names
+are encrypted. Both seal to the same operator key, so resolving one costs no extra card touch. A
+module without the file is unaffected.
 
-**A variable in both `refs.env` and `secrets.sops.env` is not a harmless duplicate.**
-`sops exec-env` runs _after_ the refs are exported, so the encrypted copy wins and the ref is
-silently dead. Keep each value in exactly one of the two.
+**A variable in both `refs.env` and the module's own section is not a harmless duplicate.** The
+section is exported _after_ the refs, so its copy wins and the ref is silently dead. Keep each
+value in exactly one of the two.
 
-`infra/substitutions/app/edge-ips.sops.yaml` is the reverse direction and keeps its own copy: Flux
-decrypts it in-cluster, so it is sealed to the cluster age key as well, and `.sops.yaml`
-deliberately keeps that key away from everything under `ansible/` and `tofu/`.
+`PUBLIC_IP` and `MESH_IP` in `config/sops/cluster.sops.yaml` are the reverse direction and are a
+deliberate second copy of what `nodes` records: Flux decrypts that file in-cluster and cannot read
+`config/sops/ops.sops.yaml` at all. See
+[Why the operator store is separate](../conventions/secrets.md#why-the-operator-store-is-separate).
 
 The pre-commit `tofu-validate` hook only runs `fmt` and `validate`, never `init`, because a hook
 that touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify a file" check. Run
@@ -155,7 +158,7 @@ modules: "tofu/" {
 }
 
 pass -> modules: provider tokens\n(pass-cli run)
-sops -> modules: identifying values\n(sops exec-env, refs.env)
+sops -> modules: identifying values\n(ops.sops.yaml, refs.env)
 
 modules.bunny -> bunny-api: DNS records
 modules.netbird -> nb-api: policies, route, DNS zone

@@ -1,5 +1,0 @@
----
-# Template — see ansible/nodes/kenaz/host.sops.yml.example for the procedure.
-node_ip: 203.0.113.11
-# Written by the netbird role after the join — see ansible/nodes/kenaz/host.sops.yml.example.
-# node_mesh_ip: 100.64.0.2

@@ -1,6 +1,6 @@
 ---
 # Internal ingress: reachable ONLY over the NetBird mesh. Serves the wildcard cert for
-# the internal subdomain (config/dns/dns.sops.yaml), so internal Ingresses never carry
+# the internal subdomain (config/sops/cluster.sops.yaml), so internal Ingresses never carry
 # their own tls: block. Reached over a mesh route to the service CIDR rather than
 # hostNetwork/hostIP or a per-Service mesh device — see docs/src/gitops/infra.md#the-two-ingresses.
 apiVersion: helm.toolkit.fluxcd.io/v2

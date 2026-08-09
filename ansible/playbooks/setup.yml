@@ -10,9 +10,6 @@
   # references that Jinja would try to evaluate — see .just/ansible.just.
   vars_files:
     - "{{ playbook_dir }}/../.generated/secrets.yml"
-    # DOMAIN, SUB_NODES, SUB_INTERNAL, straight out of config/dns.sops.yaml. group_vars/all/dns.yml
-    # gives them a nested shape; nothing reads the flat names directly.
-    - "{{ playbook_dir }}/../.generated/dns.yml"
   # Four tags, so a single concern can be re-converged without running the whole thing:
   #
   #   base      hostname, dnf upgrade, base tooling

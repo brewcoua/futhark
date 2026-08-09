@@ -11,8 +11,9 @@
 # identity in the ingress-edge namespace — a namespaceSelector rule never matches and every
 # such request gets dropped by the namespace's default-deny, surfacing as 502 Bad Gateway.
 # The whole mesh CIDR, not kenaz's /32: ipBlock takes a literal, so a /32 meant substituting
-# ${MESH_IP} out of the edge-ips Secret — a hand-maintained second copy of an address ansible
-# already records in ansible/nodes/kenaz/host.sops.yml, with nothing catching drift between them.
+# ${MESH_IP} out of the cluster-values Secret — a hand-maintained second copy of an address
+# ansible already records under `nodes` in config/sops/ops.sops.yaml, with nothing catching drift
+# between them.
 # The CIDR is mesh_cidr from ansible/inventory/group_vars/all/network.yml, committed in the clear
 # because it grants nothing on its own.
 #

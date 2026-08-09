@@ -125,8 +125,7 @@ Three edges are less obvious than they look:
   applies CRs, but the inversion is legitimate and is why the rule is stated rather than the
   pattern.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
-  cluster: the `dns`, `edge-ips` and `backup-location` Secrets, and the `monitoring-sizing`
-  ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
+  cluster: the `cluster-values` Secret and the `monitoring-sizing` ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
   reconciles, and `traefik-edge`, one of those consumers, is upstream of `infra-policies`, the
   otherwise obvious home for them.
 

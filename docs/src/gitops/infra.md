@@ -10,7 +10,7 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | Component            | What it is                                                                                                                                                       |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                                  |
-| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `dns`, `edge-ips` and `backup-location` Secrets, and `monitoring-sizing`                  |
+| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `cluster-values` Secret and `monitoring-sizing`                                           |
 | `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite, so its Deployment uses `strategy: Recreate` and never runs two pods at once                |
 | `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                         |
 | `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                        |
@@ -42,7 +42,7 @@ node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sock
 [Network policy](../conventions/network-policy.md).
 
 The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
-`postBuild.substituteFrom` from the SOPS-encrypted `edge-ips` Secret in `infra/substitutions/`.
+`postBuild.substituteFrom` from the SOPS-encrypted `cluster-values` Secret in `config/sops/`.
 That Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
 consumers reconcile, and `infra-policies`, the obvious home for it, depends on `traefik-edge`.
 
