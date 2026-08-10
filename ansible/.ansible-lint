@@ -11,6 +11,10 @@
 # network. Set here rather than as a --offline flag on one of them, so they cannot drift.
 offline: true
 
+# .generated/ is the same case one step further along: `just ans render-secrets` writes the
+# decrypted secrets, node addresses and cluster values there, and a base64 deploy key is one long
+# line. Rendered data, never committed, nothing to lint — and lint output should not quote it.
 exclude_paths:
   - "**/*.sops.yml"
   - "**/*.sops.yaml"
+  - ".generated/"

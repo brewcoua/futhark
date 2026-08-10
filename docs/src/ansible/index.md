@@ -200,10 +200,11 @@ Two mechanisms, no custom code in this repo any more.
 Both go through `just ans render-secrets`, which decrypts into `ansible/.generated/`. Nothing is
 decrypted at load time, and no task mentions SOPS.
 
-Identifying values land in `nodes.yml` and `cluster.yml`, which `group_vars/all/nodes.yml` and
-`group_vars/all/dns.yml` read with a `file` lookup. They are inventory-level rather than a
-playbook's `vars_files` because `playbooks/k0s.yml` runs against `localhost` and still reaches
-`hostvars[<node>].node.mesh_ip`, which resolves only if every host carries the variable itself.
+Identifying values land in `nodes.yml`, `cluster.yml` and the `admin` subtree of `secrets.yml`,
+which `group_vars/all/nodes.yml`, `group_vars/all/dns.yml` and `group_vars/all/admin.yml` read with
+a `file` lookup. They are inventory-level rather than a playbook's `vars_files` because
+`playbooks/k0s.yml` runs against `localhost` and still reaches `hostvars[<node>].node.mesh_ip` and
+`hostvars[<node>].admin.user`, which resolve only if every host carries the variable itself.
 So `admin.user` and `node.ip` are ordinary variables at the point of use.
 
 Crown-jewel values come from Proton Pass. `just ans render-secrets` decrypts the `ansible` subtree

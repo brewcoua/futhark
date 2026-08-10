@@ -1,0 +1,11 @@
+---
+# The non-root sudo account, from the `ansible` subtree of config/sops/ops.sops.yaml that
+# `just ans render-secrets` resolves into ansible/.generated/secrets.yml.
+#
+# Inventory-level rather than a playbook's vars_files, for the reason in nodes.yml beside this
+# file: playbooks/k0s.yml runs against localhost, and the k0sctl template still reads
+# hostvars[<node>].admin.user — which only resolves if every host has this var of its own.
+#
+# The `admin` subtree only: the crown jewels under `secrets:` stay play-scoped to the roles that
+# use them, flux_bootstrap and netbird, both no_log.
+admin: "{{ (lookup('file', generated_dir + '/secrets.yml') | from_yaml).admin }}"
