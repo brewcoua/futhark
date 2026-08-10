@@ -14,7 +14,7 @@ age = "1.3.1"
 helm = "4.2.3"
 d2 = "0.7.1"
 mdbook = "0.5.4"
-opentofu = "1.11.5"
+opentofu = "1.12.5"
 
 # Tracks k8s_cluster_version in ansible/roles/k8s_cluster/defaults/main.yml.
 kubectl = "1.36.3"
