@@ -3,24 +3,6 @@
 # the workers — because an agent cannot join a server that does not exist yet. Everything that
 # differs between the two is behind k8s_cluster_is_controller; there is no separate agent role.
 
-# Workers need the controller's address for `server:`, and the controller needs to know it is
-# the controller. Derived from inventory rather than named anywhere, so adding a second server
-# later is a host.yml edit.
-- name: Determine the k3s controller host
-  ansible.builtin.set_fact:
-    k8s_cluster_controller_host: >-
-      {{ groups['all'] | map('extract', hostvars) |
-      selectattr('node.k8s_role', 'defined') |
-      selectattr('node.k8s_role', 'equalto', 'controller') |
-      map(attribute='inventory_hostname') | first }}
-    k8s_cluster_is_controller: "{{ node.k8s_role == 'controller' }}"
-
-# A k3s server is a worker too unless it is tainted, so the controller runs both units' worth of
-# work under the one `k3s` service. Only agents get `k3s-agent`.
-- name: Name the k3s service for this host's role
-  ansible.builtin.set_fact:
-    k8s_cluster_service: "{{ 'k3s' if k8s_cluster_is_controller else 'k3s-agent' }}"
-
 # Mesh IPs come from each node's own `netbird status`, recorded into config/sops/ops.sops.yaml by
 # the netbird role at join time and surfaced here as node.mesh_ip. The range check catches a
 # recorded address that is no longer a mesh address (node deleted and re-registered into a

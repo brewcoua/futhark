@@ -19,3 +19,24 @@ k8s_cluster_version: "v1.36.3+k3s1"
 k8s_cluster_disable:
   - traefik
   - servicelb
+
+# Defaults rather than set_fact, and not because they are overridable: playbooks/k8s.yml gates
+# this role with a play-level `when`, and Ansible templates a task's `delegate_to` before it
+# evaluates that condition. A fact set by a task the condition skips is therefore undefined at
+# the moment the token slurp's delegation host is resolved, on exactly the hosts the play meant
+# to skip. Defaults load for every host in the play whatever the condition says.
+#
+# Derived from inventory rather than named anywhere, so adding a second server is a host.yml edit.
+k8s_cluster_controller_host: >-
+  {{ groups['all'] | map('extract', hostvars) |
+  selectattr('node.k8s_role', 'defined') |
+  selectattr('node.k8s_role', 'equalto', 'controller') |
+  map(attribute='inventory_hostname') | first }}
+
+# Defaulted because a `workflow: none` host has no k8s_role at all, and this still has to
+# evaluate for it.
+k8s_cluster_is_controller: "{{ node.k8s_role | default('') == 'controller' }}"
+
+# A k3s server is a worker too unless it is tainted, so the controller runs both units' worth of
+# work under the one `k3s` service. Only agents get `k3s-agent`.
+k8s_cluster_service: "{{ 'k3s' if k8s_cluster_is_controller else 'k3s-agent' }}"
