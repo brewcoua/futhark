@@ -104,7 +104,7 @@
       Authorization: "Token {{ secrets.netbird.api_token }}"
     body_format: json
     body:
-      name: "{{ inventory_hostname }} join {{ ansible_date_time.iso8601 }}"
+      name: "{{ inventory_hostname }} join {{ ansible_facts['date_time']['iso8601'] }}"
       type: one-off
       usage_limit: 1
       expires_in: 300
