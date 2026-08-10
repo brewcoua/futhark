@@ -59,14 +59,15 @@ spec:
         enabled: true
         ingressClass: edge
     hostNetwork: true
-    # kenaz's net.ipv4.ip_unprivileged_port_start is lowered to 443 (ansible/roles/
-    # firewall_ingress) so this can bind 443 as the chart's default non-root user, without
-    # NET_BIND_SERVICE — this node's containerd never propagates that capability to a non-root
-    # process (containerd/containerd#5644), so granting it here would have no effect anyway.
-    # kenaz is the only node with a public IP — pin here so the scheduler never lands this pod
-    # on ogma, where neither hostIP below exists on any interface.
+    # The edge node's net.ipv4.ip_unprivileged_port_start is lowered to 443 (ansible/roles/
+    # firewall_ingress, gated on node.public_ingress) so this can bind 443 as the chart's default
+    # non-root user, without NET_BIND_SERVICE. That node's containerd never propagates the
+    # capability to a non-root process (containerd/containerd#5644), so granting it here would have
+    # no effect anyway. Pinned because the hostIPs below only exist on the edge node's interfaces;
+    # anywhere else this pod would sit Pending. The same node is named in ansible/nodes/<host>/
+    # host.yml (public_ingress) and tofu/bunny/refs.env. See docs/src/ansible/nodes.md.
     nodeSelector:
-      kubernetes.io/hostname: kenaz
+      kubernetes.io/hostname: ogma
     ports:
       # No plaintext HTTP — this edge only ever serves TLS. `null` removes the chart's
       # default web (80) entryPoint entirely, rather than just hiding its Service port.
@@ -78,7 +79,7 @@ spec:
           tls:
             enabled: true
       # Bound to the mesh IP, not the public one, so the dashboard/API is reachable over the
-      # mesh only, never on kenaz's public interface.
+      # mesh only, never on the edge node's public interface.
       traefik:
         port: 8081
         hostIP: ${MESH_IP}

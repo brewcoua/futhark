@@ -79,7 +79,7 @@ reference in `refs.env`, which `plan` and `apply` resolve before running:
 
 ```
 # <variable>=<repo-relative .sops file>#<sops --extract expression>
-TF_VAR_kenaz_public_ip=config/sops/ops.sops.yaml#["nodes"]["kenaz"]["ip"]
+TF_VAR_edge_public_ip=config/sops/ops.sops.yaml#["nodes"]["ogma"]["ip"]
 TF_VAR_domain=config/sops/cluster.sops.yaml#["stringData"]["DOMAIN"]
 ```
 

@@ -3,12 +3,12 @@
 # mesh_ip back into after a mesh join. Not held in this module's own `tofu.bunny` section: a
 # second encrypted copy of the same address drifts silently, and it would also *win*, since a
 # module's own values are exported after the refs.
-variable "kenaz_public_ip" {
-  description = "kenaz's public IP — same value substituted into $${PUBLIC_IP} in infra/traefik-edge/app/helmrelease.yaml."
+variable "edge_public_ip" {
+  description = "The edge node's public IP. Same value substituted into $${PUBLIC_IP} in infra/traefik-edge/app/helmrelease.yaml."
   type        = string
   validation {
-    condition     = can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$", var.kenaz_public_ip))
-    error_message = "kenaz_public_ip must look like an IPv4 address."
+    condition     = can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$", var.edge_public_ip))
+    error_message = "edge_public_ip must look like an IPv4 address."
   }
 }
 
