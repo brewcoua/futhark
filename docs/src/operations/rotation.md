@@ -454,13 +454,13 @@ mount keep it until they are rescheduled.
 
    ```bash
    ssh-keygen -t ed25519 -f ~/.ssh/futhark-storagebox-new -N '' -C futhark-csi
-   cat ~/.ssh/futhark-storagebox-new.pub | ssh -p23 <subaccount>@<box host> install-ssh-key
+   cat ~/.ssh/futhark-storagebox-new.pub | ssh -p23 uXXXXX-subN@uXXXXX-subN.your-storagebox.de install-ssh-key
    ```
 
 2. Verify the new key on its own before changing anything:
 
    ```bash
-   sftp -P 23 -i ~/.ssh/futhark-storagebox-new <subaccount>@<box host>
+   sftp -P 23 -i ~/.ssh/futhark-storagebox-new uXXXXX-subN@uXXXXX-subN.your-storagebox.de
    ```
 
 3. Inline it, as `key_pem` requires a single line:
@@ -480,7 +480,7 @@ mount keep it until they are rescheduled.
 6. Verify a real mount. Create a PVC against `storagebox-crypt` and attach a pod to it. Binding
    alone proves provisioning, not mounting. The procedure is in
    [The rclone remotes](rclone.md#checking-it-worked).
-7. Remove the old public key from the box's `authorized_keys`, then repeat step 6.
+7. Remove the old public key from the subaccount's `authorized_keys`, then repeat step 6.
 
 Why `key_pem` and not `key_file`: the CSI driver mounts the config Secret and nothing else, so a
 filesystem path in the config does not exist inside the driver container.

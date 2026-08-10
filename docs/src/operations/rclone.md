@@ -31,21 +31,22 @@ must match the `remote:` parameter of the class naming it (`storageclass-storage
 
 What you supply is eleven secrets under `/infra/csi-rclone`:
 
-| Secret                       | Value                                                       |
-| ---------------------------- | ----------------------------------------------------------- |
-| `STORAGEBOX_HOST`            | the Storage Box hostname                                    |
-| `STORAGEBOX_USER`            | the subaccount username                                     |
-| `STORAGEBOX_KEY_PEM`         | the private key, inlined to one line (step 8 below)         |
-| `STORAGEBOX_CRYPT_PASSWORD`  | `rclone obscure` output                                     |
-| `STORAGEBOX_CRYPT_PASSWORD2` | `rclone obscure` output                                     |
-| `GDRIVE_CLIENT_ID`           | the OAuth client from the Google console                    |
-| `GDRIVE_CLIENT_SECRET`       | the same client                                             |
-| `GDRIVE_ROOT_FOLDER_ID`      | the folder id `rclone lsf` reports                          |
-| `GDRIVE_TOKEN`               | the whole `{"access_token":…}` JSON rclone writes, one line |
-| `GDRIVE_CRYPT_PASSWORD`      | `rclone obscure` output                                     |
-| `GDRIVE_CRYPT_PASSWORD2`     | `rclone obscure` output                                     |
+| Secret                       | Value                                                       | Shape                                                                                                    |
+| ---------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `STORAGEBOX_HOST`            | the subaccount hostname, not the box's                      | `uXXXXX-subN.your-storagebox.de`                                                                         |
+| `STORAGEBOX_USER`            | the subaccount username                                     | `uXXXXX-subN`                                                                                            |
+| `STORAGEBOX_KEY_PEM`         | the private key, inlined to one line (step 8 below)         | `-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXk…\n-----END OPENSSH PRIVATE KEY-----\n`             |
+| `STORAGEBOX_CRYPT_PASSWORD`  | `rclone obscure` output                                     | `hV3d1QoZ8kFy…`, 80 characters of URL-safe base64                                                        |
+| `STORAGEBOX_CRYPT_PASSWORD2` | `rclone obscure` output                                     | as above, a different value                                                                              |
+| `GDRIVE_CLIENT_ID`           | the OAuth client from the Google console                    | `XXXXXXXXXXXX-XXXXXX….apps.googleusercontent.com`                                                        |
+| `GDRIVE_CLIENT_SECRET`       | the same client                                             | `GOCSPX-…`, 35 characters                                                                                |
+| `GDRIVE_ROOT_FOLDER_ID`      | the folder id `rclone lsf` reports                          | `1AbCdEfGh…`, 33 opaque characters                                                                       |
+| `GDRIVE_TOKEN`               | the whole `{"access_token":…}` JSON rclone writes, one line | `{"access_token":"ya29.…","token_type":"Bearer","refresh_token":"1//…","expiry":"2026-01-01T00:00:00Z"}` |
+| `GDRIVE_CRYPT_PASSWORD`      | `rclone obscure` output                                     | as `STORAGEBOX_CRYPT_PASSWORD`, a different value                                                        |
+| `GDRIVE_CRYPT_PASSWORD2`     | `rclone obscure` output                                     | as above, a different value                                                                              |
 
-Every value is a single line, and each rotates on its own. The rotation procedures are in
+The shapes are illustrative, truncated with `…`, and no value in that column is real. Every value
+is a single line, and each rotates on its own. The rotation procedures are in
 [Credential rotation](rotation.md#the-storage-box-ssh-key).
 
 `rclone config` produces the two backend sections locally, and gets one line of them wrong for this
@@ -58,13 +59,21 @@ Everything here is in the [Hetzner Console](https://console.hetzner.com), under 
 
 1. **Create Storage Box.** Pick a location and a size.
 
-2. **Enable SSH support and External Reachability** in the box's settings. Port 22 is always
-   active but carries SCP and SFTP only; port 23 is the one you enable, and it is the port rclone
-   uses. External Reachability is not optional here, because the cluster is not inside Hetzner's
-   network. Both settings take a few minutes to apply.
+2. **Create a subaccount** for the cluster, so the credential the cluster holds is not the box's
+   main account. It gets its own home directory, and both a username and a hostname of the form
+   `uXXXXX-subN`. Those are the `user` and the `host` in the INI. The box's own `uXXXXX` hostname
+   is not used anywhere in this procedure.
 
-3. **Create a subaccount** for the cluster, so the credential the cluster holds is not the box's
-   main account. Its username is the `user` in the INI, and it gets its own home directory.
+3. **Enable SSH support and External Reachability on the subaccount, and leave both off on the box
+   itself.** Port 22 is always active but carries SCP and SFTP only; port 23 is the one you enable,
+   and it is the port rclone uses. External Reachability is not optional here, because the cluster
+   is not inside Hetzner's network. Both settings take a few minutes to apply.
+
+   Both toggles exist at the box level too, and setting them there is what the Hetzner
+   documentation describes. Do not. The box-level toggles reach the main account, whose directory
+   is the parent of every subaccount, and every subaccount you add later. Scoped to this
+   subaccount, the port 23 that is exposed to the internet reaches one directory, and a subaccount
+   added later for something else starts with no external access at all.
 
 4. **Generate a dedicated key pair.** Not your admin identity. This one ends up in Infisical and
    in every node's driver container.
@@ -76,7 +85,7 @@ Everything here is in the [Hetzner Console](https://console.hetzner.com), under 
 5. **Install the public half.** One command, and it handles both ports:
 
    ```bash
-   cat ~/.ssh/futhark-storagebox.pub | ssh -p23 uXXXXX@uXXXXX.your-storagebox.de install-ssh-key
+   cat ~/.ssh/futhark-storagebox.pub | ssh -p23 uXXXXX-subN@uXXXXX-subN.your-storagebox.de install-ssh-key
    ```
 
    The manual path is fiddlier than it looks, which is why `install-ssh-key` is the one to use:
@@ -86,12 +95,13 @@ Everything here is in the [Hetzner Console](https://console.hetzner.com), under 
 6. **Check it.** No password prompt:
 
    ```bash
-   sftp -P 23 -i ~/.ssh/futhark-storagebox uXXXXX@uXXXXX.your-storagebox.de
+   sftp -P 23 -i ~/.ssh/futhark-storagebox uXXXXX-subN@uXXXXX-subN.your-storagebox.de
    ```
 
 7. **Run `rclone config`.** `n` for a new remote, name it `storagebox`, storage type `sftp`, then
-   the host, the subaccount username, port `23`, no password (the key replaces it), and
-   `~/.ssh/futhark-storagebox` as the key file. Decline the advanced config and confirm.
+   the subaccount hostname and the subaccount username, both `uXXXXX-subN`, port `23`, no password
+   (the key replaces it), and `~/.ssh/futhark-storagebox` as the key file. Decline the advanced
+   config and confirm.
 
 8. **Inline the key.** The line rclone just wrote is `key_file`, a filesystem path. The committed
    config has no such line: the CSI driver mounts the config Secret and nothing else, so a path
