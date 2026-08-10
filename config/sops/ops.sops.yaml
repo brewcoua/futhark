@@ -22,10 +22,10 @@ ansible:
 nodes:
     kenaz:
         ip: ENC[AES256_GCM,data:3rkX2M8lgY9wh6R7IQ==,iv:iNz8XY2SMJXJndlmP5jBsG+8AsRyAW7iHyBX7WWw1Qg=,tag:r40iBzJi2iKNFOIF07cSXA==,type:str]
-        mesh_ip: ENC[AES256_GCM,data:DPjqoC1p4X/EL4s=,iv:Lu6cEc3FzKl3wb7iSIlhyb1kXL8Jbi3jlrWPYzARf6c=,tag:HxPLttqkmIjFmANZX16Fiw==,type:str]
+        mesh_ip: ENC[AES256_GCM,data:eeW57RUpgtKXqKN0,iv:aHx/KQoFem6lypSQwubC2CPqnAnpLOXAnHAS1hQX1do=,tag:nwbhWOC1mBgp2oTtvcK7Hg==,type:str]
     ogma:
         ip: ENC[AES256_GCM,data:WdGc7pI+zTwpRklg,iv:fZGUGfCEK93H3rzgKLUsdb2xhy0+mzf3cklnpAWgwu8=,tag:uFBLolyxOwstXalU2FOCiA==,type:str]
-        mesh_ip: ENC[AES256_GCM,data:WlL+cOH/75cpHgE=,iv:v5ZDKHHpHv4tbs6ozLmpMlK1YgYfHv2zx8FTtZ6HC0I=,tag:P6n85KPfVkkjnZb+iPZnPA==,type:str]
+        mesh_ip: ENC[AES256_GCM,data:vZXsnxzrkGAMz1Ac,iv://OOUnLYMfmVlKdVq3XWxDPOw4L8NwNuliC1N2SYGlI=,tag:2I2VwUz7CHiELgLejC59kg==,type:str]
 tofu:
     b2:
         B2_APPLICATION_KEY_ID: ENC[AES256_GCM,data:/Yxn1ocV1AD/T+v4N5magU+X28OJ+Y+neeetTho1VvF6Nf+yLg==,iv:UzWjBM1m7pKE4EgRDGauezJrYcDhib8YsVDNaVFtS2s=,tag:DxB0tLwcvTp9CA4KV+XZ3g==,type:str]
@@ -45,8 +45,8 @@ tofu:
         INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ENC[AES256_GCM,data:SV7y/AJ2FI6NFiO1aVuxzpq39N6nChBfx1DxhMsLLxG10yY0Dob5S+Xdn3qPkMhpUYE1,iv:kZJmslpKflwrPWKTp9uR7VaMy1nntv7rDdIOi1Oi/ro=,tag:YilvSVi51ALC4Rd8PaiRMQ==,type:str]
         TF_VAR_infisical_project_id: ENC[AES256_GCM,data:+CzvkT7eeWBoiopFZOTUQx0BTh+OGExlPIZov3tKLo8uroBq,iv:x/sr+6mov9o93pNKgcBZGE9dxHAZuHlY+U7Pnpe4N2w=,tag:U5ju88KwV6MN30F1U/KKIA==,type:str]
 sops:
-    lastmodified: "2026-08-10T14:00:32Z"
-    mac: ENC[AES256_GCM,data:TMEdVRSlqkdN3JsTJCN0kISr2PMvjajtzDkXUz/PACqtZhQvIA7C2qKkDbzyYY9597g59mwpOnyG8QKGAh+sQMcyCBV3D2UYkwIeRA6LCJLSo/gPVtBkotoZQSrGS6E/inOuSaVWu5fH6/R2rT49EkE3xEvLb7EGzf4iUZsbfDY=,iv:VQSk4/DUKt6sEIFnR9SPpfzlWCxtDtRrrHn1MbnnPtY=,tag:Ty6PizbxkPA7HP17VTrOuA==,type:str]
+    lastmodified: "2026-08-10T21:05:19Z"
+    mac: ENC[AES256_GCM,data:ux2YMA5aho20liD7QQPlBhFFWre1roLuigQ8UbYJfR30t4lGe5la8kxV4hzlIogtOHJI1/JtUhGlbpprwh4xJa+KklKcTKZiMgnXLNFWdq4kEX/V6NwtutIP4bXSb2y8jgde56K9LYOOaxWC1L40tdIkJrN4PDzllo6d7fXVpII=,iv:MI35rhSpu0Gp5zAi+mjlWtHKkMXBRvp+f+S3S2s8AZM=,tag:qYphw196NaB5ElpVrdDmuw==,type:str]
     pgp:
         - created_at: "2026-08-09T17:10:26Z"
           enc: |-
