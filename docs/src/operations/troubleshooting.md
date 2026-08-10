@@ -82,8 +82,15 @@ sops -d <the file>          # works for you via the GPG card, independently of t
 ```
 
 If `sops -d` succeeds locally but Flux fails, the file was sealed without the cluster age
-recipient. Check it against the `config/sops/cluster.sops.yaml` rule in `.sops.yaml` and re-run
-`sops updatekeys` on it. `config/sops/ops.sops.yaml` is _supposed_ to fail this way in cluster
+recipient. Compare the recipient the file carries against the one the rule names:
+
+```bash
+grep recipient: config/sops/cluster.sops.yaml
+grep age: .sops.yaml
+```
+
+Two different `age1…` values mean the key was rotated but the file was never re-sealed. Fix it
+with `just ops rekey`, then commit and push: Flux only sees the pushed file. `config/sops/ops.sops.yaml` is _supposed_ to fail this way in cluster
 context; it is deliberately not sealed to the cluster key, and Flux is never given it.
 
 ## An `InfisicalStaticSecret` never syncs

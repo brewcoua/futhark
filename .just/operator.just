@@ -132,6 +132,20 @@ sops file='':
     fi
     echo "created and encrypted $f"
 
+# Editing .sops.yaml alone leaves every file sealed to the old recipient, and Flux then fails
+# to decrypt with "cannot get sops data key".
+# Re-seal every encrypted file to the recipients .sops.yaml names (run after a key rotation)
+[no-exit-message]
+rekey:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # -not -name '.sops.yaml' so the rules file itself, which carries no sops metadata, is
+    # not mistaken for one of the files it describes.
+    for f in $(find . -name '*.sops.*' -not -name '*.example' -not -name '.sops.yaml' -not -path './.git/*' | sort); do
+      sops updatekeys -y "$f"
+    done
+    git diff --stat -- '*.sops.*'
+
 # Install the repo's pre-commit hooks
 hooks:
     pre-commit install

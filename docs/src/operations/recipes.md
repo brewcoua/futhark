@@ -25,6 +25,7 @@ argument, and `[<x>]` takes an optional one.
 | `ops labels`        | Create or update the GitHub labels Renovate applies to its PRs. Needs `gh`                                |
 | `ops age-key`       | Generate the SOPS cluster age keypair. Run once, at cold bootstrap                                        |
 | `ops sops [<file>]` | Edit an encrypted file, seeding it from its `.example` if absent. No argument lists what is still missing |
+| `ops rekey`         | Re-seal every `*.sops.*` file to the recipients `.sops.yaml` names. Run after a key rotation              |
 | `ops pass-session`  | Check for a Proton Pass session, and explain how to get one                                               |
 | `ops mesh`          | Check this machine is on the NetBird mesh, and explain how to join if not                                 |
 
@@ -57,6 +58,10 @@ a `*.sops.*` path.
 just ops sops                                 # what is still missing
 just ops sops config/sops/ops.sops.yaml           # create it, or edit it
 ```
+
+`ops rekey` re-seals every `*.sops.*` file to the recipients `.sops.yaml` currently names, and
+prints the resulting diff. Run it after editing `.sops.yaml`, since a rotation that changes the
+recipients there leaves the files themselves sealed to the old ones.
 
 ## `ans`, hosts
 

@@ -79,11 +79,12 @@ key, which is a separate recipient.
 3. Re-encrypt the data key of both files to both recipients:
 
    ```bash
-   sops updatekeys -y config/sops/ops.sops.yaml config/sops/cluster.sops.yaml
+   just ops rekey
    ```
 
-   `updatekeys` rewrites the recipient list only. It does not change any value, so the diff is
-   confined to the SOPS metadata block.
+   The recipe runs `sops updatekeys` over every `*.sops.*` file in the repository. It rewrites
+   the recipient list only. It does not change any value, so the diff is confined to the SOPS
+   metadata block.
 
 4. Verify by decrypting the file matched by each `.sops.yaml` rule, using the new key:
 
@@ -94,8 +95,8 @@ key, which is a separate recipient.
 
    Both must exit 0. A rule you forget in step 2 fails here, not later.
 
-5. Remove the old fingerprint from `.sops.yaml`, run the same `updatekeys` sweep again, and repeat
-   both decrypts.
+5. Remove the old fingerprint from `.sops.yaml`, run `just ops rekey` again, and repeat both
+   decrypts.
 6. Commit. The diff touches `.sops.yaml` and the metadata block of both encrypted files.
 7. Revoke the old key and publish the revocation.
 
@@ -199,7 +200,7 @@ reconciles. Running workloads keep running.
    `.sops.yaml`, then re-encrypt that file to both:
 
    ```bash
-   sops updatekeys -y config/sops/cluster.sops.yaml
+   just ops rekey
    ```
 
 3. Store the new private key in the `age key` field of the `sops` item, then shred the temporary
@@ -221,7 +222,7 @@ reconciles. Running workloads keep running.
    Empty output. A decryption failure surfaces on the Kustomization, not the HelmRelease, so also
    check `just fx get` shows every Kustomization `Ready`.
 
-6. Remove the old recipient from `.sops.yaml`, re-run `updatekeys` from step 2, commit,
+6. Remove the old recipient from `.sops.yaml`, re-run `just ops rekey` from step 2, commit,
    push, and confirm `just fx failing` is still empty after Flux has pulled the new commit.
 
 **Rollback:** before step 6 the old key is still a recipient. Restore the previous
