@@ -1,3 +1,4 @@
+#ENC[AES256_GCM,data:eexb9nEkqsUqrTqEiBnPSLwAJzbXXgWChB2mA2GEpDFFHTIL+uQLQrqu,iv:N52hDlkMJounN1+H0co6cmr59xehcj7JZHWeKq8j5Fo=,tag:RuV0s48v71earzVFw3Op9w==,type:comment]
 apiVersion: ENC[AES256_GCM,data:RdU=,iv:KZrxcIrreulADNNG/5VxoWsopqN2tn/wUl4vdIOaii0=,tag:D1YZvp3pfP6CoFxMBZOKZg==,type:str]
 kind: ENC[AES256_GCM,data:zQRvmOmW,iv:4HEIubbrRmJX86H/N9G09E0o6T4vMw2oXQpBLJ4FMY4=,tag:dJKJwlK6ZO/w/bvwyHRTDA==,type:str]
 metadata:
@@ -23,8 +24,8 @@ sops:
             MkeNjy0vT/EDh9YYg3d+HwI1sCQdvEXRUDHyGlUW/m4G+0aOmtggSQ==
             -----END AGE ENCRYPTED FILE-----
           recipient: age1hxdu4pkrvy9k7u5wcpsa75cxls7p5q0plnsw6mscymwwflezda4qh9xvsw
-    lastmodified: "2026-08-09T17:16:32Z"
-    mac: ENC[AES256_GCM,data:REbiAeXCdng3912A+hL3b/Zhmg294an6ItRtF/NHQLkqZZxTB9ZAzWa3rjCmnvE8ZH9NZjfqdFCQy0AtAtcArIpZoCzAX+k8oc6vaSZPCdA1I5oeGoo+CA/iGgijIrXzDqOedLqMcZhu3xUhGVoVqx32K1Yb39yHWZPw4M5MMhY=,iv:C4tknxf09U7QQsQwn7Ratg4rzETkHNT6/qJC61buKCs=,tag:xeug2UpyPF63XDdahxsDiQ==,type:str]
+    lastmodified: "2026-08-10T12:55:36Z"
+    mac: ENC[AES256_GCM,data:Uym6ZQbJjynxUCVJuKGbkva2poBFZmuQXU9b/HkzK/2DzPCKWqWbeQ0re97rBUYZHH5NdSKe/DkW0rekuY2v97EilD4jQomRsX1HVGHEhdtbz+YYdq6RNKlPk9BQ9m1zxP7a3NmzT+sLDn0Q7/eAPFyQMmcQuJMPhkx8qTy9XxE=,iv:owoCEf8snfXH39IHnwDSpReAn2Jttww+4bvuWm1DjIc=,tag:/vml5yRKRGLIvwyZCX9Rsg==,type:str]
     pgp:
         - created_at: "2026-08-09T17:16:32Z"
           enc: |-
