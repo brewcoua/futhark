@@ -42,6 +42,21 @@
     mode: "0644"
   notify: Restart fail2ban
 
+# The recidive jail polls this path, and fail2ban validates every jail's logpath before it has
+# written a line to its own logtarget — so on a fresh node the file it is about to create does
+# not exist yet, and the whole server aborts with "Have not found any log file for recidive
+# jail", taking the sshd jail down with it. Seeding it breaks the cycle. Only ever needed once:
+# logrotate.conf sets `create` globally, so rotation puts the file back.
+- name: Seed fail2ban's own log for the recidive jail
+  ansible.builtin.file:
+    path: /var/log/fail2ban.log
+    state: touch
+    owner: root
+    group: root
+    mode: "0640"
+    access_time: preserve
+    modification_time: preserve
+
 - name: Enable and start fail2ban
   ansible.builtin.systemd:
     name: fail2ban
