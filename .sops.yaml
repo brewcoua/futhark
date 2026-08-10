@@ -25,4 +25,4 @@ creation_rules:
   # flux-system/sops-age to decrypt at apply time.
   - path_regex: (^|/)config/sops/cluster\.sops\.yaml$
     pgp: 100E6328B87F82112F2A932F7B5D8E73CC72848C
-    age: age1hxdu4pkrvy9k7u5wcpsa75cxls7p5q0plnsw6mscymwwflezda4qh9xvsw
+    age: age18nxkppuywt7zwzupqz3x5mcvrym7995wfgcuyc7fj9pp6fm03yss97483a
