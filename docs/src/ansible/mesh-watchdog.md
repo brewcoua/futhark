@@ -6,7 +6,7 @@ tuning any `netbird_watchdog_*` default.
 
 A mesh node is reached over the mesh. `ansible_host` in
 `ansible/inventory/group_vars/all/main.yml` resolves to `<hostname>.<mesh_dns_domain>` for any
-node with `node.mesh`, and `k0s_cluster` pins kubelet's `--node-ip` and `spec.api.address` to the
+node with `node.mesh`, and `k8s_cluster` pins kubelet's `node-ip` and k3s's `advertise-address` to the
 mesh address. So a NetBird client that breaks takes down the cluster's view of the node _and_
 Ansible's route to it, in the same instant. There is no plane left to fix it from.
 

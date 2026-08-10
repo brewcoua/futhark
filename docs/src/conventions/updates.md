@@ -25,7 +25,7 @@ the repository.
 | `github-actions`           | Action pins in every workflow                                     |
 | `pre-commit`               | Hook `rev:`s in `.pre-commit-config.yaml`                         |
 | `mise`                     | The pinned tool binaries in `mise.toml`                           |
-| `custom.regex` (annotated) | The k0s, flux-operator and Flux distribution pins                 |
+| `custom.regex` (annotated) | The k3s, flux-operator and Flux distribution pins                 |
 
 The built-in managers are scoped to the directories they belong to, because a manager with no
 file patterns walks the whole tree. SOPS files are excluded outright: their `version:` field
@@ -42,7 +42,7 @@ version: "2.9.4"
 ```
 
 `versioning=` and `extractVersion=` are both optional and go after `depName=`, in that order.
-`k0s` needs `versioning` because `v1.36.3+k0s.1` is not plain semver.
+`k3s` needs `versioning` because `v1.36.3+k3s1` is not plain semver.
 
 The comment must stay immediately above its pin. Insert a line between them, or move the pin
 without its comment, and it silently stops being tracked. There is no error, just an update that
@@ -62,8 +62,8 @@ so everything else waits for a human.
 
 Two of those PRs deserve a closer read than the rest:
 
-- **k0s** (`ansible/roles/k0s_cluster/defaults/main.yml`) is a control-plane upgrade. Merging it
-  changes nothing on its own. It takes effect on the next `just ans k0s`, which drains and
+- **k3s** (`ansible/roles/k8s_cluster/defaults/main.yml`) is a control-plane upgrade. Merging it
+  changes nothing on its own. It takes effect on the next `just ans k8s`, which drains and
   restarts each node in turn.
 - **Chart majors** carry values-schema changes. `kustomize build --enable-helm` in CI renders the
   chart, so a values key that no longer exists fails the PR, but a key that changed meaning does

@@ -1,5 +1,5 @@
 ---
-# kenaz's own tier. Add one nodes/<hostname>.yaml like this per k0s node, alongside a matching
+# kenaz's own tier. Add one nodes/<hostname>.yaml like this per cluster node, alongside a matching
 # app/helmrelease-node-<hostname>.yaml.
 #
 # The credential here is the same Infisical machine identity the infra tier uses — the free tier

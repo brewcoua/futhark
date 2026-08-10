@@ -105,7 +105,7 @@ step 5, restore the previous commit and re-run `updatekeys` while you still hold
 ### Proton Pass personal access token
 
 **Blast radius:** `pass-cli` stops resolving references, so `just ans render-secrets`,
-`just ans setup`, `just ans k0s` and every `just tf` recipe fail. The cluster is unaffected. It
+`just ans setup`, `just ans k8s` and every `just tf` recipe fail. The cluster is unaffected. It
 holds no Proton Pass credential, by design.
 
 1. Mint a new personal access token in the Proton Pass web app.
@@ -207,7 +207,7 @@ reconciles. Running workloads keep running.
 4. Reseed the cluster:
 
    ```bash
-   just ans k0s
+   just ans k8s
    ```
 
    `ansible/roles/flux_bootstrap` recreates `flux-system/sops-age`.
@@ -226,7 +226,7 @@ reconciles. Running workloads keep running.
 
 **Rollback:** before step 6 the old key is still a recipient. Restore the previous
 `flux-system/sops-age` by putting the old private key back in Proton Pass and re-running
-`just ans k0s`.
+`just ans k8s`.
 
 ### The Flux deploy key
 
@@ -246,7 +246,7 @@ new reconciles.
 4. Reseed `flux-system/git-deploy-key`:
 
    ```bash
-   just ans k0s
+   just ans k8s
    ```
 
 5. Verify Flux fetches with it. Push a trivial commit, then:
@@ -321,7 +321,7 @@ the operator machine and only affects `just tf apply oidc`.
    namespace:
 
    ```bash
-   just ans k0s
+   just ans k8s
    ```
 
 4. Verify. The observable condition is an `InfisicalStaticSecret` that resyncs:

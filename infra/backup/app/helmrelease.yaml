@@ -42,13 +42,10 @@ spec:
     deployNodeAgent: true
     snapshotsEnabled: false
     nodeAgent:
-      # k0s runs kubelet under its own root, the same override infra/storage's chart needs for
-      # kubeletDir. Left at the chart default these point at /var/lib/kubelet, which exists but
-      # holds no pods — and the failure is silent: every backup completes successfully having
-      # copied nothing. `velero backup describe --details` showing zero podvolumebackups is the
-      # symptom.
-      podVolumePath: /var/lib/k0s/kubelet/pods
-      pluginVolumePath: /var/lib/k0s/kubelet/plugins
+      # No podVolumePath/pluginVolumePath override: k3s keeps kubelet at the upstream
+      # /var/lib/kubelet the chart defaults to. Pointing these at a root with no pods under it
+      # fails silently — every backup completes successfully having copied nothing, and `velero
+      # backup describe --details` showing zero podvolumebackups is the only symptom.
       resources:
         requests:
           cpu: 50m

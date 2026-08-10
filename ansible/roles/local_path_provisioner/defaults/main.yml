@@ -1,5 +1,0 @@
----
-# v0.0.36 fixes a high-severity HelperPod template-injection CVE. A version, not `master`: this
-# is applied straight from a raw.githubusercontent URL, so tracking a branch would mean the
-# manifest changing under a re-run of the same command.
-local_path_provisioner_version: v0.0.36

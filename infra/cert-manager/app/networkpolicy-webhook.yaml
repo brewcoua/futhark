@@ -1,5 +1,5 @@
 ---
-# The k0s kube-apiserver runs as a host process, not a pod — it can't be matched by any
+# The k3s kube-apiserver runs as a host process, not a pod — it can't be matched by any
 # podSelector/namespaceSelector, so the default-deny baseline
 # (infra/policies/namespaces/_templates/netpol-default-deny/)
 # would otherwise block the apiserver's admission calls into this webhook. Standard exception

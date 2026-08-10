@@ -1,7 +1,7 @@
 ---
 # The operator store, which this role writes the node's mesh IP back into after the join. It is
 # the canonical record; `just ans render-secrets` decrypts it into ansible/.generated/secrets.yml,
-# which is how the value reaches playbooks/k0s.yml as node.mesh_ip on a later run.
+# which is how the value reaches playbooks/k8s.yml as node.mesh_ip on a later run.
 netbird_node_sops_file: "{{ repo_root }}/config/sops/ops.sops.yaml"
 netbird_node_sops_key: '["nodes"]["{{ node.hostname }}"]["mesh_ip"]'
 

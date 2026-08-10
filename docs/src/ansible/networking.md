@@ -4,12 +4,18 @@ Why a pod cannot reach a peer node's own mesh address without help, the two sepa
 make it work, and how to tell which one has broken. Read this before touching
 `ansible/roles/netbird`.
 
-kubelet's `--node-ip` is pinned to each node's NetBird mesh IP, on purpose: the Kubernetes API,
+> **Written against k0s and kube-router.** The cluster now runs k3s, whose default CNI is
+> flannel with a VXLAN backend, not kube-router with IPIP. The decision this page starts from is
+> unchanged and so is fix 2; fix 1 depends on the CNI installing a policy routing rule of its own,
+> which flannel may not do at all. Check `ip rule` on a running node before trusting or removing
+> anything under "1. Route lookup".
+
+kubelet's `node-ip` is pinned to each node's NetBird mesh IP, on purpose: the Kubernetes API,
 etcd and kubelet are then only ever bound to mesh addresses and are never publicly exposed.
 Everything below follows from that one decision.
 
-Because the nodes share no L2 segment, k0s's default CNI (kube-router) builds its own IPIP
-overlay between their mesh IPs to carry cross-node pod-to-pod traffic. That has two
+Because the nodes share no L2 segment, the CNI builds its own overlay between their mesh IPs to
+carry cross-node pod-to-pod traffic: IPIP under kube-router, VXLAN under flannel. That has two
 consequences, both of which break a pod dialing a peer node's **own** mesh address.
 
 This is not a hypothetical case. `konnectivity-agent` does exactly that, dialing the controller's
@@ -77,12 +83,12 @@ table is ours and holds exactly what is written into it, rather than depending o
 client happens to install its own routes. NetBird keeps those in table 7120, with rules at
 priorities 105 and 110, well clear of `mesh_route_priority`.
 
-The priority is load-bearing. kube-router's own rule priority has moved before: 5209, then 99,
-then priority 9 as of kube-router v2.10.0 (k0s v1.36.3). That last move silently shadowed this fix
+The priority is load-bearing whenever the CNI installs a rule of its own. kube-router's moved
+before: 5209, then 99, then priority 9 as of kube-router v2.10.0. That last move silently shadowed this fix
 at its old priority 10 and broke every mesh-peer-initiated connection into a pod, meaning backends
 behind traefik-edge, which is hostNetwork and reaches them as the node's own mesh IP. It surfaced
 as 502 Bad Gateway with no error anywhere else in the stack. Check `ip rule` on the node rather
-than assuming, and re-check after a kube-router bump.
+than assuming, and re-check after a CNI bump.
 
 ## 2. Source address
 
@@ -131,20 +137,22 @@ header is sourced from the node's own mesh IP, so it never presents a foreign so
 client. But the overlay only carries traffic at all if the mesh policy permits it.
 
 NetBird policy rules name a protocol: `tcp`, `udp`, `icmp`, `netbird-ssh`, or `all`. IPIP is IP
-protocol 4, so only `all` passes it. Anything narrower and cross-node pod-to-pod blackholes:
-the route is correct, the tunnel is `UP`, nothing is logged, and every packet vanishes.
+protocol 4, so only `all` passes it; flannel's VXLAN is UDP 8472, which a narrower rule could
+carry but only by writing the CNI's port into the access model. Anything narrower and cross-node
+pod-to-pod blackholes: the route is correct, the tunnel is `UP`, nothing is logged, and every
+packet vanishes.
 
-That is what `netbird_policy.k0s` in [`tofu/netbird`](../tofu/netbird.md) is for: a rule from
-`k0s` to `k0s` with `protocol = "all"` and no ports.
+That is what `netbird_policy.k8s` in [`tofu/netbird`](../tofu/netbird.md) is for: a rule from
+`k8s` to `k8s` with `protocol = "all"` and no ports.
 
 ```hcl
 rule {
-  name          = "k0s to k0s, every protocol"
+  name          = "k8s to k8s, every protocol"
   action        = "accept"
   protocol      = "all"
   bidirectional = true
-  sources       = [netbird_group.k0s.id]
-  destinations  = [netbird_group.k0s.id]
+  sources       = [netbird_group.k8s.id]
+  destinations  = [netbird_group.k8s.id]
 }
 ```
 

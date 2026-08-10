@@ -3,7 +3,7 @@
 # `just ans render-secrets` resolves into ansible/.generated/secrets.yml.
 #
 # Inventory-level rather than a playbook's vars_files, for the reason in nodes.yml beside this
-# file: playbooks/k0s.yml runs against localhost, and the k0sctl template still reads
+# file: playbooks/k8s.yml's Flux play runs against localhost while the roles still read
 # hostvars[<node>].admin.user — which only resolves if every host has this var of its own.
 #
 # The `admin` subtree only: the crown jewels under `secrets:` stay play-scoped to the roles that

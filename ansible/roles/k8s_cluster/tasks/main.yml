@@ -1,0 +1,125 @@
+---
+# Installs k3s on one host. playbooks/k8s.yml runs this role twice — the controller first, then
+# the workers — because an agent cannot join a server that does not exist yet. Everything that
+# differs between the two is behind k8s_cluster_is_controller; there is no separate agent role.
+
+# Workers need the controller's address for `server:`, and the controller needs to know it is
+# the controller. Derived from inventory rather than named anywhere, so adding a second server
+# later is a host.yml edit.
+- name: Determine the k3s controller host
+  ansible.builtin.set_fact:
+    k8s_cluster_controller_host: >-
+      {{ groups['all'] | map('extract', hostvars) |
+      selectattr('node.k8s_role', 'defined') |
+      selectattr('node.k8s_role', 'equalto', 'controller') |
+      map(attribute='inventory_hostname') | first }}
+    k8s_cluster_is_controller: "{{ node.k8s_role == 'controller' }}"
+
+# A k3s server is a worker too unless it is tainted, so the controller runs both units' worth of
+# work under the one `k3s` service. Only agents get `k3s-agent`.
+- name: Name the k3s service for this host's role
+  ansible.builtin.set_fact:
+    k8s_cluster_service: "{{ 'k3s' if k8s_cluster_is_controller else 'k3s-agent' }}"
+
+# Mesh IPs come from each node's own `netbird status`, recorded into config/sops/ops.sops.yaml by
+# the netbird role at join time and surfaced here as node.mesh_ip. The range check catches a
+# recorded address that is no longer a mesh address (node deleted and re-registered into a
+# different pool, value hand-edited) before it gets baked silently into advertise-address and
+# this kubelet's node-ip.
+- name: Assert this host has a recorded mesh IP inside the mesh pool
+  ansible.builtin.assert:
+    that:
+      - node.mesh_ip | default('') | length > 0
+      - node.mesh_ip is regex(mesh_cidr_regex)
+    fail_msg: >-
+      {{ inventory_hostname }} has node.mesh_ip '{{ node.mesh_ip | default('') }}', which isn't
+      an address in the mesh's {{ mesh_cidr }} pool — run playbooks/setup.yml against it first,
+      which joins the mesh and writes the address into nodes.{{ inventory_hostname }}.mesh_ip in
+      config/sops/ops.sops.yaml, or check that key for a stale value.
+
+# Read off the controller at converge time rather than pre-shared through Proton Pass: k3s mints
+# it on first start, so a value in the secret store would be a second copy that can go stale and
+# a credential in a vault that nothing outside this file ever reads.
+- name: Read the cluster join token from the controller
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/k3s/server/node-token
+  delegate_to: "{{ k8s_cluster_controller_host }}"
+  register: k8s_cluster_token_file
+  no_log: true
+  when: not k8s_cluster_is_controller
+
+- name: Keep the join token for this host's config
+  ansible.builtin.set_fact:
+    k8s_cluster_node_token: "{{ k8s_cluster_token_file.content | b64decode | trim }}"
+  no_log: true
+  when: not k8s_cluster_is_controller
+
+- name: Ensure the k3s config directory exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# Written before the installer runs, so the service comes up configured on the very first start
+# rather than joining on defaults and being corrected a moment later.
+- name: Render the k3s config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+  notify: Restart k3s
+
+- name: Read the installed k3s version
+  ansible.builtin.command:
+    cmd: k3s --version
+  register: k8s_cluster_installed
+  changed_when: false
+  failed_when: false
+
+# k3s ships no repo for Fedora, so this is the vendor's own installer — the same treatment the
+# netbird daemon gets, and the reason neither is a mise pin. The script resolves and checksums
+# the release binary and writes the systemd unit; INSTALL_K3S_VERSION is what stops it from
+# following the `stable` channel. Re-running it is how an upgrade happens, which is why the
+# guard is a version comparison and not `creates:`.
+- name: Install k3s
+  ansible.builtin.shell:
+    cmd: set -o pipefail && curl -sfL https://get.k3s.io | sh -
+    executable: /bin/bash
+  environment:
+    INSTALL_K3S_VERSION: "{{ k8s_cluster_version }}"
+    INSTALL_K3S_EXEC: "{{ 'server' if k8s_cluster_is_controller else 'agent' }}"
+  when: k8s_cluster_version not in k8s_cluster_installed.stdout
+  changed_when: true
+
+- name: Enable and start k3s
+  ansible.builtin.systemd:
+    name: "{{ k8s_cluster_service }}"
+    state: started
+    enabled: true
+
+# The API server answers on the mesh, but k3s writes 127.0.0.1 into its own kubeconfig because
+# that is true on the node. Fetched and rewritten rather than pointed at a tls-san name, so the
+# operator's kubeconfig keeps working if mesh DNS is the thing that is broken.
+- name: Fetch the admin kubeconfig
+  ansible.builtin.slurp:
+    src: /etc/rancher/k3s/k3s.yaml
+  register: k8s_cluster_kubeconfig
+  no_log: true
+  when: k8s_cluster_is_controller
+
+- name: Write the kubeconfig for the operator
+  ansible.builtin.copy:
+    content: >-
+      {{ k8s_cluster_kubeconfig.content | b64decode |
+      replace('https://127.0.0.1:6443', 'https://' + node.mesh_ip + ':6443') }}
+    dest: "{{ generated_dir }}/kubeconfig"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  no_log: true
+  when: k8s_cluster_is_controller

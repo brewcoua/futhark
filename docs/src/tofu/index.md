@@ -93,7 +93,7 @@ Flux Secret alike. Who owns what:
 | the backup bucket and its region    | `config/sops/cluster.sops.yaml`            | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it. [`b2`](b2.md) provisions what it names |
 
 A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads
-the mesh CIDR, the k0s service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
+the mesh CIDR, the cluster service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
 the committed files that own them, as `local`s.
 
 `refs.env` holds only references, so it is committed in the clear even though both files it names

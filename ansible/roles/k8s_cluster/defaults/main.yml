@@ -1,0 +1,21 @@
+---
+# The Kubernetes version the whole fleet runs. The k3s installer otherwise follows its `stable`
+# channel — "whatever k3s released most recently" — which would make every `just ans k8s` a
+# potential unannounced control-plane upgrade, including runs whose intent was only to add a
+# worker. Pinned here, a cluster upgrade is a commit like any other; Renovate opens it.
+#
+# Upgrading is not free: k3s restarts on the node it touches, and on the controller that is an
+# API-server outage. Read the k3s release notes for skipped minors before merging that PR.
+# renovate: datasource=github-releases depName=k3s-io/k3s versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\+k3s(?<build>\d+)$
+k8s_cluster_version: "v1.36.3+k3s1"
+
+# Components k3s bundles and would otherwise install into the cluster behind Flux's back.
+# traefik and servicelb are replaced by what infra/ declares; metrics-server stays, because
+# `kubectl top` and any HPA need it and reinstalling it through Flux would be pure duplication.
+#
+# local-storage is deliberately absent: its `local-path` StorageClass is the one this repo
+# relies on (monitoring, auth and nodes/kenaz.k8s/actual all bind local-path PVCs on their first
+# reconcile), which is why there is no local_path_provisioner role any more.
+k8s_cluster_disable:
+  - traefik
+  - servicelb

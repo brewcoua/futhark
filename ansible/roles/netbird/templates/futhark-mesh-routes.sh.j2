@@ -14,7 +14,7 @@ set -eu
 TABLE={{ mesh_route_table }}
 PRIORITY={{ mesh_route_priority }}
 IFACE={{ mesh_interface }}
-POD_CIDR={{ k0s_pod_cidr }}
+POD_CIDR={{ k8s_pod_cidr }}
 CHAIN=FUTHARK-MESH
 
 # Empty is a legitimate answer — a node alone in the mesh, or one whose daemon is down. It then
@@ -42,11 +42,11 @@ iptables -t nat -C POSTROUTING -j "$CHAIN" 2>/dev/null ||
 
 for peer in $peers; do
     ip route replace "$peer/32" dev "$IFACE" table "$TABLE"
-    # The priority (mesh_route_priority, in group_vars/all/network.yml) is load-bearing:
-    # kube-router installs its own `from <pod /24> lookup 77` rule, and anything numerically above
-    # it is silently shadowed, making this a no-op with no error. It's been 99, then 5209, and is
-    # priority 9 as of kube-router v2.10.0 (k0s v1.36.3) — check `ip rule` on the node after a
-    # kube-router bump rather than assuming a fixed gap holds.
+    # The priority (mesh_route_priority, in group_vars/all/network.yml) is load-bearing whenever
+    # the CNI installs a `from <pod /24>` rule of its own: anything numerically above it is
+    # silently shadowed, making this a no-op with no error. Under kube-router that rule was at 99,
+    # then 5209, then 9 — check `ip rule` on the node after a CNI bump rather than assuming a
+    # fixed gap holds. k3s's flannel may not install one at all; see group_vars/all/network.yml.
     ip rule add to "$peer/32" lookup "$TABLE" priority "$PRIORITY"
     iptables -t nat -A "$CHAIN" -s "$POD_CIDR" -d "$peer/32" -o "$IFACE" -j MASQUERADE
 done

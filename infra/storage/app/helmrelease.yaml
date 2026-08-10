@@ -23,12 +23,9 @@ spec:
         name: csi-driver-rclone
         namespace: flux-system
   values:
-    # k0s runs kubelet with its own root, not the upstream default the chart assumes. Leave it
-    # and every hostPath the node DaemonSet mounts points at /var/lib/kubelet, where only the
-    # dirs these very mounts created exist — the pods/ subdir is under k0s's root, so the
-    # DaemonSet never starts and the install times out on `/var/lib/kubelet/pods is not a
-    # directory`.
-    kubeletDir: /var/lib/k0s/kubelet
+    # No kubeletDir override: k3s uses the upstream /var/lib/kubelet the chart already assumes.
+    # k0s did not, and getting that wrong times the install out on `/var/lib/kubelet/pods is not
+    # a directory` — worth knowing before adding a distro that moves the kubelet root again.
     controller:
       resources:
         rclone:

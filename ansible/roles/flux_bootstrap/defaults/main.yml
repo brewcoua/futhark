@@ -13,8 +13,8 @@ flux_bootstrap_operator_chart_version: "0.58.0"
 # Derived rather than listed, so this and infra/namespaces/app/namespaces.yaml can't drift: the
 # infra tier always exists, and a node tier exists for each host that carries apps — the
 # `node.app_tier: true` opt-in in ansible/nodes/<host>/host.yml, same shape as node.mesh and
-# node.public_ingress. Deliberately not "every k0s host": ogma is a worker with no
-# nodes/<host>.k0s/ tree, and seeding a credential into a namespace Flux never adopts would
+# node.public_ingress. Deliberately not "every cluster host": ogma is a worker with no
+# nodes/<host>.k8s/ tree, and seeding a credential into a namespace Flux never adopts would
 # leave it unmanaged and unpruned.
 flux_bootstrap_infisical_namespaces: >-
   {{ ['infisical-infra'] + (groups['all'] | map('extract', hostvars) |

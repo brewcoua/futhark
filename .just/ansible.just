@@ -5,10 +5,10 @@ import '_common.just'
 setup host='': render-secrets
     ansible-playbook playbooks/setup.yml {{ if host == '' { '' } else { '-l ' + host } }}
 
-# Run the k0s cluster + Flux bootstrap playbook
+# Run the k3s cluster + Flux bootstrap playbook
 [working-directory('ansible')]
-k0s: render-secrets
-    ansible-playbook playbooks/k0s.yml
+k8s: render-secrets
+    ansible-playbook playbooks/k8s.yml
 
 # Both stores, composed, in this order and no other. sops yields a document that still holds
 # `{{ pass:// }}` references — it treats each value as an opaque string, so the braces survive

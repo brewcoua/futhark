@@ -4,9 +4,9 @@
 # ansible/.generated/nodes.yml. ansible/nodes/<host>/host.yml reads them as
 # nodes[inventory_hostname].
 #
-# Inventory-level rather than a playbook's vars_files, because playbooks/k0s.yml runs against
-# localhost and still reaches hostvars[<node>].node.mesh_ip — which only resolves if every host
-# has this var of its own.
+# Inventory-level rather than a playbook's vars_files, because playbooks/k8s.yml reaches
+# hostvars[<other node>].node.mesh_ip — a worker's config needs the controller's address — and
+# its Flux play runs against localhost. Either only resolves if every host has this var of its own.
 #
 # A lookup rather than a symlink into .generated/, because `sops --extract` yields the subtree's
 # own keys and a group_vars file of that shape would put every hostname in the global namespace.

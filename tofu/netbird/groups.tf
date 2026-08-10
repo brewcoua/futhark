@@ -1,4 +1,4 @@
-# Two axes, deliberately. `node` is "a machine this repo provisions", `k0s` is "a machine that
+# Two axes, deliberately. `node` is "a machine this repo provisions", `k8s` is "a machine that
 # runs the cluster" — today every node is both, but the policies below target the workflow, not
 # the fleet, so a future node that runs something else joins `node` and reaches nothing extra.
 #
@@ -16,8 +16,8 @@ resource "netbird_group" "node" {
   }
 }
 
-resource "netbird_group" "k0s" {
-  name = "k0s"
+resource "netbird_group" "k8s" {
+  name = "k8s"
 
   lifecycle {
     ignore_changes = [peers]

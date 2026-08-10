@@ -2,22 +2,22 @@
 node:
   hostname: kenaz
   os: fedora
-  workflow: k0s
-  k0s_role: controller+worker
+  workflow: k8s
+  k8s_role: controller
   mesh: true
   public_ingress: true
-  # This node carries apps of its own, under nodes/kenaz.k0s/ in the Flux tree — so it gets an
+  # This node carries apps of its own, under nodes/kenaz.k8s/ in the Flux tree — so it gets an
   # infisical-node-kenaz operator tier, which roles/flux_bootstrap seeds a credential into.
   # ogma is a worker with no such tree and so sets nothing here.
   app_tier: true
   # Identifying, so the literal lives encrypted in config/sops/ops.sops.yaml under ansible.nodes and
   # reaches this file through ansible/.generated/secrets.yml. Kept as a reference rather than
-  # moved out of `node:` so every hostvars[x].node.ip in the roles and k0sctl template keeps
+  # moved out of `node:` so every hostvars[x].node.ip in the roles and the k3s config template keeps
   # working unchanged.
   ip: "{{ nodes[inventory_hostname].ip }}"
   # Written back into that same file by the netbird role after the join — the management server
   # assigns it, so it can't be known before first contact. Defaulted so a cold bootstrap (where the
-  # key is still empty) parses; k0s_cluster asserts it is non-empty before converging.
+  # key is still empty) parses; k8s_cluster asserts it is non-empty before converging.
   mesh_ip: "{{ nodes[inventory_hostname].mesh_ip | default('') }}"
   initial_user: fedora
   initial_port: 22

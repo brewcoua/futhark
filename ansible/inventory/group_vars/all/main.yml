@@ -9,7 +9,7 @@
 
 ssh_port: 2222
 
-# Guarded on `node is defined` because k0s_cluster/flux_bootstrap run against
+# Guarded on `node is defined` because flux_bootstrap runs against
 # hosts: localhost (implicit, not in inventory, no `node` var). setup.yml overrides these
 # via set_fact for first-time provisioning; facts win over inventory vars. See
 # docs/src/ansible/index.md and docs/src/ansible/nodes.md.

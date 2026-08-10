@@ -9,9 +9,9 @@ itself, the two service users and their tokens.
 | File          | Owns                                                                    |
 | ------------- | ----------------------------------------------------------------------- |
 | `settings.tf` | The account's peer DNS domain and network range                         |
-| `groups.tf`   | `node`, `k0s`, `admin`                                                  |
+| `groups.tf`   | `node`, `k8s`, `admin`                                                  |
 | `policy.tf`   | Every accept rule, including the all-protocol one the pod overlay needs |
-| `route.tf`    | The k0s service CIDR, advertised into the mesh by the nodes             |
+| `route.tf`    | The cluster service CIDR, advertised into the mesh by the nodes         |
 | `dns.tf`      | The internal DNS zone and its wildcard record                           |
 
 ## Prerequisites
@@ -181,7 +181,7 @@ wrong rule is accepted and only fails later, in traffic. The
 
 ## Groups
 
-Two axes. `node` is every machine this repository provisions. `k0s` is the workflow it runs. Today
+Two axes. `node` is every machine this repository provisions. `k8s` is the workflow it runs. Today
 every node is both, but the policies target the workflow, so a future node running something else
 joins `node` and reaches nothing extra. `admin` is the operator's own devices, enrolled from the
 dashboard.
@@ -198,11 +198,11 @@ block an apply would empty the group again.
 
 NetBird denies anything no rule accepts. These three rules are the whole model:
 
-| Rule           | Direction         | Protocol      | For                               |
-| -------------- | ----------------- | ------------- | --------------------------------- |
-| `k0s mesh`     | `k0s` to `k0s`    | all           | Cross-node pod traffic (IP-in-IP) |
-| `admin to k0s` | `admin` to `k0s`  | all           | Internal ingress, the k0s API     |
-| `admin ssh`    | `admin` to `node` | `netbird-ssh` | Administering a machine           |
+| Rule           | Direction         | Protocol      | For                                  |
+| -------------- | ----------------- | ------------- | ------------------------------------ |
+| `k8s mesh`     | `k8s` to `k8s`    | all           | Cross-node pod traffic (CNI overlay) |
+| `admin to k8s` | `admin` to `k8s`  | all           | Internal ingress, the Kubernetes API |
+| `admin ssh`    | `admin` to `node` | `netbird-ssh` | Administering a machine              |
 
 Only the first is bidirectional. Nothing on the cluster needs to dial a laptop.
 
@@ -222,12 +222,12 @@ not commit. Unset, every local account is reachable, gated by that account's own
 
 Internal hostnames resolve to one address: the `traefik-internal` Service's ClusterIP, pinned in
 `infra/traefik-internal/app/helmrelease.yaml` and read straight out of that file by
-`variables.tf`. `netbird_route.k0s_services` makes that address reachable. The nodes advertise the
+`variables.tf`. `netbird_route.k8s_services` makes that address reachable. The nodes advertise the
 whole service CIDR, NetBird fails the route over between them, and kube-proxy takes it from there.
 
 Two couplings no single file can enforce:
 
-- The pinned ClusterIP has to stay inside `k0s_service_cidr`
+- The pinned ClusterIP has to stay inside `k8s_service_cidr`
   (`ansible/inventory/group_vars/all/network.yml`), the range the route advertises.
 - `masquerade` on the route is load-bearing. Without it the reply is addressed to the client's
   mesh address, which the answering pod has no route back to.

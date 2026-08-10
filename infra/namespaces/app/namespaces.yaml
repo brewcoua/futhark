@@ -92,7 +92,7 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
-# Node/tenant namespaces (nodes/<hostname>.k0s/<app>/), one per app.
+# Node/tenant namespaces (nodes/<hostname>.k8s/<app>/), one per app.
 apiVersion: v1
 kind: Namespace
 metadata:

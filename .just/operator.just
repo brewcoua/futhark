@@ -20,11 +20,24 @@ mesh:
     #!/usr/bin/env bash
     # Plain `status`, not `--json`: nothing in `deps` installs jq.
     command -v netbird > /dev/null || { echo "netbird is not installed — run: just ops deps"; exit 1; }
+    # The daemon writes this drop-in unless NB_DISABLE_SSH_CONFIG is set, and it turns off
+    # StrictHostKeyChecking, sends UserKnownHostsFile to /dev/null and re-enables password auth
+    # for every mesh peer. ansible/roles/netbird does the same for the nodes; this machine is not
+    # one of them, so it is checked rather than converged.
+    if [ -e /etc/ssh/ssh_config.d/99-netbird.conf ]; then
+        echo "warning: NetBird is managing your system SSH client config, which weakens it."
+        echo "         Turn it off, then remove the file it left behind:"
+        echo
+        echo "  sudo netbird service reconfigure --service-env NB_DISABLE_SSH_CONFIG=true"
+        echo "  sudo systemctl restart netbird"
+        echo "  sudo rm /etc/ssh/ssh_config.d/99-netbird.conf"
+        echo
+    fi
     netbird status 2> /dev/null | grep -q "Management: Connected" && { echo "NetBird mesh OK"; exit 0; }
     echo "This machine is not on the mesh. Log in over SSO:"
     echo
     # Spelled out rather than read from ansible's mesh_interface: nothing requires the operator
-    # machine's interface to match the nodes' — it is no k0s node and has no firewalld rule
+    # machine's interface to match the nodes' — it is no cluster node and has no firewalld rule
     # keyed on it — so this is a second decision that happens to agree, not the same one.
     echo "  netbird up --interface-name netbird0"
     echo

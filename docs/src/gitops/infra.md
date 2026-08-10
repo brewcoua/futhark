@@ -50,7 +50,7 @@ This release is the Secret's only consumer, and the reason it has to be one: `ho
 spec takes no `fieldRef`, so an address bound there has to be written down. Where the same address
 was needed as data rather than as a bind target, it is discovered instead. The `traefik-edge`
 scrape job in `infra/monitoring` reads it off the API server, since a `hostNetwork` pod's
-`status.podIP` is the kubelet's `--node-ip`, which `k0sctl.yaml.j2` sets to the mesh address.
+`status.podIP` is the kubelet's `node-ip`, which `config.yaml.j2` sets to the mesh address.
 
 ## Monitoring
 
@@ -154,5 +154,5 @@ reasoning, and what still defeats it, is in
    credential into the new namespace. The list of tiers is derived from that flag rather than
    written out, so there is nothing to keep in step with step 1.
 
-Verify: after `just ans k0s` and a push, `just fx failing` is empty and
+Verify: after `just ans k8s` and a push, `just fx failing` is empty and
 `kubectl -n infisical-node-<hostname> get infisicalauth` reports ready.

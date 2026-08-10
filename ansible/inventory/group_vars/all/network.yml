@@ -1,23 +1,23 @@
 # Network constants shared by more than one role. Each of these used to be written out at every
 # use site, in a different spelling each time — the mesh CIDR as a literal in fail2ban's
 # ignoreip, again in the mesh role's firewalld loop, and a third time as a hand-expanded regex
-# in k0s_cluster's assert. A constant with three spellings is three constants.
+# in k8s_cluster's assert. A constant with three spellings is three constants.
 
 # The mesh's address pool, out of the 100.64.0.0/10 CGNAT range NetBird allocates from. Every
 # mesh address falls inside it, so it is simultaneously the range fail2ban must never ban, the
-# source firewalld trusts, and the shape k0s_cluster checks a recorded node.mesh_ip against
-# before baking it into spec.api.address. tofu/netbird reads it straight out of this file and
+# source firewalld trusts, and the shape k8s_cluster checks a recorded node.mesh_ip against
+# before baking it into k3s's advertise-address. tofu/netbird reads it straight out of this file and
 # sets it on the account — NetBird would otherwise pick a random /16 per account.
 mesh_cidr: 100.80.0.0/24
 # The same range as a regex, because `assert` has no CIDR-membership test.
 mesh_cidr_regex: '^100\.80\.0\.'
 
-# NetBird's WireGuard interface, as k0s's privateInterface and as the interface firewalld
+# NetBird's WireGuard interface, as k3s's flannel-iface and as the interface firewalld
 # trusts. The client's own default is wt0, which names nothing; every `netbird up` in this repo
 # passes --interface-name to get this instead. The flag is passed on the watchdog's re-up too,
 # not just the first join: the client does persist the name in its config.json, but a recovery
-# rung that came back on wt0 would land outside firewalld's trusted zone and off k0s's
-# privateInterface — declaring it every time costs a flag and removes the failure mode.
+# rung that came back on wt0 would land outside firewalld's trusted zone and off the interface
+# flannel builds its overlay on — declaring it every time costs a flag and removes the failure mode.
 mesh_interface: netbird0
 
 # The domain NetBird answers peer names under: <hostname>.<this>. NetBird's default is
@@ -33,15 +33,17 @@ mesh_node_group: node
 
 # The routing-rule slot roles/netbird's pod -> mesh script claims, and the table it writes the
 # peer routes into. Both are the script's own: NetBird uses table 7120 and priorities 105/110.
-# The priority is load-bearing: kube-router installs its own `from <pod /24>` rule, and anything
-# numerically above it is silently shadowed — see the generated script's own comment and
-# docs/src/ansible/networking.md.
+# The priority is load-bearing: kube-router installed its own `from <pod /24>` rule, and anything
+# numerically above it was silently shadowed — see the generated script's own comment and
+# docs/src/ansible/networking.md. k3s's flannel is not kube-router and may not install that rule
+# at all, in which case this whole mechanism is dead weight; kept until `ip rule` on a running
+# node says otherwise, because it costs nothing if the rule never appears.
 mesh_route_table: 52
 mesh_route_priority: 5
 
-# k0s's own defaults, pinned here as a single source of truth — see docs/src/ansible/index.md.
-# pod_cidr is the cluster-wide /16; kube-router carves a /24 out of it per node, and the netbird
+# k3s's own defaults, pinned here as a single source of truth — see docs/src/ansible/index.md.
+# pod_cidr is the cluster-wide /16; the CNI carves a /24 out of it per node, and the netbird
 # role's SNAT rule must match the /16 or a peer's pods aren't covered. tofu/netbird reads
-# k0s_service_cidr straight out of this file for the route it advertises into the mesh.
-k0s_pod_cidr: 10.244.0.0/16
-k0s_service_cidr: 10.96.0.0/12
+# k8s_service_cidr straight out of this file for the route it advertises into the mesh.
+k8s_pod_cidr: 10.244.0.0/16
+k8s_service_cidr: 10.96.0.0/12

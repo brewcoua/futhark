@@ -69,7 +69,7 @@ pass: "Proton Pass\ndeploy key, age key, API tokens, API keys" {
 sops: SOPS in git\nnode addresses, domain, account IDs
 infisical: "Infisical Cloud (EU)\nper-app runtime secrets" { class: external }
 
-cluster: k0s cluster {
+cluster: k3s cluster {
   flux: Flux
   infop: Infisical operator
   pods: pods
@@ -184,7 +184,7 @@ different pass-cli subcommands, which take opposite syntax:
 **Ansible** reads the `ansible` subtree of `config/sops/ops.sops.yaml`, which maps the crown jewels
 _this plane_ needs to `pass://<vault>/<item>/<field>` references under a nested `secrets:` key.
 The `tofu` subtree is deliberately not read here: resolving it would write secrets to disk that
-Ansible never uses. `just ans render-secrets` does the work, and `ans setup` and `ans k0s` depend
+Ansible never uses. `just ans render-secrets` does the work, and `ans setup` and `ans k8s` depend
 on it:
 
 ```bash
@@ -269,7 +269,7 @@ all three untouched; replacing the identity itself does not. See
 
 Infisical's free tier caps identities at five, humans included, so identities are rationed rather
 than minted per tier. `cluster-reader` is shared by the infra tier and every node tier. Kubernetes
-auth is not an option either: Infisical would have to reach the k0s API server for a `TokenReview`,
+auth is not an option either: Infisical would have to reach the k3s API server for a `TokenReview`,
 and that API server is mesh-only. So one credential can, by itself, read almost the entire
 project, and the isolation OpenBao used to enforce server-side has to be rebuilt in the cluster.
 
@@ -387,7 +387,7 @@ fails with `InfisicalAuth is not ready`, which reads like an operator problem an
 Re-run the role:
 
 ```bash
-just ans k0s
+just ans k8s
 ```
 
 Verify: `just fx failing` is empty, and

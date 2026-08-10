@@ -28,7 +28,7 @@ If you are naming a Kubernetes YAML file something else, you are naming it wrong
   as its `HelmRepository` list, stays flat in `app/`. Each subdirectory has to `kustomize build`
   on its own, because pre-commit builds every directory holding a `kustomization.yaml`. That is
   also why a reusable Component cannot live under `infra/`. `config/` is where those go.
-- `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}`: one directory per node app. See
+- `nodes/<hostname>.k8s/<app>/{ks.yaml, app/}`: one directory per node app. See
   [Node apps](../gitops/nodes.md).
 
 Cluster-wide infra that happens to be pinned to a specific node is not a `nodes/` entry.
@@ -68,9 +68,9 @@ Keeping this many exact pins current by hand is not the intent. Renovate opens t
 
 ## Adding a node app
 
-1. Create `nodes/<hostname>.k0s/<app>/{ks.yaml, app/}`. The `ks.yaml` needs
+1. Create `nodes/<hostname>.k8s/<app>/{ks.yaml, app/}`. The `ks.yaml` needs
    `dependsOn: [infra-policies]`, plus whatever the app itself needs, usually `traefik-internal`
-   and `infisical-operator-config`. `nodes/kenaz.k0s/actual/ks.yaml` is the worked example.
+   and `infisical-operator-config`. `nodes/kenaz.k8s/actual/ks.yaml` is the worked example.
 2. Add the directory to the sibling `kustomization.yaml`'s `resources:`.
 3. Add the namespace to `infra/namespaces/app/namespaces.yaml`, labeled `futk.eu/tier: node`
    and `futk.eu/node: <hostname>`. Then create `infra/policies/namespaces/<app>/` with the

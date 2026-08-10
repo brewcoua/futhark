@@ -2,7 +2,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
 #
 # policyTypes: [Ingress] with no ingress: rules denies all inbound by default. Egress is left
-# open everywhere — see docs/src/conventions/network-policy.md. That also sidesteps k0s's
+# open everywhere — see docs/src/conventions/network-policy.md. That also sidesteps k3s's
 # apiserver-is-a-host-process problem (infra/cert-manager/app/networkpolicy-webhook.yaml).
 # flux-system is deliberately excluded from this baseline; it's the trusted control plane.
 apiVersion: networking.k8s.io/v1

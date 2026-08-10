@@ -1,7 +1,7 @@
 # Cold bootstrap
 
 Build the whole thing from nothing, in order. At the end you have provisioned hosts on a NetBird
-mesh, a k0s cluster reconciling from this repository through Flux, every runtime secret resolving
+mesh, a k3s cluster reconciling from this repository through Flux, every runtime secret resolving
 from Infisical, and nightly backups reaching Backblaze B2.
 
 Every step is re-runnable. Expect a few hours, most of it waiting on reconciliation and on DNS-01
@@ -49,7 +49,7 @@ stores: "1-2. The remote stores\nProton Pass vault, Infisical identities and fol
 }
 repo: "3-6. This machine and this repo\njust ops setup, age key, node definitions,\nthe encrypted files, push"
 hosts: "7-8. The hosts, the mesh, the bucket\njust ans setup, then just tf apply netbird, b2"
-cluster: "9. The cluster\njust ans k0s: k0sctl, local-path, Flux"
+cluster: "9. The cluster\njust ans k8s: k3s, then Flux"
 cloud: "10. The cloud plane\njust tf apply bunny, oidc"
 after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps" { class: boundary }
 
@@ -213,7 +213,7 @@ just ops setup
 ```
 
 That installs `ansible-core`, `ansible-lint`, `yamllint`, `kubectl`, `helm`, `kustomize`,
-`k0sctl`, `flux`, `rclone`, `b2`, `tofu`, `netbird`, `pre-commit`, `sops`, `age`, `pass-cli`, the
+`flux`, `rclone`, `b2`, `tofu`, `netbird`, `pre-commit`, `sops`, `age`, `pass-cli`, the
 GPG smartcard stack, and `mdbook` with `d2` and `mdbook-d2` for the diagrams. It also installs the
 pre-commit hooks, runs `tofu init` in every module but `b2`, and checks you have a Proton Pass
 session and a place on the mesh. `b2` is skipped with a message, since its remote backend
@@ -244,7 +244,7 @@ picked up the shims, and pre-commit will fail on the `kustomize build` hook.
 
 You need two things of your own: the GPG smartcard plugged in, and the Proton Pass session from
 step 1. The third, this machine's own membership of the mesh, is what `just ops mesh` checks.
-`k0s_cluster` resolves each node's mesh address through NetBird's DNS from here. The client
+`k8s_cluster` resolves each node's mesh address through NetBird's DNS from here. The client
 arrives with `just ops deps`, but joining does not. Run the `netbird up` that `just ops mesh`
 prints, since it carries the `--interface-name` this repository uses, log in over SSO, then add
 the peer to the `admin` group from the dashboard, per
@@ -350,7 +350,7 @@ propagates.
 
 Each host's mesh address is read back out of `netbird status --json` and written into
 `nodes.<hostname>.mesh_ip` in `config/sops/ops.sops.yaml` by the same run, so `just ans setup` leaves
-that file modified. Commit it. `playbooks/k0s.yml` reads the value from there, and `tofu/bunny`
+that file modified. Commit it. `playbooks/k8s.yml` reads the value from there, and `tofu/bunny`
 gets the public address from the same map.
 
 `MESH_IP` in `config/sops/cluster.sops.yaml` is the edge node's copy of that address, and Flux cannot
@@ -418,12 +418,12 @@ just ops mesh            # this machine is on the mesh now
 ## 9. Cluster and Flux
 
 ```bash
-just ans k0s
+just ans k8s
 ```
 
-Renders `k0sctl.yaml` from inventory, converges the cluster, installs the `local-path`
-StorageClass, then bootstraps Flux, including the Secrets that cannot come from Flux because Flux
-needs them to resolve anything else. The full sequence is in
+Installs k3s from inventory, the controller first and then the workers, and bootstraps Flux,
+including the Secrets that cannot come from Flux because Flux needs them to resolve anything
+else. The `local-path` StorageClass comes up with k3s itself. The full sequence is in
 [Bootstrap and reconciliation](../gitops/flux.md#bootstrap-sequence).
 
 The kubeconfig lands at `ansible/.generated/kubeconfig`, mode 0600, gitignored. Every `ks` and

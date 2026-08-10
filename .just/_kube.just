@@ -1,6 +1,6 @@
 import '_common.just'
 
-# Written by the k0s_cluster role. Absolute, because a recipe may cd elsewhere:
+# Written by the k8s_cluster role. Absolute, because a recipe may cd elsewhere:
 # justfile_directory() is the root justfile's directory even inside a submodule, where
 # module_directory() would give .just/.
 #

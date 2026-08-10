@@ -37,7 +37,7 @@ spec:
     # every internal hostname at this address, and a wildcard record cannot follow an
     # address Kubernetes hands out afresh on each reinstall. It is read straight out of this
     # file by tofu/netbird/variables.tf, so there is one spelling of it — but the two planes are
-    # still coupled: this address has to stay inside k0s_service_cidr
+    # still coupled: this address has to stay inside k8s_service_cidr
     # (ansible/inventory/group_vars/all/network.yml), which is what the mesh route advertises.
     service:
       enabled: true

@@ -48,7 +48,7 @@ template:
 ```
 
 The schedule sets `defaultVolumesToFsBackup: false`, so the annotation is the only switch. That is
-why `nodes/kenaz.k0s/actual` names `server-files` and not `user-files`. The omission is the
+why `nodes/kenaz.k8s/actual` names `server-files` and not `user-files`. The omission is the
 tiering. Adding an app with a `local-path` PVC means adding this annotation, and nothing else in
 `infra/backup/` needs editing.
 
@@ -169,7 +169,7 @@ some: Pocket ID is pinned to `ogma`, Actual to `kenaz`, and the monitoring stack
    credentials:
 
    ```bash
-   just ans k0s
+   just ans k8s
    ```
 
 4. Wait for Flux. `just fx failing` must come back empty. The apps return with empty PVCs.
@@ -213,9 +213,10 @@ suspended schedule or an expired B2 key, where nothing fails because nothing ran
 ## Failure modes
 
 **Every backup completes and copies nothing.** Velero's node-agent reads pod volumes from the
-kubelet's root directory, and its chart default points at `/var/lib/kubelet`. k0s puts it at
-`/var/lib/k0s/kubelet`, the same override `infra/storage` needs for `kubeletDir`. Left at the
-default, the path exists but holds no pods, so the backup succeeds having copied nothing. The
+kubelet's root directory, and its chart default points at `/var/lib/kubelet`, which is where
+k3s keeps it, so no override is set. A distro that moves the kubelet root (k0s put it under
+`/var/lib/k0s/`) needs `podVolumePath` and `pluginVolumePath` set to match, or the path exists
+but holds no pods and the backup succeeds having copied nothing. The
 symptom is `just bak describe <backup>` listing zero volumes.
 
 **`BackupStorageLocation` stuck `Unavailable` while the `Schedule` reads green.** The B2

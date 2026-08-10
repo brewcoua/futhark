@@ -41,7 +41,7 @@
   customManagers: [
     {
       // Same annotation shape, but for YAML values no built-in manager understands: the
-      // FluxInstance distribution, the flux-operator chart, the k0s version k0sctl installs.
+      // FluxInstance distribution, the flux-operator chart, the k3s version the k8s_cluster role installs.
       customType: "regex",
       description: "Annotated versions in the Flux and Ansible trees",
       managerFilePatterns: ["/^flux/.+\\.ya?ml$/", "/^ansible/.+\\.ya?ml$/"],

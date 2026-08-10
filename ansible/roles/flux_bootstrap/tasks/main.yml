@@ -1,5 +1,5 @@
 ---
-# Talks to the cluster over the network via the k0sctl-fetched kubeconfig — no SSH,
+# Talks to the cluster over the network via the kubeconfig k8s_cluster fetched — no SSH,
 # no become, this isn't executing "on" a node.
 - name: Install the Flux Operator
   kubernetes.core.helm:

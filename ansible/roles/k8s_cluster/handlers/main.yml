@@ -1,0 +1,8 @@
+---
+# k3s re-reads /etc/rancher/k3s/config.yaml only at start. On the controller this is an
+# API-server restart, so it is a handler and not a `state: restarted` — it fires once, at the
+# end of the play, and only when the config actually changed.
+- name: Restart k3s
+  ansible.builtin.systemd:
+    name: "{{ k8s_cluster_service }}"
+    state: restarted

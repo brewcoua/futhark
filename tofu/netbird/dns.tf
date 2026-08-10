@@ -13,7 +13,7 @@ resource "netbird_dns_zone" "internal" {
   distribution_groups  = [netbird_group.admin.id]
 }
 
-# An A record to the Service's ClusterIP, reachable through netbird_route.k0s_services. The
+# An A record to the Service's ClusterIP, reachable through netbird_route.k8s_services. The
 # address is read out of the HelmRelease that pins it (see variables.tf) rather than written
 # twice — but it does have to be pinned there, since a wildcard DNS record cannot follow an
 # address Kubernetes reassigns on every reinstall.

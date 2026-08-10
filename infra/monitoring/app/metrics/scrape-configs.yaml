@@ -102,7 +102,7 @@ config:
           labels:
             instance: traefik-internal
     # traefik-edge is hostNetwork, so its status.podIP is kenaz's kubelet --node-ip — which
-    # ansible/roles/k0s_cluster/templates/k0sctl.yaml.j2 sets to the node's mesh IP. That is the
+    # ansible/roles/k8s_cluster/templates/config.yaml.j2 sets to the node's mesh IP. That is the
     # address the metrics entryPoint binds to, so discovery finds it without the address being
     # written down anywhere; this was a static ${MESH_IP} target out of the cluster-values Secret.
     #

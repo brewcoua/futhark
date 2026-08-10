@@ -141,7 +141,7 @@ reup)
     # Re-applies the stored configuration; no --setup-key, so this cannot re-enrol a peer the
     # account has forgotten. That case is the terminal one above. --interface-name is restated
     # rather than left to the stored config: coming back on the client's wt0 default would put
-    # the peer outside firewalld's trusted zone and off k0s's privateInterface, turning a
+    # the peer outside firewalld's trusted zone and off k3s's flannel-iface, turning a
     # recoverable rung into the terminal one.
     log "re-running netbird up"
     netbird down >/dev/null 2>&1 || true

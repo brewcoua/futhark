@@ -21,11 +21,46 @@
     state: present
   when: node.os == 'fedora'
 
+# Left to itself the daemon writes /etc/ssh/ssh_config.d/99-netbird.conf, which turns off
+# StrictHostKeyChecking, sends UserKnownHostsFile to /dev/null and re-enables password auth for
+# every mesh peer — on a fleet whose sshd ssh_harden deliberately locks down, and while NetBird's
+# own SSH server is disabled on these peers, so it buys nothing. Set before the first start, so a
+# fresh node never has the file at all.
+- name: Ensure the NetBird unit drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/netbird.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Stop NetBird managing the system SSH client config
+  ansible.builtin.copy:
+    content: |
+      [Service]
+      Environment=NB_DISABLE_SSH_CONFIG=true
+    dest: /etc/systemd/system/netbird.service.d/10-futhark.conf
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Enable and start netbird
   ansible.builtin.systemd:
     name: netbird
     state: started
     enabled: true
+    # For the drop-in above. Free on a converge where nothing changed, and it has to happen
+    # before the first start rather than after it.
+    daemon_reload: true
+
+# Deliberately not notified as a restart: this play reaches the node over the mesh, so bouncing
+# the daemon would cut the connection running it. The env above stops the file being regenerated,
+# and until the daemon next restarts on its own — reboot, upgrade, the watchdog's re-up — a
+# regenerated copy is simply removed again on the next converge.
+- name: Remove NetBird's SSH client drop-in
+  ansible.builtin.file:
+    path: /etc/ssh/ssh_config.d/99-netbird.conf
+    state: absent
 
 - name: Check current NetBird status
   ansible.builtin.command:
@@ -39,7 +74,7 @@
 # service user; the policy PAT in tofu/netbird is separate.
 #
 # Two groups per peer: `node` for every machine this repo provisions, and the workflow group
-# (k0s) that the policies in tofu/netbird actually target. Both must already exist there — a
+# (k8s) that the policies in tofu/netbird actually target. Both must already exist there — a
 # name the account does not have resolves to nothing and the peer joins short a group.
 - name: Look up the mesh groups
   ansible.builtin.uri:
@@ -98,8 +133,8 @@
 
 # The management server assigns the mesh address at registration — it can't be chosen — so it
 # can only be read back from the node itself. Recorded into the node's SOPS file rather than
-# resolved per-run because the consumers are all outside this run: playbooks/k0s.yml is a
-# separate invocation on localhost, and tofu/bunny needs the same value from outside Ansible
+# resolved per-run because the consumers are all outside this run: playbooks/k8s.yml is a
+# separate invocation, and tofu/bunny needs the same value from outside Ansible
 # entirely. Unconditional — `netbird up` above is skipped on an already-joined node, but the
 # address still has to be readable on every run.
 - name: Read the node's mesh IP
@@ -140,7 +175,7 @@
   delegate_to: localhost
   become: false
 
-# The mesh is its own trust boundary, so anything a node binds to netbird0 (k0s's API server) is
+# The mesh is its own trust boundary, so anything a node binds to netbird0 (k3s's API server) is
 # reachable over it without punching per-port holes in the public zone, which stays limited to
 # the hardened SSH port. See docs/src/ansible/index.md.
 - name: Put the mesh interface in firewalld's trusted zone
@@ -173,8 +208,8 @@
     source: "{{ item.source | default(omit) }}"
   loop:
     - interface: kube-bridge
-    - source: "{{ k0s_pod_cidr }}"
-    - source: "{{ k0s_service_cidr }}"
+    - source: "{{ k8s_pod_cidr }}"
+    - source: "{{ k8s_service_cidr }}"
     - source: "{{ mesh_cidr }}"
   loop_control:
     label: "{{ item.interface | default(item.source) }}"

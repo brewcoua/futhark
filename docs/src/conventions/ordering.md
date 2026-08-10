@@ -58,7 +58,7 @@ cert-manager-config: cert-manager-config { class: config }
 backup-config: backup-config { class: config }
 
 nodes: nodes { class: boundary }
-actual: nodes/kenaz.k0s/actual { class: boundary }
+actual: nodes/kenaz.k8s/actual { class: boundary }
 
 namespaces -> cert-manager
 namespaces -> infisical-operator
@@ -151,9 +151,10 @@ only then reports the `HelmRelease` Ready. So a `dependsOn` edge onto a chart-ba
 already means that chart's Deployments and DaemonSets are up.
 
 `local-path` is the one piece that cannot come from Flux at all: monitoring, `auth` and
-`nodes/kenaz.k0s/actual` bind PVCs on their first reconcile, and nothing in the Flux-managed
-tree can provision a StorageClass for itself. `ansible/roles/local_path_provisioner` installs it
-during `just ans k0s`, [Cold bootstrap](../operations/setup.md) step 9.
+`nodes/kenaz.k8s/actual` bind PVCs on their first reconcile, and nothing in the Flux-managed
+tree can provision a StorageClass for itself. It arrives with k3s, whose bundled provisioner
+`ansible/roles/k8s_cluster` deliberately leaves enabled, during `just ans k8s`,
+[Cold bootstrap](../operations/setup.md) step 9.
 
 ## Where a new component goes
 

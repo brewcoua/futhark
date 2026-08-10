@@ -1,6 +1,6 @@
 # futhark
 
-The code for my GitOps-driven homelab: Ansible provisions the hosts, Flux reconciles a k0s
+The code for my GitOps-driven homelab: Ansible provisions the hosts, Flux reconciles a k3s
 cluster from this repository, and OpenTofu manages what lives outside it.
 
 **Documentation: <https://brewcoua.github.io/futhark/>** — source in [`docs/`](docs/).

@@ -4,7 +4,7 @@ Where node facts live, which playbook and role does what, and how a secret reach
 this before editing inventory or adding a role.
 
 Ansible owns everything below Kubernetes: the user you log in as, the SSH configuration, the
-firewall, the mesh join, and the k0s install itself. Once Flux is running, Ansible's job is done.
+firewall, the mesh join, and the k3s install itself. Once Flux is running, Ansible's job is done.
 The only reasons to come back are adding a node and re-converging the cluster.
 
 Run everything through `just ans` rather than `ansible-playbook` directly, because the recipes set
@@ -35,16 +35,16 @@ the working directory `ansible.cfg` expects. See [Recipe reference](../operation
 | `mesh_interface`, `mesh_dns_domain`       | NetBird's WireGuard interface (`netbird0`) and the domain it answers peer names under, composed from `dns.yml`                                      |
 | `mesh_node_group`                         | The group every peer joins, alongside its `node.workflow` group. Both are declared in `tofu/netbird`                                                |
 | `mesh_route_table`, `mesh_route_priority` | The routing-rule slot the pod-to-mesh script in `roles/netbird` claims                                                                              |
-| `k0s_pod_cidr`, `k0s_service_cidr`        | k0s's own defaults, pinned as a single source of truth                                                                                              |
+| `k8s_pod_cidr`, `k8s_service_cidr`        | k3s's own defaults, pinned as a single source of truth                                                                                              |
 
 **These are collected rather than written at each use site** because they had drifted into
 different spellings of the same fact: the mesh range was a literal in fail2ban's `ignoreip`,
-a literal again in the mesh role's firewalld loop, and a hand-expanded regex in `k0s_cluster`'s
+a literal again in the mesh role's firewalld loop, and a hand-expanded regex in `k8s_cluster`'s
 assert. A constant with three spellings is three constants. The CIDRs specifically need three
-consumers to agree: `k0s_cluster` writes them into the k0s `ClusterConfig`, `tofu/netbird`
-reads `k0s_service_cidr` out of this file for the route it advertises into the mesh, and `netbird`
-needs the pod CIDR to scope its pod-to-mesh SNAT rule. `k0s_pod_cidr` is the cluster-wide `/16`,
-kube-router carves a `/24` out of it per node, and the SNAT rule must match the `/16` or a peer's
+consumers to agree: `k8s_cluster` writes them into k3s's `config.yaml`, `tofu/netbird`
+reads `k8s_service_cidr` out of this file for the route it advertises into the mesh, and `netbird`
+needs the pod CIDR to scope its pod-to-mesh SNAT rule. `k8s_pod_cidr` is the cluster-wide `/16`,
+the CNI carves a `/24` out of it per node, and the SNAT rule must match the `/16` or a peer's
 pods are not covered. All of these are private or RFC6598 ranges, not identifying, so
 they are plain literals.
 
@@ -52,7 +52,7 @@ they are plain literals.
 `<hostname>.<mesh_dns_domain>`, and falls back to `node.ip` otherwise. There is no stored mesh IP
 anywhere in this repository. NetBird's own resolver keeps the name correct across re-keys and
 reassignments, so there is nothing to update when an address changes. The expression is guarded on `node is defined`
-because `k0s_cluster` and `flux_bootstrap` run against `hosts: localhost`,
+because `flux_bootstrap` runs against `hosts: localhost`,
 which is implicit, not in inventory, and has no `node` var.
 
 `setup.yml` still overrides these three with `set_fact` mid-play, for first-time provisioning
@@ -68,7 +68,7 @@ rather than host-scoped.
 | Playbook    | Recipe                    | Does                                                                                               |
 | ----------- | ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `setup.yml` | `just ans setup [<host>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
-| `k0s.yml`   | `just ans k0s`            | `k0sctl apply` across the whole fleet, the `local-path` StorageClass, then the Flux bootstrap      |
+| `k8s.yml`   | `just ans k8s`            | Installs the k3s controller, joins the workers, then the Flux bootstrap                            |
 
 `setup.yml` runs per host and is gated by the node's own flags. The `netbird` role only runs when
 `node.mesh` is true, and `firewall_ingress` only when `node.public_ingress` is. Nothing
@@ -89,27 +89,27 @@ post-play `set_fact` are tagged `always`, because they decide which login and po
 task connects with. Skipping them would have `--tags mesh` dial a fresh host as an admin user that
 does not exist yet.
 
-`k0s.yml` is tagged the same way: `k0s`, `storage`, `flux`.
+`k8s.yml` is tagged the same way: `k8s`, `flux`.
 
-`k0s.yml` is fleet-wide, not per-host: one `k0sctl apply` converges every `workflow: k0s`
-node in inventory at once. It runs against `hosts: localhost` and reaches the cluster over the
-network with the k0sctl-fetched kubeconfig, with no SSH and no `become`.
+`k8s.yml` is two plays over one role, the controller and then the workers, because an agent's
+config needs the join token the server only mints on its first start, and Ansible runs a play
+host-by-host in parallel. Its Flux play runs against `hosts: localhost` and reaches the cluster
+over the network with the fetched kubeconfig, with no SSH and no `become`.
 
 ## Roles
 
-| Role                     | Does                                                                                                                 |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `ssh_identity`           | Probes which login answers, the initial provider account or the hardened admin one, so `setup.yml` stays re-runnable |
-| `fedora_common`          | Hostname, full system upgrade, base tooling                                                                          |
-| `admin_user`             | The key-only, passwordless-sudo admin account                                                                        |
-| `ssh_harden`             | Disables root and password login, moves sshd to `ssh_port`, via a `sshd_config.d/` drop-in                           |
-| `firewalld`              | Nothing but "the daemon is up and answering". A dependency of the four roles that write firewalld rules              |
-| `fail2ban`               | Bans brute force on `ssh_port`, and repeat offenders, through firewalld                                              |
-| `netbird`                | Mesh join with a freshly minted single-use setup key, firewalld zoning, and the pod-to-mesh routing fix              |
-| `firewall_ingress`       | Opens 443 in firewalld's public zone. Only on the `public_ingress` node                                              |
-| `k0s_cluster`            | Renders `k0sctl.yaml` from inventory, converges the cluster, writes the kubeconfig                                   |
-| `local_path_provisioner` | Installs the `local-path` StorageClass that monitoring, `auth` and `actual` bind PVCs against                        |
-| `flux_bootstrap`         | Flux Operator, the seed Secrets, then `flux/cluster.yaml`                                                            |
+| Role               | Does                                                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `ssh_identity`     | Probes which login answers, the initial provider account or the hardened admin one, so `setup.yml` stays re-runnable            |
+| `fedora_common`    | Hostname, full system upgrade, base tooling                                                                                     |
+| `admin_user`       | The key-only, passwordless-sudo admin account                                                                                   |
+| `ssh_harden`       | Disables root and password login, moves sshd to `ssh_port`, via a `sshd_config.d/` drop-in                                      |
+| `firewalld`        | Nothing but "the daemon is up and answering". A dependency of the four roles that write firewalld rules                         |
+| `fail2ban`         | Bans brute force on `ssh_port`, and repeat offenders, through firewalld                                                         |
+| `netbird`          | Mesh join with a freshly minted single-use setup key, firewalld zoning, the pod-to-mesh routing fix, and the SSH-config opt-out |
+| `firewall_ingress` | Opens 443 in firewalld's public zone. Only on the `public_ingress` node                                                         |
+| `k8s_cluster`      | Installs k3s from inventory, server then agents, and writes the kubeconfig                                                      |
+| `flux_bootstrap`   | Flux Operator, the seed Secrets, then `flux/cluster.yaml`                                                                       |
 
 Ordering between them is declared in each role's `meta/main.yml`, not left to the order of the
 playbook's role list. `ssh_harden` depends on `admin_user` for the lockout reason above, and the
@@ -138,7 +138,7 @@ re-bans anything the first jail catches repeatedly. Bans are enforced by firewal
 same firewall every other role touches.
 
 `ignoreip` covers loopback, the mesh's CGNAT range and both cluster CIDRs. Ops SSH and
-`k0sctl` arrive over the mesh, so without that line a misfiring jail could lock the operator
+Ansible arrive over the mesh, so without that line a misfiring jail could lock the operator
 out of every node at once.
 
 The role also redirects fail2ban's own logging from the journal to `/var/log/fail2ban.log`, in
@@ -154,44 +154,78 @@ A fresh host answers as `node.initial_user` on `node.initial_port`; once `admin_
 accordingly. Probing only the hardened port is sufficient because `admin_user` installs the key
 before `ssh_harden` closes the initial one, so there is no window where neither works.
 
-### `k0s_cluster`
+### `netbird`
 
-kubelet's `--node-ip` is pinned to each node's NetBird mesh IP, deliberately: the Kubernetes
+The join itself, the firewalld zoning and the pod-to-mesh routing fix are covered in
+[Pod to mesh networking](networking.md) and [Mesh watchdog](mesh-watchdog.md). One thing lives
+only here.
+
+The daemon writes `/etc/ssh/ssh_config.d/99-netbird.conf` unless told not to, and that file sets
+`StrictHostKeyChecking no`, `UserKnownHostsFile /dev/null` and `PasswordAuthentication yes` for
+every mesh peer, on a fleet whose sshd `ssh_harden` deliberately locks down. NetBird's own SSH
+server is disabled on these peers, so the file buys nothing. The role sets
+`NB_DISABLE_SSH_CONFIG=true` through a systemd drop-in before the daemon's first start, so a fresh
+node never has the file, and removes any copy an earlier install left behind.
+
+The removal is deliberately not followed by a restart. This play reaches the node over the mesh,
+so bouncing the daemon would cut the connection running it. The environment variable stops the
+file being regenerated; until the daemon next restarts on its own, a regenerated copy is simply
+removed again on the next converge.
+
+`just ops mesh` checks the same file on the operator's own machine, which Ansible does not manage,
+and prints the three commands to fix it.
+
+### `k8s_cluster`
+
+> **Unverified.** This role replaced a k0s and `k0sctl` setup, and has not yet been run against
+> the fleet. The configuration below is what it declares, not observed behaviour. Verify each
+> claim on the first converge.
+
+kubelet's `node-ip` is pinned to each node's NetBird mesh IP, deliberately: the Kubernetes
 API, etcd and kubelet then bind only to mesh addresses and are never publicly exposed. Several
 consequences follow.
 
-k0s would otherwise self-detect `spec.api.address` from the default-route interface, which on
+k3s would otherwise self-detect `advertise-address` from the default-route interface, which on
 these hosts is the public IP, so join tokens would carry an address workers cannot reach. The role
 pins it to the controller's mesh address instead, read from inventory as `node.mesh_ip`.
+`flannel-iface` is pinned to `netbird0` for the same reason: left alone, flannel would build its
+VXLAN overlay over the public internet rather than the mesh.
 
 That value is not resolved at converge time. The management server assigns a mesh address at
 registration and it cannot be chosen in advance, so `roles/netbird` reads it back out of
 `netbird status --json` after the join and records it into
 the `nodes` map in `config/sops/ops.sops.yaml`, which `group_vars/all/nodes.yml` loads back. Writing
-it down rather than looking it up each run is what lets `playbooks/k0s.yml` stay
-`hosts: localhost` in a separate invocation from `setup.yml`, without requiring the operator's
-own workstation to be on the mesh. The write is guarded by a compare, because SOPS
+it down rather than looking it up each run is what lets `playbooks/k8s.yml` run as a separate
+invocation from `setup.yml`, and lets a worker read the controller's address straight out of
+`hostvars`. The write is guarded by a compare, because SOPS
 re-encryption changes the ciphertext even when the plaintext has not.
 
-The role then asserts every recorded address is non-empty and inside NetBird's CGNAT range
+The role then asserts the recorded address is non-empty and inside NetBird's CGNAT range
 (`mesh_cidr`). That assertion is not paranoia: a node deleted and re-registered picks up a
-different address, and a stale value would otherwise be baked silently into `spec.api.address`
-and every kubelet's `--node-ip`.
+different address, and a stale value would otherwise be baked silently into `advertise-address`
+and this kubelet's `node-ip`.
 
 The public IP still has to reach Kubernetes somehow, since kubelet can only ever register
-`--node-ip` as `InternalIP`. It arrives as the `k0sproject.io/node-ip-external` annotation,
-which the k0s cloud provider reads. `node.ip` comes from the encrypted `config/sops/ops.sops.yaml`, so
+`node-ip` as `InternalIP`. It arrives as `node-external-ip`, which k3s's own cloud controller
+turns into the node's `ExternalIP`. Under k0s this needed a separate `kubectl annotate` pass
+after every converge. `node.ip` comes from the encrypted `config/sops/ops.sops.yaml`, so
 the public IP is never committed in the clear.
 
 This decision is also what makes cross-node pod networking non-trivial. See
 [Pod to mesh networking](networking.md).
 
-Two idempotency notes. `k0sctl apply` writes the kubeconfig itself, via `--kubeconfig-out`, so
-there is no second `k0sctl kubeconfig` invocation whose `--config` could drift from the first
-one's. And k0sctl has no "nothing to do" signal. It walks its whole phase list every run and exits
-0 either way, so the task matches the lines k0sctl prints only when it actually mutates a host. Re-check those markers after a k0sctl bump: one that quietly stops matching turns the task
-into "never changed". `kubectl annotate` needs no such guess, since `--overwrite` reports
-`not annotated` when the value was already right.
+Three notes on how the role stays honest. The join token is read off the controller's
+`/var/lib/rancher/k3s/server/node-token` at converge time rather than pre-shared through Proton
+Pass, so there is no second copy to go stale. `/etc/rancher/k3s/config.yaml` is rendered before
+the installer runs, so the service comes up configured on its very first start instead of joining
+on defaults and being corrected a moment later; a later change to it is a diff and a handler
+restart, not a reinstall. And the install itself is guarded by a version comparison rather than
+`creates:`, because re-running the vendor installer with a new `INSTALL_K3S_VERSION` is exactly
+how an upgrade happens.
+
+The kubeconfig k3s writes says `https://127.0.0.1:6443`, which is true on the node and useless
+to the operator. The role fetches it and rewrites the address to the controller's mesh IP, rather
+than pointing it at a `tls-san` name, so it keeps working when mesh DNS is the thing that broke.
 
 ## How secrets reach a play
 
@@ -203,15 +237,15 @@ decrypted at load time, and no task mentions SOPS.
 Identifying values land in `nodes.yml`, `cluster.yml` and the `admin` subtree of `secrets.yml`,
 which `group_vars/all/nodes.yml`, `group_vars/all/dns.yml` and `group_vars/all/admin.yml` read with
 a `file` lookup. They are inventory-level rather than a playbook's `vars_files` because
-`playbooks/k0s.yml` runs against `localhost` and still reaches `hostvars[<node>].node.mesh_ip` and
-`hostvars[<node>].admin.user`, which resolve only if every host carries the variable itself.
+`playbooks/k8s.yml` reaches `hostvars[<other node>].node.mesh_ip` and, from its `localhost` Flux
+play, `hostvars[<node>].admin.user`, which resolve only if every host carries the variable itself.
 So `admin.user` and `node.ip` are ordinary variables at the point of use.
 
 Crown-jewel values come from Proton Pass. `just ans render-secrets` decrypts the `ansible` subtree
 of `config/sops/ops.sops.yaml` and pipes it through `pass-cli inject` into
 `ansible/.generated/secrets.yml`. The playbooks load that with `vars_files`, so the roles that need
 one, `flux_bootstrap` and `netbird`, both `no_log: true`, reference an ordinary variable like
-`secrets.flux.deploy_key`. `ans setup` and `ans k0s` depend on
+`secrets.flux.deploy_key`. `ans setup` and `ans k8s` depend on
 that render, so it is not a step you run by hand. It needs a Proton Pass session, and
 `pass-cli info` checks for one.
 

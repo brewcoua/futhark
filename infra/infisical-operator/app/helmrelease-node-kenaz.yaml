@@ -1,6 +1,6 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
-# kenaz's tier. Add one of these per k0s node, alongside a matching config/nodes/<hostname>.yaml.
+# kenaz's tier. Add one of these per cluster node, alongside a matching config/nodes/<hostname>.yaml.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:

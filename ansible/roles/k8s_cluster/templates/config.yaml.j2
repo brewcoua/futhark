@@ -1,0 +1,43 @@
+{#  k3s reads this at every start, so a config change is a diff and a handler restart rather
+    than a reinstall. Server and agent share one template: everything below the branch is the
+    same on both, and splitting them would be two files that have to be kept in step. #}
+---
+{% if k8s_cluster_is_controller %}
+# Embedded etcd rather than the default SQLite: a second server node is then a join, not a
+# datastore migration. Only ever set on the first server — k3s ignores it once the datastore
+# exists, which is what makes re-running this role safe.
+cluster-init: true
+# k3s would otherwise advertise the default-route interface — the public IP — and every join
+# token and kubeconfig would carry an address the mesh can't reach.
+advertise-address: {{ node.mesh_ip }}
+# k3s's own defaults, declared here because the netbird role has to know the pod CIDR to scope
+# its pod -> mesh SNAT rule and tofu/netbird reads the service CIDR for the route it advertises
+# into the mesh. A CIDR that only exists as an upstream default is a value that can shift.
+cluster-cidr: {{ k8s_pod_cidr }}
+service-cidr: {{ k8s_service_cidr }}
+# The API server's certificate answers to its mesh name and its public address as well as the
+# advertised mesh IP, so a kubeconfig pointed at either still validates.
+tls-san:
+  - {{ ansible_host }}
+  - {{ node.ip }}
+disable:
+{% for component in k8s_cluster_disable %}
+  - {{ component }}
+{% endfor %}
+# The default is 0600 owned by root, which is what we want; stated so a k3s default change
+# can't quietly widen a file holding cluster-admin credentials.
+write-kubeconfig-mode: "0600"
+{% else %}
+# The controller's mesh address, for the same reason advertise-address is pinned there.
+server: https://{{ hostvars[k8s_cluster_controller_host].node.mesh_ip }}:6443
+token: {{ k8s_cluster_node_token }}
+{% endif %}
+{#  kubelet can only ever register --node-ip as InternalIP; node-external-ip is what puts the
+    public address on the node as ExternalIP. Under k0s that second half needed an explicit
+    `kubectl annotate k0sproject.io/node-ip-external` pass after every converge — k3s's own
+    cloud controller reads this instead. #}
+node-ip: {{ node.mesh_ip }}
+node-external-ip: {{ node.ip }}
+{#  Without this flannel picks the default-route interface and the VXLAN overlay rides the
+    public internet between nodes instead of the mesh. #}
+flannel-iface: {{ mesh_interface }}

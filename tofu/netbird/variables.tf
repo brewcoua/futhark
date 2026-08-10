@@ -17,16 +17,16 @@ variable "sub_nodes" {
   type        = string
 }
 
-# None of the three below is identifying — two k0s defaults and a cluster-internal address — so
+# None of the three below is identifying — two k3s defaults and a cluster-internal address — so
 # they are read from their canonical files in the clear rather than through refs.env. A second
-# spelling of any of them is a second thing to get wrong: the route has to name the CIDR k0s
+# spelling of any of them is a second thing to get wrong: the route has to name the CIDR k3s
 # actually uses, the DNS record the address the Service actually holds, and the account's
 # network range the CIDR Ansible trusts in firewalld and fail2ban.
 locals {
   network_yml = file("${path.module}/../../ansible/inventory/group_vars/all/network.yml")
 
   mesh_cidr    = regex("(?m)^mesh_cidr: (\\S+)$", local.network_yml)[0]
-  service_cidr = regex("(?m)^k0s_service_cidr: (\\S+)$", local.network_yml)[0]
+  service_cidr = regex("(?m)^k8s_service_cidr: (\\S+)$", local.network_yml)[0]
 
   traefik_internal_ip = regex(
     "(?m)^\\s+clusterIP: (\\S+)$",

@@ -1,17 +1,17 @@
 # futhark
 
-A GitOps-driven homelab. Two Fedora nodes joined over a NetBird mesh run one k0s cluster.
+A GitOps-driven homelab. Two Fedora nodes joined over a NetBird mesh run one k3s cluster.
 Everything inside that cluster is reconciled by Flux from this repository, and everything that
 cannot live inside it is managed by OpenTofu.
 
 The tree splits along three planes, and almost every question about the repository resolves to
 "which plane owns this?":
 
-| Plane   | Owns                                                                           | Tool             | Where                                         |
-| ------- | ------------------------------------------------------------------------------ | ---------------- | --------------------------------------------- |
-| Host    | The machines: users, SSH, firewall, mesh join, the k0s install itself          | Ansible + k0sctl | [`ansible/`](ansible/index.md)                |
-| Cluster | Everything reconcilable from git: controllers, apps, namespaces, policy        | Flux             | [`flux/`, `infra/`, `nodes/`](gitops/flux.md) |
-| Cloud   | Provider APIs no Kustomization can express: DNS, OIDC clients, the mesh policy | OpenTofu         | [`tofu/`](tofu/index.md)                      |
+| Plane   | Owns                                                                           | Tool     | Where                                         |
+| ------- | ------------------------------------------------------------------------------ | -------- | --------------------------------------------- |
+| Host    | The machines: users, SSH, firewall, mesh join, the k3s install itself          | Ansible  | [`ansible/`](ansible/index.md)                |
+| Cluster | Everything reconcilable from git: controllers, apps, namespaces, policy        | Flux     | [`flux/`, `infra/`, `nodes/`](gitops/flux.md) |
+| Cloud   | Provider APIs no Kustomization can express: DNS, OIDC clients, the mesh policy | OpenTofu | [`tofu/`](tofu/index.md)                      |
 
 The table says who owns what. What it cannot say is how the three meet: each plane hands off to
 the next exactly once, and nothing reaches back the other way. Green is this repository, the one
@@ -47,7 +47,7 @@ hosts: the machines {
   ogma
 }
 
-cluster: k0s cluster {
+cluster: k3s cluster {
   flux: Flux
   workloads: controllers + apps
   flux -> workloads: reconciles
@@ -81,8 +81,8 @@ Where to go next:
 
 ## What runs where
 
-`kenaz` is the k0s controller+worker and the only node with public ingress. `ogma` is a worker,
-and Pocket ID is pinned to it with a `nodeSelector`. Both are on the mesh and are addressed by
+`kenaz` runs the k3s server, so it is both controller and worker, and it is the only node with
+public ingress. `ogma` is an agent, and Pocket ID is pinned to it with a `nodeSelector`. Both are on the mesh and are addressed by
 their mesh DNS name, never by a stored address. See [Nodes](ansible/nodes.md).
 
 The pieces, roughly in dependency order: the Infisical operator, which syncs runtime secrets into

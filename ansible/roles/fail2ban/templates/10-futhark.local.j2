@@ -4,9 +4,9 @@ backend = systemd
 bantime = 1h
 findtime = 10m
 maxretry = 5
-# The mesh is how ops and k0sctl reach these hosts, and the cluster CIDRs are node-local
+# The mesh is how ops and Ansible reach these hosts, and the cluster CIDRs are node-local
 # traffic — neither may ever be banned.
-ignoreip = 127.0.0.1/8 ::1 {{ mesh_cidr }} {{ k0s_pod_cidr }} {{ k0s_service_cidr }}
+ignoreip = 127.0.0.1/8 ::1 {{ mesh_cidr }} {{ k8s_pod_cidr }} {{ k8s_service_cidr }}
 
 [sshd]
 enabled = true

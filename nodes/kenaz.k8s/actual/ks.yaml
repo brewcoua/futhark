@@ -5,7 +5,7 @@ kind: Kustomization
 metadata:
   name: actual
 spec:
-  path: ./nodes/kenaz.k0s/actual/app
+  path: ./nodes/kenaz.k8s/actual/app
   dependsOn:
     - name: infra-policies
     - name: traefik-internal

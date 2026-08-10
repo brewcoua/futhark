@@ -18,15 +18,15 @@ into reconciliation. The rest of the naming and layout rules are in
 
 ## Bootstrap sequence
 
-Run by `just ans k0s` (`ansible/playbooks/k0s.yml`):
+Run by `just ans k8s` (`ansible/playbooks/k8s.yml`):
 
-1. **`k0s_cluster`**: render `k0sctl.yaml` from inventory, `k0sctl apply`, fetch the kubeconfig
-   into `ansible/.generated/`.
-2. **`local_path_provisioner`**: install the `local-path` StorageClass. `monitoring`, `auth` and
-   `nodes/kenaz.k0s/actual` all bind PVCs on their first reconcile, and nothing in the
-   Flux-managed tree can provision a StorageClass for itself. See
+1. **`k8s_cluster`**: render `/etc/rancher/k3s/config.yaml` from inventory, install k3s on the
+   controller and then the workers, and fetch the kubeconfig into `ansible/.generated/`.
+   The `local-path` StorageClass comes up with it, from k3s's own bundled provisioner:
+   `monitoring`, `auth` and `nodes/kenaz.k8s/actual` all bind PVCs on their first reconcile, and
+   nothing in the Flux-managed tree can provision a StorageClass for itself. See
    [Startup ordering](../conventions/ordering.md).
-3. **`flux_bootstrap`**:
+2. **`flux_bootstrap`**:
    1. Install the Flux Operator via Helm.
    2. Apply the `flux-system/git-deploy-key` Secret, with `known_hosts` built from GitHub's
       published host keys rather than a blind `ssh-keyscan`.
@@ -71,15 +71,14 @@ classes: {
   }
 }
 
-ansible: "ansible/playbooks/k0s.yml" {
-  k0s: k0s_cluster\nk0sctl apply
-  lpp: local_path_provisioner\nlocal-path StorageClass
+ansible: "ansible/playbooks/k8s.yml" {
+  k8s: k8s_cluster\nk3s + local-path
   boot: flux_bootstrap {
     op: Flux Operator\n(Helm)
     seeds: "git-deploy-key, sops-age,\ninfisical-universal-auth"
     inst: "apply flux/cluster.yaml\n(FluxInstance)"
   }
-  k0s -> lpp -> boot.op
+  k8s -> boot.op
   boot.op -> boot.seeds -> boot.inst
 }
 

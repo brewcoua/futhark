@@ -63,12 +63,12 @@ just ops sops config/sops/ops.sops.yaml           # create it, or edit it
 | Recipe               | Does                                                           |
 | -------------------- | -------------------------------------------------------------- |
 | `ans setup [<host>]` | First contact and hardening. Re-runnable                       |
-| `ans k0s`            | Converge the cluster and bootstrap Flux                        |
+| `ans k8s`            | Converge the cluster and bootstrap Flux                        |
 | `ans render-secrets` | Resolve the crown jewels into `ansible/.generated/secrets.yml` |
 | `ans ping`           | `ansible all -m ping`                                          |
 | `ans lint`           | `ansible-lint`                                                 |
 
-`setup` and `k0s` both depend on `render-secrets`, so you rarely run it by hand.
+`setup` and `k8s` both depend on `render-secrets`, so you rarely run it by hand.
 
 ## `fx`, Flux
 
@@ -104,7 +104,7 @@ just ops sops config/sops/ops.sops.yaml           # create it, or edit it
 | `ks kctl <args>`           | `kubectl` passthrough, using the generated kubeconfig                     |
 
 Every `ks`, `fx` and `bak` recipe points `KUBECONFIG` at `ansible/.generated/kubeconfig` itself,
-so you do not need it in your environment. Re-converging the cluster is `just ans k0s`.
+so you do not need it in your environment. Re-converging the cluster is `just ans k8s`.
 
 ## `bak`, backups
 
