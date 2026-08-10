@@ -444,8 +444,9 @@ check goes red after its grace period, which reads as a node fault and is not on
 ### The Storage Box SSH key
 
 The private half is in the `storagebox` item and in `STORAGEBOX_KEY_PEM` in Infisical
-`/infra/csi-rclone`, from where `infra/storage/app/secret.yaml` templates it in as `key_pem`. Both
-move together.
+`/infra/csi-rclone`, from where `infra/storage/app/secret.yaml` templates it in as `key_pem`,
+escaping its newlines on the way. Both move together. Store the key file as it is; nothing about it
+is reformatted by hand.
 
 **Blast radius:** every `storagebox-crypt` mount fails at authentication. Pods with an existing
 mount keep it until they are rescheduled.
@@ -463,24 +464,20 @@ mount keep it until they are rescheduled.
    sftp -P 23 -i ~/.ssh/futhark-storagebox-new uXXXXX-subN@uXXXXX-subN.your-storagebox.de
    ```
 
-3. Inline it, as `key_pem` requires a single line:
-
-   ```bash
-   awk '{printf "%s\\n", $0}' < ~/.ssh/futhark-storagebox-new
-   ```
-
-4. Update `STORAGEBOX_KEY_PEM` under `/infra/csi-rclone`, and the `ssh key` field of the
-   `storagebox` item. Nothing else in the config changes, and no other credential is touched.
-5. Confirm the operator synced the change through:
+3. Update `STORAGEBOX_KEY_PEM` under `/infra/csi-rclone` with the contents of
+   `~/.ssh/futhark-storagebox-new`, verbatim, and the `ssh key` field of the `storagebox` item.
+   Nothing else in the config changes, and no other credential is touched.
+4. Confirm the operator synced the change through, and that `key_pem` came out as one line with
+   `\n` between the key's lines:
 
    ```bash
    kubectl -n csi-rclone get secret storagebox-secret -o jsonpath='{.data.configData}' | base64 -d
    ```
 
-6. Verify a real mount. Create a PVC against `storagebox-crypt` and attach a pod to it. Binding
+5. Verify a real mount. Create a PVC against `storagebox-crypt` and attach a pod to it. Binding
    alone proves provisioning, not mounting. The procedure is in
    [The rclone remotes](rclone.md#checking-it-worked).
-7. Remove the old public key from the subaccount's `authorized_keys`, then repeat step 6.
+6. Remove the old public key from the subaccount's `authorized_keys`, then repeat step 5.
 
 Why `key_pem` and not `key_file`: the CSI driver mounts the config Secret and nothing else, so a
 filesystem path in the config does not exist inside the driver container.

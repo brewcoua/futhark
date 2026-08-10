@@ -197,10 +197,10 @@ No NetBird credential appears in that table, and none should. Nothing inside the
 NetBird, and both PATs stay on the operator machine. `POCKETID_ENCRYPTION_KEY` is new material:
 `openssl rand -base64 32`.
 
-`/infra/csi-rclone` is the one row you cannot fill in yet. Its values come from `rclone` output, and
-`rclone` arrives with `just ops setup` at step 3, so create the folder now, leave it empty, and come
-back after that step. It also needs a Hetzner Storage Box and a Google OAuth client that nothing
-else in this bootstrap creates.
+`/infra/csi-rclone` is the one row you cannot fill in yet. Two of its values are minted by `rclone`
+and four more are generated with it, and `rclone` arrives with `just ops setup` at step 3, so create
+the folder now, leave it empty, and come back after that step. It also needs a Hetzner Storage Box
+and a Google OAuth client that nothing else in this bootstrap creates.
 [The rclone remotes](rclone.md) is the whole procedure, end to end.
 
 ## 3. The operator machine

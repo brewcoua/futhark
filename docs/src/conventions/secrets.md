@@ -345,18 +345,31 @@ targets:
     template:
       engineVersion: v1
       data:
-        api-key: "{{ .BUNNY_API_KEY }}"
+        api-key: "{{ .BUNNY_API_KEY.Value }}"
 ```
 
 Two manifests need this today: `cert-manager` (`api-key`) and `storage` (`configData`). Remap in
 the manifest rather than bending the name in Infisical. The constraint belongs to the chart, so it
 should be visible next to the chart, not encoded as a mystery in a remote UI.
 
+Write `.Value`, not the bare `{{ .KEY }}`. The template's data is a map of structs, and the bare
+form only prints the value because that struct has a `String()` method. As soon as a key is piped
+into a function that takes a string, as `storage` pipes the Storage Box key into `replace`, the bare
+form is a render error. One spelling everywhere is cheaper than remembering which keys are plain.
+Neither form makes a missing key fail: both render `<no value>` and report a successful sync.
+
 The same block also handles a consumer that wants a **file** rather than a value. `backup`
 (`cloud`) and `storage` (`configData`) build an INI in the template and interpolate one Infisical
 secret per credential. Store the credentials, not the file: a config blob in Infisical hides its
 own structure from review, cannot be rotated a field at a time, and grants everything it contains
 at once.
+
+Where a consumer's file format cannot hold the value as stored, escape it in the template rather
+than in the store. `storage` holds the Storage Box private key as the multi-line file `ssh-keygen`
+wrote and renders it with `{{ .STORAGEBOX_KEY_PEM.Value | replace "\n" "\\n" }}`, because rclone
+reads `key_pem` as a Go string literal and an INI value cannot span lines. The engine is
+`text/template` with the Sprig functions, minus `env` and `expandEnv`. A value mangled before
+storage is a transformation nobody reviews and everybody has to repeat correctly at rotation.
 
 ## The secrets outside GitOps
 
