@@ -74,10 +74,10 @@ A backup that copied nothing still reports `Completed`.
 Velero's defaults are weaker than they look, and two of the files in `infra/backup/app/` exist
 only to fix that.
 
-| What reaches B2                       | Protected by                                         | Key held in                 |
-| ------------------------------------- | ---------------------------------------------------- | --------------------------- |
-| Volume data, in a Kopia repository    | AES-256-GCM, client-side                             | `KOPIA_REPOSITORY_PASSWORD` |
-| Resource manifests, a gzipped tarball | SSE-C, so Backblaze stores ciphertext it cannot read | `B2_SSE_C_KEY`              |
+| What reaches B2                       | Protected by                                                                     | Key held in                 |
+| ------------------------------------- | -------------------------------------------------------------------------------- | --------------------------- |
+| Volume data, in a Kopia repository    | AES-256-GCM, client-side                                                         | `KOPIA_REPOSITORY_PASSWORD` |
+| Resource manifests, a gzipped tarball | SSE-C, so Backblaze stores ciphertext it cannot read — **unverified**, see below | `B2_SSE_C_KEY`              |
 
 Left alone, Velero encrypts the Kopia repository with a password **hardcoded in its own source**,
 published and identical in every installation. `secret-repo.yaml` is what replaces it, and it has
@@ -85,7 +85,14 @@ to exist before the node-agent first initialises the repository. The password is
 creation and cannot be changed afterwards without starting a new repo.
 
 The manifest tarballs get no client-side encryption from Velero at all, which is what
-`customerKeyEncryptionFile` on the `BackupStorageLocation` closes. Both keys come from Infisical
+`customerKeyEncryptionFile` on the `BackupStorageLocation` closes. That the header actually lands
+is **not verified**: `tofu/b2` used the same mechanism for its state and it silently did nothing
+for months — OpenTofu validated `AWS_SSE_CUSTOMER_KEY` and then wrote the object without the
+customer-key headers, leaving Velero's own credential readable in the bucket. That module now uses
+client-side encryption instead, which Velero offers no equivalent of. Once a backup has run, check
+it the same way: fetch a tarball with the key and expect it to succeed, fetch it without and
+expect a `400`. If the keyless fetch returns gzip, SSE-C is not being applied here either. Both
+keys come from Infisical
 under `/infra/velero`, and both belong in Proton Pass.
 
 **Losing either key loses every backup, irrecoverably.** There is no recovery path, by design.

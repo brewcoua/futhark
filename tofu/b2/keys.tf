@@ -2,9 +2,10 @@
 # below are filed into Infisical /infra/velero by hand, per the rule in docs/src/tofu/index.md.
 # tofu/oidc is the one module that writes to a secret store, and it stays the only one.
 #
-# capabilities and bucket_ids both force replacement, so editing either mints a new key and leaves
-# the old one live in the account until it is revoked — which is also how rotation works. See
-# docs/src/tofu/b2.md.
+# capabilities and bucket_ids both force replacement, and replacement is destroy-then-create: the
+# old key is deleted before the new one exists, so editing either — or rotating with -replace —
+# breaks backups until the new values reach Infisical, with no way back. See
+# docs/src/operations/rotation.md.
 #
 # No readBucketEncryption: the backups are SSE-C, which is a per-request header Velero sends from
 # its own key file, not a bucket setting anyone needs to read.

@@ -42,9 +42,9 @@ operator machine. `.terraform.lock.hcl` is the provider version lockfile and **i
 _Exception: [`b2`](b2.md)._ Local state makes a module non-portable, and for that one module
 non-portable means broken. `b2_bucket` can only be imported by bucket id, and B2 bucket names are
 globally unique, so a second operator machine starting from empty state does not adopt the bucket.
-It fails the apply with `duplicate_bucket_name`. Its state lives in a B2 bucket instead, written
-under SSE-C with a key from Proton Pass, so the plaintext credential in it is ciphertext to
-Backblaze. Every other module keeps its state local.
+It fails the apply with `duplicate_bucket_name`. Its state lives in a B2 bucket instead, encrypted
+client-side under a passphrase from Proton Pass, so the credential in it is ciphertext before it
+ever reaches Backblaze. Every other module keeps its state local.
 
 **Verify provider resource and attribute names** against current provider docs before the
 first apply.
@@ -164,7 +164,7 @@ modules.bunny -> bunny-api: DNS records
 modules.netbird -> nb-api: policies, route, DNS zone
 modules.oidc -> pocketid: OIDC clients
 modules.b2 -> b2-api: bucket, Velero's key
-modules.b2 -> b2-state: "its own state, SSE-C\n(the one remote backend)"
+modules.b2 -> b2-state: "its own state, encrypted\n(the one remote backend)"
 
 bunny-api: Bunny DNS API { class: external }
 nb-api: NetBird API { class: external }

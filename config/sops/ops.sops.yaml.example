@@ -39,7 +39,7 @@ tofu:
     B2_APPLICATION_KEY: pass://<vault>/backblaze-tofu/application key
     AWS_ACCESS_KEY_ID: pass://<vault>/backblaze-tofu-state/key id
     AWS_SECRET_ACCESS_KEY: pass://<vault>/backblaze-tofu-state/application key
-    AWS_SSE_CUSTOMER_KEY: pass://<vault>/backblaze-tofu-state/sse-c key
+    TF_VAR_state_passphrase: pass://<vault>/backblaze-tofu-state/state passphrase
     TF_BACKEND_BUCKET: example-tofu-state
   bunny:
     BUNNYNET_API_KEY: pass://<vault>/bunny/api key

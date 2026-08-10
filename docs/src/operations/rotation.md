@@ -396,11 +396,11 @@ Used by `tofu/oidc` only.
 
 Three distinct credentials, and they are easy to confuse:
 
-| Item                   | Used by                                          | Rotation                                 |
-| ---------------------- | ------------------------------------------------ | ---------------------------------------- |
-| `backblaze-tofu`       | `tofu/b2`'s provider                             | Below                                    |
-| `backblaze-tofu-state` | `tofu/b2`'s S3 state backend, plus its SSE-C key | Below, with a caveat                     |
-| Velero's B2 key        | Velero, via Infisical `/infra/velero`            | [Velero's B2 key](#veleros-b2-key) below |
+| Item                   | Used by                                                 | Rotation                                 |
+| ---------------------- | ------------------------------------------------------- | ---------------------------------------- |
+| `backblaze-tofu`       | `tofu/b2`'s provider                                    | Below                                    |
+| `backblaze-tofu-state` | `tofu/b2`'s S3 state backend, plus its state passphrase | Below                                    |
+| Velero's B2 key        | Velero, via Infisical `/infra/velero`                   | [Velero's B2 key](#veleros-b2-key) below |
 
 For `backblaze-tofu`:
 
@@ -417,11 +417,12 @@ For `backblaze-tofu`:
 For `backblaze-tofu-state`, the same loop applies to `key id` and `application key`, verified by
 any `just tf plan b2`, which reads and locks the remote state.
 
-The `sse-c key` field on that item is different. It encrypts the OpenTofu state objects
-themselves. **Whether existing state objects can be re-encrypted under a new customer key without
-re-uploading them is unverified here**, and getting it wrong makes the state unreadable. Do not
-rotate it without confirming the behaviour against Backblaze's documentation first. Treat the
-value as unrotatable until then.
+The `state passphrase` field on that item is different. It derives the key OpenTofu encrypts the
+state with, client-side. It rotates through the same fallback mechanism the migration off SSE-C
+used: in `tofu/b2/backend.tf`, add a second `key_provider` holding the old passphrase, point the
+`fallback` at a method keyed to it, run any `just tf plan b2` to read the old state and any `just
+tf apply b2` to rewrite it under the new one, then delete the fallback. Verify by fetching the
+object and confirming it is not JSON.
 
 ### The healthchecks.io ping URLs
 
@@ -494,13 +495,12 @@ not an error state on the `BackupStorageLocation` alone. The 26h "no backup succ
 
 Both `capabilities` and `bucket_ids` force replacement, so rotation is the create loop, forced:
 
-1. Mint the replacement. The old key stays live in the account:
+1. Mint the replacement. **This destroys the old key first** — `b2_application_key.velero` has no
+   `create_before_destroy`, so from here until step 3 lands no valid key exists and backups fail.
+   There is no rollback past this point, because the old key is already gone:
 
    ```bash
-   cd tofu/b2
-   tofu taint b2_application_key.velero
-   cd -
-   just tf apply b2
+   just tf apply b2 -replace=b2_application_key.velero
    ```
 
 2. Read the two `sensitive` outputs:
@@ -520,12 +520,16 @@ Both `capabilities` and `bucket_ids` force replacement, so rotation is the creat
 
    The new backup must reach `Completed`.
 
-5. Revoke the old key in the Backblaze console.
-6. Run steps 4 again. A backup that still succeeds after the revoke is the only evidence nothing
-   else was using the old key.
+5. Confirm the old key is gone, rather than revoking it by hand — the apply in step 1 deleted it:
 
-**Rollback:** before step 5, put the previous key back into `/infra/velero`. After step 5 there is
-no rollback, which is why step 4 comes first.
+   ```bash
+   b2 key list --long    # one `velero` entry, the new id from step 2
+   ```
+
+**No rollback.** The old key is destroyed in step 1, before anything has been verified. If step 4
+fails you go forward, not back: re-read the outputs and re-file them. Giving the resource a
+`create_before_destroy` lifecycle would make a rollback possible and close the outage window, at
+the cost of two live keys mid-rotation.
 
 ### Everything else under `/infra` and `/nodes`
 

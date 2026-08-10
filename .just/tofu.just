@@ -113,8 +113,11 @@ plan module:
     {{ backend_env }}
     pass-cli run -- tofu plan
 
+# Variadic like `output`, so the flags a rotation needs reach tofu: `just tf apply b2
+# -replace=b2_application_key.velero` mints a new Velero key, per docs/src/operations/rotation.md.
+
 # Apply a tofu module
-apply module:
+apply module *args:
     #!/usr/bin/env bash
     set -euo pipefail
     root='{{ justfile_directory() }}'
@@ -123,7 +126,7 @@ apply module:
     {{ refs }}
     {{ module_env }}
     {{ backend_env }}
-    pass-cli run -- tofu apply
+    pass-cli run -- tofu apply {{ args }}
 
 # Same composition as plan/apply, because a module whose state is remote cannot be read without
 # authenticating against the backend first. Variadic, so the flags reach tofu: `just tf output b2

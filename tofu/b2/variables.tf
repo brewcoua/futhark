@@ -12,6 +12,19 @@ variable "backups_bucket" {
   }
 }
 
+# The passphrase OpenTofu derives this module's state encryption key from, out of this module's own
+# `tofu.b2` section. Resolved at `tofu init`, not just plan/apply: an encryption block has to settle
+# before the backend is read, so every recipe in .just/tofu.just that touches the backend needs it.
+variable "state_passphrase" {
+  description = "Passphrase for state encryption. From Proton Pass via config/sops/ops.sops.yaml."
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(var.state_passphrase) >= 16
+    error_message = "state_passphrase must be at least 16 characters — the pbkdf2 key provider's minimum."
+  }
+}
+
 # Also from config/sops/cluster.sops.yaml. A B2 bucket has no region argument — the region is a fact
 # of the account, fixed when it was created — so nothing here sets it. It is declared because the
 # S3 endpoint derives from it, for this module's own backend and for Velero's s3Url alike, and

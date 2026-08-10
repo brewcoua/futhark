@@ -109,7 +109,7 @@ table has to agree with. Item and field names are lowercase-with-spaces, per
 | `infisical-tofu-writer`    | `client id`, `client secret`                                                         | The `tofu-writer` identity from step 2                                                                                            |
 | `infisical-backup-reader`  | `client id`, `client secret`                                                         | The `backup-reader` identity from step 2, the one path with an identity of its own                                                |
 | `backblaze-tofu`           | `key id`, `application key`                                                          | A B2 application key for `tofu/b2`'s provider. Capabilities, and why it is not the master key: [b2](../tofu/b2.md)                |
-| `backblaze-tofu-state`     | `key id`, `application key`, `sse-c key`                                             | A second B2 key restricted to `tofu/b2`'s state bucket, plus the key that state is encrypted under                                |
+| `backblaze-tofu-state`     | `key id`, `application key`, `state passphrase`                                      | A second B2 key restricted to `tofu/b2`'s state bucket, plus the passphrase state is encrypted under                              |
 | `storagebox`               | `ssh key`                                                                            | The Storage Box key pair's private half, generated at [The rclone remotes](rclone.md#the-storage-box)                             |
 | `rclone-crypt`             | `storagebox password`, `storagebox password2`, `gdrive password`, `gdrive password2` | The four obscured crypt passwords. Placeholders for now, since they are minted after step 3                                       |
 
@@ -303,7 +303,7 @@ needs filling in.
   joined the mesh yet, and `roles/netbird` writes it in at step 7.
 - `tofu.<module>`: each module's own credentials and identifying values. `netbird` needs its PAT,
   `bunny` its API key, `oidc` the Pocket ID base URL and the Infisical project ID, `b2` its two
-  key pairs, the SSE-C key and the state bucket.
+  key pairs, the state passphrase and the state bucket.
 
 `config/sops/cluster.sops.yaml`, sealed to the cluster age key as well, holding one `cluster-values`
 Secret:
@@ -400,7 +400,7 @@ just tf init b2
 just tf plan b2 && just tf apply b2
 ```
 
-Read [b2](../tofu/b2.md) first. It needs a state bucket and an SSE-C key created by hand, and if a
+Read [b2](../tofu/b2.md) first. It needs a state bucket and a state passphrase created by hand, and if a
 bucket already exists it has to be imported rather than created. File the two outputs into
 Infisical `/infra/velero` as `B2_KEY_ID` and `B2_APPLICATION_KEY`, replacing the placeholders from
 step 2. Do this before the cluster, because `infra/backup` reconciles at step 9 and reads them
