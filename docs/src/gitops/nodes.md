@@ -17,13 +17,14 @@ own operator tier in `infisical-node-<hostname>`, never the infra tier. That sep
 enforced by RBAC and an admission policy rather than by convention. See
 [Cluster infrastructure](infra.md#infisical-operator).
 
-Not every cluster node gets a directory here. `ogma` runs no tenant apps: Pocket ID is cluster-wide
-infra rather than a per-node workload, so it lives under `infra/auth/`, pinned to `ogma` with a
-`nodeSelector`.
+Not every cluster node gets a directory here. `ogma` runs no tenant apps. It is the cluster's
+entrypoint, so what it carries is cluster-wide infra rather than per-node workloads: both Traefiks
+and Pocket ID, all under `infra/` and all pinned with a `nodeSelector`.
 
 ## `kenaz.k8s`
 
-`kenaz` runs the k3s server, so it is both controller and worker, plus Flux and everything under `infra/`. Its first and
+`kenaz` runs the k3s server, so it is both controller and worker, plus Flux and most of `infra/`.
+The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. Its first and
 so far only app is `actual` (`nodes/kenaz.k8s/actual/{ks.yaml,app/}`), reading from
 `/nodes/kenaz/actual`.
 

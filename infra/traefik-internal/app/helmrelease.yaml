@@ -31,8 +31,11 @@ spec:
     deployment:
       kind: Deployment
       replicas: 1
+    # Unlike traefik-edge this has no hostIP that forces a node: a ClusterIP is reachable from any
+    # of them. Pinned anyway so the whole ingress stack sits on the edge node and there is one
+    # place to look when ingress misbehaves.
     nodeSelector:
-      kubernetes.io/hostname: kenaz
+      kubernetes.io/hostname: ogma
     # The ClusterIP is pinned, not allocated. tofu/netbird's wildcard DNS record points
     # every internal hostname at this address, and a wildcard record cannot follow an
     # address Kubernetes hands out afresh on each reinstall. It is read straight out of this

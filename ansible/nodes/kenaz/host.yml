@@ -5,7 +5,6 @@ node:
   workflow: k8s
   k8s_role: controller
   mesh: true
-  public_ingress: true
   # This node carries apps of its own, under nodes/kenaz.k8s/ in the Flux tree — so it gets an
   # infisical-node-kenaz operator tier, which roles/flux_bootstrap seeds a credential into.
   # ogma is a worker with no such tree and so sets nothing here.

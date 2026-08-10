@@ -81,9 +81,11 @@ Where to go next:
 
 ## What runs where
 
-`kenaz` runs the k3s server, so it is both controller and worker, and it is the only node with
-public ingress. `ogma` is an agent, and Pocket ID is pinned to it with a `nodeSelector`. Both are on the mesh and are addressed by
-their mesh DNS name, never by a stored address. See [Nodes](ansible/nodes.md).
+`kenaz` runs the k3s server, so it is both controller and worker, and it carries the tenant apps
+under `nodes/kenaz.k8s/`. `ogma` is an agent and the cluster's entrypoint: it is the only node with
+public ingress, so both Traefiks and Pocket ID are pinned to it with a `nodeSelector`. Both nodes
+are on the mesh and are addressed by their mesh DNS name, never by a stored address. See
+[Nodes](ansible/nodes.md).
 
 The pieces, roughly in dependency order: the Infisical operator, which syncs runtime secrets into
 Kubernetes Secrets; Pocket ID for OIDC; cert-manager for Let's Encrypt over DNS-01; two Traefiks,

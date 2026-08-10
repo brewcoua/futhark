@@ -5,6 +5,11 @@ node:
   workflow: k8s
   k8s_role: worker
   mesh: true
+  # The cluster's public entrypoint: roles/firewall_ingress opens 443 here, and the traefik-edge
+  # HelmRelease pins itself to this host and binds PUBLIC_IP/MESH_IP from
+  # config/sops/cluster.sops.yaml, which must be this node's addresses. See
+  # docs/src/ansible/nodes.md for everything else that has to name the same node.
+  public_ingress: true
   # Identifying, so the literal lives encrypted in config/sops/ops.sops.yaml under ansible.nodes.
   ip: "{{ nodes[inventory_hostname].ip }}"
   # Written back into that file by the netbird role after the join — see

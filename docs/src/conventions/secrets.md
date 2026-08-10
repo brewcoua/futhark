@@ -226,8 +226,9 @@ so it is sealed to the **operator GPG key only**. Sealing it to the cluster age 
 hand `flux-system` a map to the Flux deploy key and to the age key that decrypts it. That is the
 whole reason the two files exist rather than one.
 
-The cost is one deliberate duplication. `PUBLIC_IP` and `MESH_IP` in `cluster.sops.yaml` are
-kenaz's addresses, which `nodes.kenaz` in `ops.sops.yaml` also records. They cannot be shared:
+The cost is one deliberate duplication. `PUBLIC_IP` and `MESH_IP` in `cluster.sops.yaml` are the
+edge node's addresses, currently `ogma`, which `nodes.<edge host>` in `ops.sops.yaml` also records.
+They cannot be shared:
 Flux needs them and cannot read the operator store. `ansible/roles/netbird` writes the mesh address
 back into `ops.sops.yaml` after every join, so treat that as the canonical one and keep
 `cluster.sops.yaml` in step by hand. Nothing detects drift between them.

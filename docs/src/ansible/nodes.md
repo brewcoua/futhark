@@ -16,7 +16,7 @@ runs once the host exists. See [Node apps](../gitops/nodes.md).
 
 ```yaml
 node:
-  hostname: kenaz
+  hostname: <hostname>
   os: fedora
   workflow: k8s
   k8s_role: controller
@@ -62,8 +62,24 @@ The node's Kubernetes `InternalIP` comes from `k8s_cluster`'s `node-ip`, which i
 recorded in `node.mesh_ip`, not from that name.
 
 `public_ingress` and `mesh` are both read generically. Nothing in `roles/netbird`,
-`roles/firewall_ingress` or `roles/flux_bootstrap` branches on a hostname, so moving public
-ingress to a different node is a one-line inventory change.
+`roles/firewall_ingress` or `roles/flux_bootstrap` branches on a hostname, so on this plane moving
+public ingress is a one-line inventory change.
+
+The other planes are not so lucky. `public_ingress` gates the `firewall_ingress` role and nothing
+else. No tofu module and nothing in the Flux tree reads it, so the edge node is named independently
+in four more places, with nothing detecting disagreement between them. Moving public ingress means
+changing all five together:
+
+| Where                                         | What names the edge node                                          |
+| --------------------------------------------- | ----------------------------------------------------------------- |
+| `ansible/nodes/<host>/host.yml`               | `public_ingress: true`, which opens 443 and lowers the port floor |
+| `config/sops/cluster.sops.yaml`               | `PUBLIC_IP` and `MESH_IP` must be that node's addresses           |
+| `tofu/bunny/refs.env`                         | `TF_VAR_edge_public_ip` reads `["nodes"][<host>]["ip"]`           |
+| `infra/traefik-edge/app/helmrelease.yaml`     | `nodeSelector`, required: the `hostIP`s exist only on that node   |
+| `infra/traefik-internal/app/helmrelease.yaml` | `nodeSelector`, by choice, to keep the stack on one node          |
+
+Miss the `nodeSelector` and the edge pod sits `Pending`. Miss `PUBLIC_IP` and it never binds. Miss
+`refs.env` and the public `A` record points at the wrong host.
 
 ## Adding a node
 

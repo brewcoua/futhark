@@ -7,8 +7,8 @@ The zone is looked up via a data source, not created, because cert-manager's DNS
 already points at that same zone.
 
 One record is defined in `dns.tf`: `auth.$DOMAIN`, pointing at the edge node's public IP.
-`traefik-edge` routes it to `infra/auth`, which is pinned to `ogma`. Add one `A` record block per
-edge-exposed hostname as each app lands.
+`traefik-edge` routes it to `infra/auth`, which is pinned to the same node, so the request never
+leaves it. Add one `A` record block per edge-exposed hostname as each app lands.
 
 Nothing here resolves under `$SUB_INTERNAL.$DOMAIN`. The only records the zone ever holds
 under it are cert-manager's DNS-01 challenges for the internal wildcard certificate, written
