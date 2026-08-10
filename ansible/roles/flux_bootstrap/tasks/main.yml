@@ -39,7 +39,10 @@
         namespace: flux-system
       type: Opaque
       stringData:
-        identity: "{{ secrets.flux.deploy_key }}"
+        # Stored base64 in Proton Pass, decoded here. pass-cli inject splices the resolved value
+        # into a double-quoted YAML scalar, and YAML folds a multi-line PEM's newlines into
+        # spaces, which reaches Flux as `ssh: no key found`. One base64 line survives intact.
+        identity: "{{ secrets.flux.deploy_key | b64decode }}"
         known_hosts: "{{ flux_bootstrap_known_hosts_content }}"
   no_log: true
 

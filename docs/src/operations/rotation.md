@@ -241,8 +241,17 @@ new reconciles.
 
 2. Add `/tmp/flux-deploy.pub` to the repository's Deploy Keys on GitHub. Read-only is enough.
    Leave the old deploy key in place.
-3. Put the private half in the `deploy key` field of the `flux` item, then
-   `shred -u /tmp/flux-deploy*`.
+3. Put the private half in the `deploy key` field of the `flux` item **base64-encoded on a single
+   line**, then `shred -u /tmp/flux-deploy*`:
+
+   ```bash
+   base64 -w0 < /tmp/flux-deploy
+   ```
+
+   The field must hold that one line and nothing else. A multi-line private key is silently
+   flattened on the way to the cluster, and step 5 then fails with `ssh: no key found` on the
+   `GitRepository`. See [Multi-line values](../conventions/secrets.md#multi-line-values).
+
 4. Reseed `flux-system/git-deploy-key`:
 
    ```bash

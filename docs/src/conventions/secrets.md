@@ -218,6 +218,28 @@ Because the committed files hold references and not values, updating a Proton Pa
 place** rotates a credential with no commit at all. That is what makes most of
 [Credential rotation](../operations/rotation.md) cheap.
 
+#### Multi-line values
+
+A Proton Pass field that holds more than one line cannot be referenced directly. `pass-cli inject`
+splices the resolved value into the document as text, and the reference sits inside a double-quoted
+YAML scalar, so YAML folds the value's newlines into single spaces. The reference resolves, the
+document parses, and the variable reaches the role as one line with its structure gone. An SSH
+private key mangled this way is seeded without error and surfaces later as `ssh: no key found` on
+the `GitRepository`.
+
+Store such a value base64-encoded on a single line, and decode it at the point of use:
+
+```bash
+base64 -w0 < <file holding the value>
+```
+
+```yaml
+identity: "{{ secrets.flux.deploy_key | b64decode }}"
+```
+
+That is why the `flux` item's `deploy key` field holds base64. Single-line values, including the
+cluster age key, need none of this.
+
 ### Why the operator store is separate
 
 Vault, item and field names are identifying, and this repository commits nothing identifying in
