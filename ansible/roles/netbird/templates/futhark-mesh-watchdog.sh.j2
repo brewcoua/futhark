@@ -40,11 +40,18 @@ log() { echo "$1"; }
 # healthchecks.io is reached over the public internet, never over the mesh — which is the whole
 # point: it is the one channel that still works when the thing being watched is down. Failure to
 # ping is never fatal, the local ladder does not depend on it.
+# A body is POSTed when one is given; healthchecks.io keeps it with the ping, which is the only
+# place the reason survives when the node then reboots or stays unreachable.
 ping_hc() {
     [ -n "$PING_URL" ] || return 0
-    curl -fsS -m 10 --retry 2 -o /dev/null "${PING_URL}${1:-}" ||
-        log "warn: healthchecks.io ping ${1:-/} failed"
+    if [ -n "${2:-}" ]; then
+        printf '%s' "$2" | curl -fsS -m 10 --retry 2 -o /dev/null --data-binary @- "${PING_URL}${1:-}"
+    else
+        curl -fsS -m 10 --retry 2 -o /dev/null "${PING_URL}${1:-}"
+    fi || log "warn: healthchecks.io ping ${1:-/} failed"
 }
+
+iso() { [ "${1:-0}" -gt 0 ] && date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ || echo never; }
 
 # --- probe ---------------------------------------------------------------------------------
 
@@ -230,10 +237,23 @@ fi
 
 # --- report --------------------------------------------------------------------------------
 
+# The control-plane errors are read in their own jq pass and never eval'd: they are strings from
+# the network, and the probe above assigns its fields through eval.
+ping_body() {
+    cat <<EOF
+host=$(uname -n) state=$state action=$action failures=$consecutive_failures
+management=$management signal=$signal peers=$peers_handshaken/$peers_total ip=${mesh_ip:-none}
+last_action=$last_action at=$(iso "$last_action_ts") last_reboot=$(iso "$last_reboot_ts")
+$(printf '%s' "$status_json" | jq -r '
+    "management_error=" + ((.management.error // "") | @text),
+    "signal_error=" + ((.signal.error // "") | @text)' 2>/dev/null)
+EOF
+}
+
 if [ "$state" -eq "$STATE_STUCK" ]; then
-    ping_hc /fail
+    ping_hc /fail "$(ping_body)"
 elif [ "$action" != none ]; then
-    ping_hc /log
+    ping_hc /log "$(ping_body)"
 elif [ "$state" -eq "$STATE_OK" ]; then
     ping_hc
 fi

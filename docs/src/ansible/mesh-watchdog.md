@@ -115,7 +115,19 @@ Three channels, in descending order of how much you can trust them during an act
 
 **healthchecks.io.** Each node pings its own check over the public internet, the one path that
 does not go through the thing being watched. A healthy probe pings the base URL, a repair posts
-to `/log`, and `stuck` posts to `/fail`. The URL comes from `secrets.healthchecks[<hostname>]`,
+to `/log`, and `stuck` posts to `/fail`. The two failure pings carry a plain-text body, kept by
+healthchecks.io with the ping and readable from the check's page:
+
+```text
+host=kenaz state=3 action=none failures=13
+management=0 signal=0 peers=0/3 ip=none
+last_action=reboot at=2026-08-10T19:07:09Z last_reboot=2026-08-09T04:12:55Z
+management_error=dial tcp: i/o timeout
+signal_error=context deadline exceeded
+```
+
+It is the only copy of the reason that survives a node that then reboots or stays unreachable, and
+it is what tells a `stuck` check apart from a node that simply went quiet. The URL comes from `secrets.healthchecks[<hostname>]`,
 one item with one field per node, resolved by `just ans render-secrets` and written to
 `/etc/futhark/mesh-watchdog.env` at mode 0600. A node with no field still runs the ladder. It just
 reports nothing. Replacing a ping URL is
