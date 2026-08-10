@@ -125,6 +125,22 @@ apply module:
     {{ backend_env }}
     pass-cli run -- tofu apply
 
+# Same composition as plan/apply, because a module whose state is remote cannot be read without
+# authenticating against the backend first. Variadic, so the flags reach tofu: `just tf output b2
+# -raw velero_b2_key_id`.
+
+# Read a module's outputs
+output module *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root='{{ justfile_directory() }}'
+    mod='{{ module }}'
+    cd tofu/{{ module }}
+    {{ refs }}
+    {{ module_env }}
+    {{ backend_env }}
+    pass-cli run -- tofu output {{ args }}
+
 # Needed once when a module takes over something created by hand — see docs/src/tofu/b2.md — and
 # never again on another machine, for a module whose state is remote.
 

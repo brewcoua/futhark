@@ -506,9 +506,8 @@ Both `capabilities` and `bucket_ids` force replacement, so rotation is the creat
 2. Read the two `sensitive` outputs:
 
    ```bash
-   cd tofu/b2
-   tofu output -raw velero_b2_key_id           # -> B2_KEY_ID
-   tofu output -raw velero_b2_application_key  # -> B2_APPLICATION_KEY
+   just tf output b2 -raw velero_b2_key_id           # -> B2_KEY_ID
+   just tf output b2 -raw velero_b2_application_key  # -> B2_APPLICATION_KEY
    ```
 
 3. File both into Infisical `/infra/velero`.
