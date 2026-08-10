@@ -38,7 +38,10 @@ One `netbird status --json`, read with `jq`:
 - `.netbirdIp` non-empty, meaning the interface is actually addressed.
 - Peers whose `.lastWireguardHandshake` falls inside `netbird_watchdog_handshake_max_age`, the
   dataplane. A peer can report `Connected` with a long-dead tunnel, so freshness is read off the
-  handshake rather than off the status field.
+  handshake rather than off the status field. NetBird emits that timestamp as RFC3339 with
+  nanosecond precision and a numeric UTC offset, so it is parsed with `date -d`. jq's
+  `fromdateiso8601` accepts only whole-second `Z` timestamps and throws on it, which once counted
+  every peer stale and put the whole fleet in `degraded` at the same time.
 
 That yields one of three states. A node with no peers at all is `ok`, not `degraded`, because
 there is nothing for it to hold a tunnel to.

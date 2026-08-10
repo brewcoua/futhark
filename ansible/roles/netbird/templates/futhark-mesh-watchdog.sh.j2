@@ -64,14 +64,19 @@ if [ -n "$status_json" ]; then
         "signal=" + (if .signal.connected then "1" else "0" end),
         "peers_total=" + ((.peers.total // 0) | tostring),
         "peers_connected=" + ((.peers.connected // 0) | tostring),
-        # A peer can report Connected while its tunnel is long dead, so freshness is read off the
-        # handshake itself. The zero value NetBird emits (0001-01-01T00:00:00Z) parses to a large
-        # negative epoch and so fails the window like any other stale peer.
-        "peers_handshaken=" + ([.peers.details[]? |
-            select(((.lastWireguardHandshake // "") | try fromdateiso8601 catch 0)
-                > (now - {{ netbird_watchdog_handshake_max_age }}))] | length | tostring),
         "mesh_ip=" + ((.netbirdIp // "") | split("/") | first)
     ' 2>/dev/null)"
+
+    # A peer can report Connected while its tunnel is long dead, so freshness is read off the
+    # handshake itself. NetBird emits RFC3339 with nanoseconds and a numeric offset, which jq's
+    # fromdateiso8601 rejects; date(1) takes both. The zero value on a peer that has never
+    # handshaken (0001-01-01T00:00:00Z) is a large negative epoch and fails the window like any
+    # other stale peer.
+    for hs in $(printf '%s' "$status_json" | jq -r '.peers.details[]?.lastWireguardHandshake // empty'); do
+        hs_epoch=$(date -d "$hs" +%s 2>/dev/null) || continue
+        [ $((now - hs_epoch)) -lt {{ netbird_watchdog_handshake_max_age }} ] &&
+            peers_handshaken=$((peers_handshaken + 1))
+    done
 fi
 
 if [ "$management" = 1 ] && [ "$signal" = 1 ] && [ -n "${mesh_ip:-}" ]; then
