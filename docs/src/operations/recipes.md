@@ -7,8 +7,8 @@ Everything an operator runs goes through [just](https://just.systems). The root 
 a set of `mod` declarations. The real definitions are one file per namespace under `.just/`.
 
 ```bash
-just --list        # the namespaces
-just --list ks     # one namespace's recipes
+just help          # every recipe, namespace by namespace
+just ks help       # one namespace's recipes
 ```
 
 Arguments are positional: `just ks logs media sonarr`. A recipe documented as `<x>` requires that

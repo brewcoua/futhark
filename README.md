@@ -8,7 +8,7 @@ cluster from this repository, and OpenTofu manages what lives outside it.
 Everything an operator runs goes through [`just`](https://just.systems):
 
 ```bash
-just --list
+just help
 ```
 
 ## License

@@ -1,5 +1,9 @@
 import '_kube.just'
 
+# List this module's recipes
+help:
+    @just --list ks
+
 # One-screen health report — nodes, unhealthy pods, Flux sync state
 status:
     kubectl get nodes -o wide

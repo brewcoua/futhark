@@ -1,5 +1,9 @@
 import '_common.just'
 
+# List this module's recipes
+help:
+    @just --list tf
+
 # Resolves a module's refs.env, if it has one — see
 # docs/src/tofu/index.md#values-another-plane-owns for the format and who owns what.
 #

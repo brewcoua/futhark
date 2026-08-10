@@ -1,5 +1,9 @@
 import '_kube.just'
 
+# List this module's recipes
+help:
+    @just --list fx
+
 # List Kustomizations and their sync status
 get:
     flux get kustomizations -A

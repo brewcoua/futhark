@@ -1,5 +1,9 @@
 import '_kube.just'
 
+# List this module's recipes
+help:
+    @just --list bak
+
 # List backups and their status
 backups:
     velero backup get

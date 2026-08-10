@@ -1,5 +1,9 @@
 import '_common.just'
 
+# List this module's recipes
+help:
+    @just --list ops
+
 # Fully set up this machine as a futhark operator (packages + collections + hooks + tofu)
 setup: deps collections hooks _tf-init pass-session mesh
 

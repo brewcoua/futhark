@@ -1,5 +1,9 @@
 import '_common.just'
 
+# List this module's recipes
+help:
+    @just --list ans
+
 # Run the setup playbook, against one host or all of them
 [working-directory('ansible')]
 setup host='': render-secrets
