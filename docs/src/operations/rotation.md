@@ -443,8 +443,9 @@ check goes red after its grace period, which reads as a node fault and is not on
 
 ### The Storage Box SSH key
 
-The private half is in the `storagebox` item and inside `RCLONE_CONFIG` in Infisical
-`/infra/csi-rclone`, inlined as `key_pem`. Both move together.
+The private half is in the `storagebox` item and in `STORAGEBOX_KEY_PEM` in Infisical
+`/infra/csi-rclone`, from where `infra/storage/app/secret.yaml` templates it in as `key_pem`. Both
+move together.
 
 **Blast radius:** every `storagebox-crypt` mount fails at authentication. Pods with an existing
 mount keep it until they are rescheduled.
@@ -468,8 +469,8 @@ mount keep it until they are rescheduled.
    awk '{printf "%s\\n", $0}' < ~/.ssh/futhark-storagebox-new
    ```
 
-4. Update `key_pem` in `RCLONE_CONFIG` under `/infra/csi-rclone`, and the `ssh key` field of the
-   `storagebox` item.
+4. Update `STORAGEBOX_KEY_PEM` under `/infra/csi-rclone`, and the `ssh key` field of the
+   `storagebox` item. Nothing else in the config changes, and no other credential is touched.
 5. Confirm the operator synced the change through:
 
    ```bash

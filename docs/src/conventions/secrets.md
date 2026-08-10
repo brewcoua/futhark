@@ -352,6 +352,12 @@ Two manifests need this today: `cert-manager` (`api-key`) and `storage` (`config
 the manifest rather than bending the name in Infisical. The constraint belongs to the chart, so it
 should be visible next to the chart, not encoded as a mystery in a remote UI.
 
+The same block also handles a consumer that wants a **file** rather than a value. `backup`
+(`cloud`) and `storage` (`configData`) build an INI in the template and interpolate one Infisical
+secret per credential. Store the credentials, not the file: a config blob in Infisical hides its
+own structure from review, cannot be rotated a field at a time, and grants everything it contains
+at once.
+
 ## The secrets outside GitOps
 
 These exist to seed what Flux resolves for itself, so neither can come from Flux.

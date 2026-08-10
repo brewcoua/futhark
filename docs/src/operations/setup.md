@@ -171,14 +171,14 @@ Copy all three client ID and secret pairs into Proton Pass per the table above.
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
 
-| Folder                | Secrets                                                                        | Consumed by                                                                    |
-| --------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `/infra/cert-manager` | `BUNNY_API_KEY`                                                                | `infra/cert-manager/config/secret.yaml`                                        |
-| `/infra/csi-rclone`   | `RCLONE_CONFIG`                                                                | `infra/storage/app/secret.yaml`                                                |
-| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`   | `infra/monitoring/app/grafana/secret.yaml`                                     |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                               | `infra/auth/app/infisicalsecret.yaml`                                          |
-| `/infra/velero`       | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_SSE_C_KEY`, `KOPIA_REPOSITORY_PASSWORD` | `infra/backup/app/secret.yaml` and `secret-repo.yaml`, read as `backup-reader` |
-| `/nodes/kenaz/actual` | none, leave empty                                                              | written by `just tf apply oidc`                                                |
+| Folder                | Secrets                                                                                           | Consumed by                                                                    |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `/infra/cert-manager` | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                                        |
+| `/infra/csi-rclone`   | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                                                |
+| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`                                     |
+| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                                                  | `infra/auth/app/infisicalsecret.yaml`                                          |
+| `/infra/velero`       | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_SSE_C_KEY`, `KOPIA_REPOSITORY_PASSWORD`                    | `infra/backup/app/secret.yaml` and `secret-repo.yaml`, read as `backup-reader` |
+| `/nodes/kenaz/actual` | none, leave empty                                                                                 | written by `just tf apply oidc`                                                |
 
 `B2_KEY_ID` and `B2_APPLICATION_KEY` are placeholders for now. `tofu/b2` mints that key at step 8.
 The other two are yours to generate, both from `openssl rand -base64 32`. **Lose either and the
@@ -197,10 +197,10 @@ No NetBird credential appears in that table, and none should. Nothing inside the
 NetBird, and both PATs stay on the operator machine. `POCKETID_ENCRYPTION_KEY` is new material:
 `openssl rand -base64 32`.
 
-`RCLONE_CONFIG` is the one entry you cannot fill in yet. You assemble it by hand from `rclone`
-output, and `rclone` arrives with `just ops setup` at step 3, so create the folder now, leave the
-secret empty, and come back after that step. It also needs a Hetzner Storage Box and a Google
-OAuth client that nothing else in this bootstrap creates.
+`/infra/csi-rclone` is the one row you cannot fill in yet. Its values come from `rclone` output, and
+`rclone` arrives with `just ops setup` at step 3, so create the folder now, leave it empty, and come
+back after that step. It also needs a Hetzner Storage Box and a Google OAuth client that nothing
+else in this bootstrap creates.
 [The rclone remotes](rclone.md) is the whole procedure, end to end.
 
 ## 3. The operator machine
