@@ -50,6 +50,11 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           volumeMounts:
+            # Actual takes its migration lock at the data dir root, which readOnlyRootFilesystem
+            # makes unwritable; the two PVCs below nest inside this. Ephemeral on purpose — the
+            # lock is per-process, migration state itself lives in the server-files SQLite.
+            - name: data
+              mountPath: /data
             - name: server-files
               mountPath: /data/server-files
             - name: user-files
@@ -74,6 +79,8 @@ spec:
               cpu: 250m
               memory: 384Mi
       volumes:
+        - name: data
+          emptyDir: {}
         - name: server-files
           persistentVolumeClaim:
             claimName: actual-server-files

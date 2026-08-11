@@ -93,7 +93,9 @@ spec:
           memory: 32Mi
         limits:
           cpu: 100m
-          memory: 64Mi
+          # 64Mi OOMKilled the alerts sidecar on startup; its Python/kube-client baseline alone
+          # is over that.
+          memory: 128Mi
       alerts:
         enabled: true
         # Chart default is "both", which also watches Secrets. searchNamespace stays unset, so
