@@ -23,7 +23,7 @@ config:
             [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
           action: replace
           regex: ([^:]+)(?::\d+)?;(\d+)
-          replacement: $1:$2
+          replacement: $${1}:$${2}
           target_label: __address__
         - source_labels: [__meta_kubernetes_namespace]
           target_label: namespace
@@ -122,7 +122,7 @@ config:
         - source_labels: [__address__]
           action: replace
           regex: ([^:]+)(?::\d+)?
-          replacement: $1:9181
+          replacement: $${1}:9181
           target_label: __address__
         - target_label: instance
           replacement: traefik-edge

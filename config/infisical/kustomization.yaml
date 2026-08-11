@@ -3,7 +3,7 @@
 # Reusable Kustomize Component: stamps the Infisical project and environment onto every
 # InfisicalStaticSecret in the consuming overlay. Both values are global — one project, one
 # environment, for the whole cluster — so they live here once instead of being retyped in each
-# of the six manifests that pull a secret. Only `secretPath` stays per-app, because only it
+# of the seven manifests that pull a secret. Only `secretPath` stays per-app, because only it
 # actually varies.
 #
 # Consumers add `components: [../../../config/infisical]` and declare `sources` with a
