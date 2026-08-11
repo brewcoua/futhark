@@ -13,14 +13,15 @@ resource "netbird_dns_zone" "internal" {
   distribution_groups  = [netbird_group.admin.id]
 }
 
-# An A record to the Service's ClusterIP, reachable through netbird_route.k8s_services. The
-# address is read out of the HelmRelease that pins it (see variables.tf) rather than written
-# twice — but it does have to be pinned there, since a wildcard DNS record cannot follow an
-# address Kubernetes reassigns on every reinstall.
+# An A record to the ingress node's own mesh address, where traefik-internal binds 443 with
+# hostNetwork (infra/traefik-internal/app/helmrelease.yaml). A peer address needs no route: it is
+# reachable by every peer the policies allow, which is why this module advertises no CIDR of its
+# own. The address comes from refs.env, out of the `nodes` map roles/netbird writes after each
+# join, so nothing here is maintained by hand.
 resource "netbird_dns_record" "internal_wildcard" {
   zone_id = netbird_dns_zone.internal.id
   name    = "*.${netbird_dns_zone.internal.domain}"
   type    = "A"
-  content = local.traefik_internal_ip
+  content = var.mesh_ip
   ttl     = 300
 }

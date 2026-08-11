@@ -9,7 +9,8 @@ spec:
   dependsOn:
     - name: cert-manager-config
     - name: substitutions
-  # ${SUB_INTERNAL}.${DOMAIN} — certificate.yaml's commonName and dnsNames.
+  # ${SUB_INTERNAL}.${DOMAIN} — certificate.yaml's commonName and dnsNames — and ${MESH_IP}, the
+  # address app/helmrelease.yaml binds its entryPoints on.
   postBuild:
     substituteFrom:
       - kind: Secret

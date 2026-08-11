@@ -13,8 +13,8 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `cluster-values` Secret and `monitoring-sizing`                                           |
 | `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite, so its Deployment uses `strategy: Recreate` and never runs two pods at once                |
 | `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                         |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. An ordinary `ClusterIP`, reached over a mesh route                                                        |
-| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the edge node's own addresses                                                                                      |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. `hostNetwork: true`, bound to the ingress node's mesh address                                             |
+| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the ingress node's public address                                                                                  |
 | `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt over sftp) and `gdrive-crypt` (Google Drive, write-once media) |
 | `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                     |
 | `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                               |
@@ -23,34 +23,46 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 
 ## The two ingresses
 
-They are split because they solve different problems, and the split is why `traefik-edge` is
-the odd one out everywhere else in the tree.
+Two releases, not one, because they answer on different addresses under different trust
+assumptions. Both run `hostNetwork: true` on the same node, and that is why they are the odd ones
+out everywhere else in the tree. There is no LoadBalancer to hand either a Service address.
+MetalLB was considered and rejected, since it can only manage a real L2 or BGP-announced IP, not a
+mesh one.
 
-`traefik-internal` is an ordinary `ClusterIP` Service with a pinned address. Nothing in the
-cluster publishes it: [`tofu/netbird`](../tofu/netbird.md) advertises the whole service CIDR
-into the mesh and points the internal wildcard at that address, so ordinary `NetworkPolicy`
-still governs its traffic and there is no node IP to know or inject anywhere. Give an internal
+`traefik-internal` binds 443 on `${MESH_IP}`, the ingress node's mesh address. Give an internal
 `Ingress` the class `internal`. It never carries its own `tls:` block, because the wildcard is
-served as the default certificate.
+served as the default certificate. It has no Service at all, and [`tofu/netbird`](../tofu/netbird.md)
+points the internal wildcard record straight at that address. A peer address needs no route, which
+is the whole reason for the shape: the mesh reaches it natively.
 
-`traefik-edge` binds 80/443 directly on the edge node with `hostNetwork: true`. There is no
-LoadBalancer to hand it a Service address. MetalLB was considered and rejected, since it can only
-manage a real L2 or BGP-announced IP, not a mesh one. `hostNetwork` means it shares the
-node's network namespace, so CNI `NetworkPolicy` enforcement never sees its sockets and the
-`ingress-edge` baseline cannot govern it. What actually governs it is firewalld
-(`ansible/roles/firewall_ingress`) and Traefik's own rate limiting. See
-[Network policy](../conventions/network-policy.md).
+It used to be a pinned `ClusterIP` reached over a NetBird route that advertised the entire service
+CIDR. That path failed silently, with the route reporting `Selected` on the client and no packet
+ever crossing, and it cost a routing peer, `masquerade`, and a pinned address that had to stay
+inside `k8s_service_cidr`. None of that exists now.
 
-The addresses it binds are `${PUBLIC_IP}` and `${MESH_IP}`, substituted by
-`postBuild.substituteFrom` from the SOPS-encrypted `cluster-values` Secret in `config/sops/`.
-That Kustomization has no `dependsOn` on purpose: a substitution target has to exist before its
-consumers reconcile, and `infra-policies`, the obvious home for it, depends on `traefik-edge`.
+`traefik-edge` binds 443 on `${PUBLIC_IP}`, and its dashboard and metrics entryPoints on
+`${MESH_IP}`, so those stay off the public interface. It cannot bind 80: the ingress node's
+`net.ipv4.ip_unprivileged_port_start` is lowered only as far as 443
+(`ansible/roles/firewall_ingress`), and neither release binds a plaintext port. `traefik-internal`
+takes 8082 for its ping entryPoint because `traefik-edge` already holds 8081 on the mesh address.
+They share one network namespace, so every port either one binds is a port the other cannot.
 
-This release is the Secret's only consumer, and the reason it has to be one: `hostIP` in a pod
-spec takes no `fieldRef`, so an address bound there has to be written down. Where the same address
-was needed as data rather than as a bind target, it is discovered instead. The `traefik-edge`
-scrape job in `infra/monitoring` reads it off the API server, since a `hostNetwork` pod's
-`status.podIP` is the kubelet's `node-ip`, which `config.yaml.j2` sets to the mesh address.
+`hostNetwork` means CNI `NetworkPolicy` enforcement never sees either release's sockets, so
+neither the `ingress-edge` nor the `ingress-internal` baseline governs that traffic. What governs
+it is firewalld, the fact that the mesh address is only reachable from the mesh, and Traefik's own
+rate limiting. It is also why both `netpol-allow-from-ingress-*` templates are an `ipBlock` and
+not a `namespaceSelector`. See [Network policy](../conventions/network-policy.md).
+
+Both addresses are substituted by `postBuild.substituteFrom` from the SOPS-encrypted
+`cluster-values` Secret in `config/sops/`. That Kustomization has no `dependsOn` on purpose: a
+substitution target has to exist before its consumers reconcile, and `infra-policies`, the obvious
+home for it, depends on `traefik-edge`.
+
+These two releases are the Secret's only consumers of those keys, and the reason they have to be:
+`hostIP` in a pod spec takes no `fieldRef`, so an address bound there has to be written down.
+Where the same address is needed as data rather than as a bind target, it is discovered instead.
+Both Traefik scrape jobs in `infra/monitoring` read it off the API server, since a `hostNetwork`
+pod's `status.podIP` is the kubelet's `node-ip`, which `config.yaml.j2` sets to the mesh address.
 
 ## Monitoring
 

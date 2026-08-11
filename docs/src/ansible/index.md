@@ -41,9 +41,9 @@ the working directory `ansible.cfg` expects. See [Recipe reference](../operation
 different spellings of the same fact: the mesh range was a literal in fail2ban's `ignoreip`,
 a literal again in the mesh role's firewalld loop, and a hand-expanded regex in `k8s_cluster`'s
 assert. A constant with three spellings is three constants. The CIDRs specifically need three
-consumers to agree: `k8s_cluster` writes them into k3s's `config.yaml`, `tofu/netbird`
-reads `k8s_service_cidr` out of this file for the route it advertises into the mesh, and `netbird`
-needs the pod CIDR to scope its pod-to-mesh SNAT rule. `k8s_pod_cidr` is the cluster-wide `/16`,
+consumers to agree: `k8s_cluster` writes them into k3s's `config.yaml`, `netbird` trusts both in
+firewalld, and the same role needs the pod CIDR to scope its pod-to-mesh SNAT rule. `tofu/netbird`
+reads `mesh_cidr` out of this file for the account's network range. `k8s_pod_cidr` is the cluster-wide `/16`,
 the CNI carves a `/24` out of it per node, and the SNAT rule must match the `/16` or a peer's
 pods are not covered. All of these are private or RFC6598 ranges, not identifying, so
 they are plain literals.

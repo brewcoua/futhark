@@ -3,6 +3,12 @@
 #
 # Opt-in bridge: only for namespaces that actually expose an Ingress. Add this template to a
 # namespace's overlay whenever its app/ingress.yaml lands.
+#
+# ipBlock, not namespaceSelector, for exactly the reason spelled out in full in
+# netpol-allow-from-ingress-edge: traefik-internal is hostNetwork too (infra/traefik-internal/app/
+# helmrelease.yaml), so its connections carry the ingress node's own mesh address rather than a pod
+# identity in ingress-internal, a selector never matches, and every internal request would 502.
+# The CIDR is mesh_cidr from ansible/inventory/group_vars/all/network.yml.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -12,6 +18,5 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ingress-internal
+        - ipBlock:
+            cidr: 100.80.0.0/24

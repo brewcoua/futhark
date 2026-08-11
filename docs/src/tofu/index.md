@@ -30,9 +30,9 @@ loaded the section into the environment. No braces:
 [Secrets](../conventions/secrets.md).
 
 A genuinely non-identifying constant shared with other parts of the repository, such as the mesh
-and service CIDRs or `traefik-internal`'s pinned ClusterIP, is read straight from its committed
-source as a `local` rather than duplicated into `terraform.tfvars`. The domain is identifying, so
-it comes through `refs.env` instead. See [Domains](../conventions/domains.md).
+CIDR, is read straight from its committed source as a `local` rather than duplicated into
+`terraform.tfvars`. The domain and the node addresses are identifying, so they come through
+`refs.env` instead. See [Domains](../conventions/domains.md).
 
 **State stays local and gitignored.** `tofu/**/.terraform/`, `tofu/**/*.tfstate*` and
 `tofu/**/crash.log` are all excluded. A module's minted credentials can sit in state in plaintext
@@ -92,9 +92,8 @@ Flux Secret alike. Who owns what:
 | the domain and its subdomain labels | `config/sops/cluster.sops.yaml`            | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                |
 | the backup bucket and its region    | `config/sops/cluster.sops.yaml`            | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it. [`b2`](b2.md) provisions what it names |
 
-A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads
-the mesh CIDR, the cluster service CIDR and `traefik-internal`'s pinned ClusterIP straight out of
-the committed files that own them, as `local`s.
+A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads the
+mesh CIDR straight out of the committed file that owns it, as a `local`.
 
 `refs.env` holds only references, so it is committed in the clear even though both files it names
 are encrypted. Both seal to the same operator key, so resolving one costs no extra card touch. A
@@ -116,12 +115,12 @@ that touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify 
 
 ## Modules
 
-| Module                  | Manages                                                                                  |
-| ----------------------- | ---------------------------------------------------------------------------------------- |
-| [`bunny`](bunny.md)     | Public DNS records in the existing Bunny DNS zone                                        |
-| [`oidc`](oidc.md)       | Pocket ID OIDC clients, writing the minted secret into Infisical                         |
-| [`netbird`](netbird.md) | Mesh access policy, the route onto the cluster's service CIDR, and the internal DNS zone |
-| [`b2`](b2.md)           | The Backblaze B2 bucket Velero backs up to, and the application key it uses              |
+| Module                  | Manages                                                                     |
+| ----------------------- | --------------------------------------------------------------------------- |
+| [`bunny`](bunny.md)     | Public DNS records in the existing Bunny DNS zone                           |
+| [`oidc`](oidc.md)       | Pocket ID OIDC clients, writing the minted secret into Infisical            |
+| [`netbird`](netbird.md) | Mesh access policy, account settings, and the internal DNS zone             |
+| [`b2`](b2.md)           | The Backblaze B2 bucket Velero backs up to, and the application key it uses |
 
 What each touches. Every arrow into a secret store is a read except the one marked in red, which
 is the whole read-only rule and its single exception: `oidc` writes under a separate identity,

@@ -52,7 +52,7 @@ ns: "any namespace" {
 
 same: pods in the\nsame namespace
 mon: monitoring\n(scrape)
-int: "ingress-internal\n(traefik-internal)"
+int: "ingress-internal\n(traefik-internal, hostNetwork)"
 edge: "ingress-edge\n(traefik-edge, hostNetwork)"
 other: everything else { style.stroke-dash: 3 }
 
@@ -67,8 +67,9 @@ other -> ns.pods: "default-deny" {
 
 ns.pods -> anywhere: egress is never denied
 
-firewalld: "firewalld + Traefik rate limiting\nCNI policy never sees traefik-edge's sockets" { class: note }
+firewalld: "firewalld + Traefik rate limiting\nCNI policy never sees either Traefik's sockets" { class: note }
 firewalld -> edge { class: noteline }
+firewalld -> int { class: noteline }
 ```
 
 Kubernetes has no cluster-wide `NetworkPolicy`, so this is one overlay per namespace rather than
@@ -76,19 +77,25 @@ one file. Egress is left open everywhere: the secret operators call out to their
 cert-manager calls ACME, and apps call whatever they call. In a single-tenant homelab the risk
 that matters is inbound.
 
-One thing the baseline cannot cover: `traefik-edge` runs with `hostNetwork: true`, so it
-shares the node's network namespace and CNI policy enforcement never sees its sockets. The
-`ingress-edge` overlay exists and is correct, but it does not govern that traffic. What
-actually governs it is firewalld (`ansible/roles/firewall_ingress`, public zone limited to
-80/443 and the hardened SSH port) and Traefik's own rate limiting.
+One thing the baseline cannot cover: both Traefiks run with `hostNetwork: true`, so each shares
+the node's network namespace and CNI policy enforcement never sees its sockets. The
+`ingress-edge` and `ingress-internal` overlays exist and are correct, but they do not govern that
+traffic. What actually governs it is firewalld (`ansible/roles/firewall_ingress`, public zone
+limited to 443 and the hardened SSH port), the fact that the internal ingress binds a mesh address
+only peers can reach, and Traefik's own rate limiting.
 
-The same `hostNetwork` is why `netpol-allow-from-ingress-edge` is an `ipBlock` and not a
-`namespaceSelector`: those connections arrive as the edge node's own address, so a selector rule
-never matches and every request through the public edge returns 502. The block is the whole mesh
-CIDR from `ansible/inventory/group_vars/all/network.yml`, not the edge node's `/32`. `ipBlock`
-accepts only a literal, and a `/32` meant substituting an address that had to be maintained by hand
-in a second place. The rule therefore trusts every mesh peer, not only the edge; what bounds that
-is the NetBird policy in `tofu/netbird`, which decides which peers reach the cluster at all.
+The same `hostNetwork` is why both `netpol-allow-from-ingress-edge` and
+`netpol-allow-from-ingress-internal` are an `ipBlock` and not a `namespaceSelector`: those
+connections arrive as the ingress node's own address, so a selector rule never matches and every
+request through that ingress returns 502. The block is the whole mesh CIDR from
+`ansible/inventory/group_vars/all/network.yml`, not the node's `/32`. `ipBlock` accepts only a
+literal, and a `/32` meant substituting an address that had to be maintained by hand in a second
+place. The rules therefore trust every mesh peer, not only the ingress; what bounds that is the
+NetBird policy in `tofu/netbird`, which decides which peers reach the cluster at all.
+
+The two templates now hold the same rule, and stay separate anyway. They are two decisions that
+happen to agree: which one a namespace composes still records which ingress it expects traffic
+from, and either can change without dragging the other with it.
 
 ## Rate limiting
 

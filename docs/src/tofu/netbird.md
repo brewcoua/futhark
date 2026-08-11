@@ -1,17 +1,15 @@
 # netbird
 
-Declares the mesh: the NetBird account's own settings, its groups, every access rule, the route
-that puts the cluster's service CIDR on the mesh, and the DNS zone that resolves internal
-hostnames for peers. NetBird Cloud holds the control plane. Applying this module leaves an account
-whose access model matches this repository, with nothing configured by hand except the account
-itself, the two service users and their tokens.
+Declares the mesh: the NetBird account's own settings, its groups, every access rule, and the DNS
+zone that resolves internal hostnames for peers. NetBird Cloud holds the control plane. Applying
+this module leaves an account whose access model matches this repository, with nothing configured
+by hand except the account itself, the two service users and their tokens.
 
 | File          | Owns                                                                    |
 | ------------- | ----------------------------------------------------------------------- |
 | `settings.tf` | The account's peer DNS domain and network range                         |
 | `groups.tf`   | `node`, `k8s`, `admin`                                                  |
 | `policy.tf`   | Every accept rule, including the all-protocol one the pod overlay needs |
-| `route.tf`    | The cluster service CIDR, advertised into the mesh by the nodes         |
 | `dns.tf`      | The internal DNS zone and its wildcard record                           |
 
 ## Prerequisites
@@ -68,10 +66,10 @@ disturbing the other plane.
 
 What each role buys:
 
-| Token                | Calls                                              | Needs                                         |
-| -------------------- | -------------------------------------------------- | --------------------------------------------- |
-| `netbird-enrollment` | `GET /api/groups`, `POST /api/setup-keys`          | write on Setup Keys                           |
-| `netbird-policy`     | groups, policies, the route and the DNS zone below | write on Access Control, Network Routing, DNS |
+| Token                | Calls                                     | Needs                        |
+| -------------------- | ----------------------------------------- | ---------------------------- |
+| `netbird-enrollment` | `GET /api/groups`, `POST /api/setup-keys` | write on Setup Keys          |
+| `netbird-policy`     | groups, policies and the DNS zone below   | write on Access Control, DNS |
 
 Network Admin can read Setup Keys but cannot create one, so the enrollment user cannot drop to it.
 Admin is the lowest role that mints a setup key.
@@ -218,22 +216,24 @@ unset: setting it whitelists local usernames, which are identifying values this 
 not commit. Unset, every local account is reachable, gated by that account's own
 `authorized_keys` and by membership of `admin`.
 
-## The route and the DNS record
+## The DNS record
 
-Internal hostnames resolve to one address: the `traefik-internal` Service's ClusterIP, pinned in
-`infra/traefik-internal/app/helmrelease.yaml` and read straight out of that file by
-`variables.tf`. `netbird_route.k8s_services` makes that address reachable. The nodes advertise the
-whole service CIDR, NetBird fails the route over between them, and kube-proxy takes it from there.
+Internal hostnames resolve to one address: the mesh address of the node `traefik-internal` binds
+443 on with `hostNetwork` (`infra/traefik-internal/app/helmrelease.yaml`). It comes from
+`refs.env`, out of the `nodes` map in `config/sops/ops.sops.yaml` that `roles/netbird` writes after
+each join, so no copy of it is maintained by hand.
 
-Two couplings no single file can enforce:
+This module advertises no route. A peer's own address is reachable from every peer the policies
+allow, so nothing has to be routed for the record to work. Moving internal ingress to another node
+means updating the `nodeSelector` in that HelmRelease and the hostname in `refs.env`, then
+applying this module. Nothing detects disagreement between them, and the failure is a wildcard
+pointing at a node that answers nothing on 443.
 
-- The pinned ClusterIP has to stay inside `k8s_service_cidr`
-  (`ansible/inventory/group_vars/all/network.yml`), the range the route advertises.
-- `masquerade` on the route is load-bearing. Without it the reply is addressed to the client's
-  mesh address, which the answering pod has no route back to.
-
-`peer_groups` and `groups` on the route mean different things. `peer_groups` is who advertises the
-route, `groups` is who receives it.
+The predecessor was `netbird_route.k8s_services`, which advertised the whole cluster service CIDR
+so peers could reach a pinned `ClusterIP`. It needed `masquerade` for the reply path, a `/32`
+inside `k8s_service_cidr`, and both nodes as routing peers, and it broke in a way no control-plane
+surface showed: the client reported the route `Selected` while no packet crossed. The peer-address
+form has none of those parts.
 
 The internal zone sits under a different label of the same domain as the peer domain, because
 NetBird refuses a custom zone that conflicts with it. Off-mesh, an internal hostname does not

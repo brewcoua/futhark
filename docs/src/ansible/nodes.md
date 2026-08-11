@@ -67,19 +67,21 @@ public ingress is a one-line inventory change.
 
 The other planes are not so lucky. `public_ingress` gates the `firewall_ingress` role and nothing
 else. No tofu module and nothing in the Flux tree reads it, so the edge node is named independently
-in four more places, with nothing detecting disagreement between them. Moving public ingress means
-changing all five together:
+in five more places, with nothing detecting disagreement between them. Moving public ingress means
+changing all six together:
 
 | Where                                         | What names the edge node                                          |
 | --------------------------------------------- | ----------------------------------------------------------------- |
 | `ansible/nodes/<host>/host.yml`               | `public_ingress: true`, which opens 443 and lowers the port floor |
 | `config/sops/cluster.sops.yaml`               | `PUBLIC_IP` and `MESH_IP` must be that node's addresses           |
 | `tofu/bunny/refs.env`                         | `TF_VAR_edge_public_ip` reads `["nodes"][<host>]["ip"]`           |
+| `tofu/netbird/refs.env`                       | `TF_VAR_mesh_ip` reads `["nodes"][<host>]["mesh_ip"]`             |
 | `infra/traefik-edge/app/helmrelease.yaml`     | `nodeSelector`, required: the `hostIP`s exist only on that node   |
-| `infra/traefik-internal/app/helmrelease.yaml` | `nodeSelector`, by choice, to keep the stack on one node          |
+| `infra/traefik-internal/app/helmrelease.yaml` | `nodeSelector`, required for the same reason                      |
 
-Miss the `nodeSelector` and the edge pod sits `Pending`. Miss `PUBLIC_IP` and it never binds. Miss
-`refs.env` and the public `A` record points at the wrong host.
+Miss a `nodeSelector` and that Traefik pod sits `Pending`. Miss `PUBLIC_IP` and the edge never
+binds. Miss `tofu/bunny/refs.env` and the public `A` record points at the wrong host; miss
+`tofu/netbird/refs.env` and every internal hostname does.
 
 ## Adding a node
 

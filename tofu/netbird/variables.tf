@@ -17,19 +17,19 @@ variable "sub_nodes" {
   type        = string
 }
 
-# None of the three below is identifying — two k3s defaults and a cluster-internal address — so
-# they are read from their canonical files in the clear rather than through refs.env. A second
-# spelling of any of them is a second thing to get wrong: the route has to name the CIDR k3s
-# actually uses, the DNS record the address the Service actually holds, and the account's
-# network range the CIDR Ansible trusts in firewalld and fail2ban.
+# The ingress node's mesh address, for the internal wildcard record in dns.tf. Identifying, so it
+# comes from refs.env rather than in the clear like the CIDR below.
+variable "mesh_ip" {
+  description = "Mesh address of the node traefik-internal binds on."
+  type        = string
+}
+
+# The account's own network range, read from the file Ansible already uses it from rather than
+# spelled a second time here: it has to be the same range Ansible trusts in firewalld and fail2ban.
+# Not identifying, so it is read in the clear rather than through refs.env.
 locals {
-  network_yml = file("${path.module}/../../ansible/inventory/group_vars/all/network.yml")
-
-  mesh_cidr    = regex("(?m)^mesh_cidr: (\\S+)$", local.network_yml)[0]
-  service_cidr = regex("(?m)^k8s_service_cidr: (\\S+)$", local.network_yml)[0]
-
-  traefik_internal_ip = regex(
-    "(?m)^\\s+clusterIP: (\\S+)$",
-    file("${path.module}/../../infra/traefik-internal/app/helmrelease.yaml")
+  mesh_cidr = regex(
+    "(?m)^mesh_cidr: (\\S+)$",
+    file("${path.module}/../../ansible/inventory/group_vars/all/network.yml")
   )[0]
 }

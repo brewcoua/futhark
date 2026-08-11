@@ -387,11 +387,13 @@ you:
   cleanly and fails later, in traffic.
 
 This also sets the account's peer DNS domain and network range, so do it before any node joins. A
-peer registered under the old ones has to re-register. The DNS zone it creates resolves
-`*.$SUB_INTERNAL.$DOMAIN` to `traefik-internal`'s ClusterIP, which does not exist yet. That is
-fine and stays fine: the record is static, the Service address is pinned in
-`infra/traefik-internal/app/helmrelease.yaml`, and the name starts answering usefully once step 9
-brings the workload up.
+peer registered under the old ones has to re-register.
+
+The DNS zone it creates resolves `*.$SUB_INTERNAL.$DOMAIN` to the ingress node's mesh address,
+read from `["nodes"]["<host>"]["mesh_ip"]` per `tofu/netbird/refs.env`. That is why this step comes
+after step 7: the value is empty until `roles/netbird` records it, and an empty one fails the
+apply. Nothing answers on that address yet, which is fine. The record is static, and the name
+starts answering usefully once step 9 brings `traefik-internal` up on it.
 
 Then the bucket Velero backs up to, and the key it uses:
 

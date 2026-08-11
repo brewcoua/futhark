@@ -81,9 +81,6 @@ config:
         - source_labels: [__name__]
           action: drop
           regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
-    # traefik-internal has no hostNetwork/hostIP: it is an ordinary ClusterIP Service, reached
-    # from the mesh over a NetBird route (see infra/traefik-internal/app/helmrelease.yaml), so
-    # its metrics port is just an ordinary in-cluster Service too.
     # The chart names the metrics Service `velero` in its own namespace. node-agent exposes its
     # own metrics on the pods, but the backup/restore counters the alerts read are the server's.
     - job_name: velero
@@ -98,18 +95,37 @@ config:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           action: keep
           regex: http-monitoring
-    - job_name: traefik-internal
-      static_configs:
-        - targets: ["traefik-internal.ingress-internal.svc.cluster.local:9180"]
-          labels:
-            instance: traefik-internal
-    # traefik-edge is hostNetwork, so its status.podIP is the edge node's kubelet --node-ip, which
+    # Both Traefiks are discovered the same way, for the same reason: each is a hostNetwork pod, so
+    # its status.podIP is the node's kubelet --node-ip, which
     # ansible/roles/k8s_cluster/templates/config.yaml.j2 sets to the node's mesh IP. That is the
-    # address the metrics entryPoint binds to, so discovery finds it without the address being
-    # written down anywhere; this was a static ${MESH_IP} target out of the cluster-values Secret.
+    # address the metrics entryPoint binds to, so neither address is written down here.
     #
-    # role: pod, not endpoints — the chart's metrics Service targets a port on a hostNetwork pod,
-    # and a Service adds nothing here when there is exactly one replica pinned to one node.
+    # role: pod, not endpoints: the chart's metrics Service targets a port on a hostNetwork pod,
+    # and a Service adds nothing when there is exactly one replica pinned to one node.
+    # traefik-internal has no Service at all now. The discovered address carries whichever container
+    # port came first, so each job forces its own metrics port rather than silently scraping 443.
+    #
+    # This job used to be a static target at the traefik-internal Service's ClusterIP on 9180, which
+    # never scraped: the chart puts 9180 on a second Service, traefik-internal-metrics, while the
+    # one named exposed only 80/443.
+    - job_name: traefik-internal
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names: [ingress-internal]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: traefik
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $${1}:9180
+          target_label: __address__
+        - target_label: instance
+          replacement: traefik-internal
+    # Same shape as traefik-internal above, on the edge Traefik's own metrics port. This one was a
+    # static ${MESH_IP} target out of the cluster-values Secret before discovery replaced it.
     - job_name: traefik-edge
       kubernetes_sd_configs:
         - role: pod
@@ -119,8 +135,6 @@ config:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
           action: keep
           regex: traefik
-        # The discovered address carries whichever container port came first; force the metrics
-        # entryPoint's, so the job never silently scrapes 443 or the dashboard.
         - source_labels: [__address__]
           action: replace
           regex: ([^:]+)(?::\d+)?
