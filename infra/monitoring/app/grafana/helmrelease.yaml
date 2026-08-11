@@ -58,7 +58,9 @@ spec:
       backup.velero.io/backup-volumes: storage
     # local-path is single-node hostPath; a rolling update can schedule the new pod before the
     # old one releases the volume. Recreate avoids two grafana.db writers.
-    strategy:
+    # `deploymentStrategy`, not `strategy`: the chart ignores the latter silently, and a rolling
+    # update deadlocks — helm waits for a new pod that RollingUpdate won't let start.
+    deploymentStrategy:
       type: Recreate
     admin:
       existingSecret: grafana
