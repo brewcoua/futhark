@@ -5,6 +5,9 @@ metadata:
   name: actual-config
   namespace: actual
 data:
+  # Default is ${ACTUAL_DATA_DIR}/server-files; flattened onto the data dir itself so the
+  # server-files PVC covers both account.sqlite and the `.migrate` state file at the root.
+  ACTUAL_SERVER_FILES: /data
   ACTUAL_OPENID_SERVER_HOSTNAME: https://actual.${SUB_INTERNAL}.${DOMAIN}
   # ACTUAL_OPENID_CLIENT_ID is deliberately absent: Pocket ID generates the client ID, so it
   # arrives with the client secret through actual-secrets. See tofu/oidc/clients.tf.

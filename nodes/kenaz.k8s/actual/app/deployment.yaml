@@ -50,13 +50,13 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           volumeMounts:
-            # Actual takes its migration lock at the data dir root, which readOnlyRootFilesystem
-            # makes unwritable; the two PVCs below nest inside this. Ephemeral on purpose — the
-            # lock is per-process, migration state itself lives in the server-files SQLite.
-            - name: data
-              mountPath: /data
+            # The data dir root must be writable AND persistent: Actual takes its migration lock
+            # here, and `migrate` keeps its applied-migration state in a plain `.migrate` file
+            # here too, not in the SQLite. On an ephemeral root every restart replays every
+            # migration against an already-migrated DB and crashes. ACTUAL_SERVER_FILES pins
+            # account.sqlite to this same root — see configmap.yaml.
             - name: server-files
-              mountPath: /data/server-files
+              mountPath: /data
             - name: user-files
               mountPath: /data/user-files
             - name: tmp
@@ -79,8 +79,6 @@ spec:
               cpu: 250m
               memory: 384Mi
       volumes:
-        - name: data
-          emptyDir: {}
         - name: server-files
           persistentVolumeClaim:
             claimName: actual-server-files
