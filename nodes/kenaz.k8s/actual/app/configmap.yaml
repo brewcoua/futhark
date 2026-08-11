@@ -6,7 +6,8 @@ metadata:
   namespace: actual
 data:
   ACTUAL_OPENID_SERVER_HOSTNAME: https://actual.${SUB_INTERNAL}.${DOMAIN}
-  ACTUAL_OPENID_CLIENT_ID: actual
+  # ACTUAL_OPENID_CLIENT_ID is deliberately absent: Pocket ID generates the client ID, so it
+  # arrives with the client secret through actual-secrets. See tofu/oidc/clients.tf.
   ACTUAL_OPENID_ENFORCE: "true"
   # First OIDC login becomes the server owner automatically, no manual promotion step.
   ACTUAL_USER_CREATION_MODE: "login"

@@ -8,12 +8,21 @@ It is the one module allowed to write to a secret store. See the write exception
 
 ## What it manages
 
-One `pocketid_client` + `infisical_secret` pair per app, in `clients.tf`. Add a new pair
-following the existing block's shape as each app adopts OIDC login.
+One `pocketid_client` plus two `infisical_secret` resources per app, in `clients.tf`. Add a new
+group following the existing blocks' shape as each app adopts OIDC login.
 
-Each app owns its own non-secret OIDC config, meaning the client ID, discovery URL and hostname,
-in its own ConfigMap. This module only produces the one thing that cannot be committed: the client
-secret.
+Each app owns its static OIDC config, meaning the discovery URL and hostname, in its own
+ConfigMap. This module produces the two values that cannot be committed alongside them:
+
+- The client secret.
+- The client ID. It is not secret, but Pocket ID generates it, so only the apply knows its value.
+  The provider's optional `client_id` argument applies at create time only, so pinning it on an
+  existing client has no effect.
+
+Both are written to the app's Infisical folder, and the app's `InfisicalStaticSecret` syncs that
+folder into a Secret the Deployment consumes with `envFrom`. An app whose ConfigMap hardcodes a
+client ID that Pocket ID never issued fails every login with `The requested OAuth 2.0 Client does
+not exist.`
 
 ```bash
 just tf init oidc
