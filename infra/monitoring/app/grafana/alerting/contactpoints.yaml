@@ -1,7 +1,8 @@
 ---
-# $${VAR} (not ${VAR}): Flux's postBuild substitution runs over the generated ConfigMap and would
-# blank an undefined ${SLACK_WEBHOOK_URL}. `$$` escapes it to the literal ${VAR} that Grafana's
-# own env expansion then reads, from the secret mounted by helmrelease.yaml's envFromSecret.
+# Env references are written $${VAR}: Flux's postBuild substitution runs over the generated
+# ConfigMap — comments included, so an unescaped one errors here rather than in Grafana — and
+# `$$` escapes it to the literal reference that Grafana's own env expansion then reads, from the
+# secret mounted by helmrelease.yaml's envFromSecret.
 apiVersion: 1
 contactPoints:
   - orgId: 1
