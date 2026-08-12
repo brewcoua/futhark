@@ -1,0 +1,14 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Split from ks.yaml for one reason: no postBuild. Dashboard JSON is full of Grafana's own
+# `${namespace}`-style interpolations, and envsubst reads them as unset cluster variables. On
+# `${__field.labels.node}` it does not even blank them, it fails the whole build with
+# "missing closing brace".
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monitoring-dashboards
+spec:
+  path: ./infra/monitoring/app/grafana/dashboards
+  dependsOn:
+    - name: monitoring

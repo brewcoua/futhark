@@ -16,3 +16,4 @@ docs/book/
 
 # Local configs
 .claude
+.tmp

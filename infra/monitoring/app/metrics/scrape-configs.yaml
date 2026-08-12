@@ -7,6 +7,11 @@ config:
   global:
     # Prometheus default is 15s; 60s roughly quarters ingestion/storage load on this homelab.
     scrape_interval: 60s
+    # Stamped on every series at remote_write. One cluster, one value — it exists because the
+    # Kubernetes dashboards in grafana/dashboards/ select `cluster="$cluster"` on every query,
+    # and nothing else in this stack emits the label.
+    external_labels:
+      cluster: futhark
   scrape_configs:
     - job_name: kubernetes-pods
       kubernetes_sd_configs:
@@ -59,28 +64,62 @@ config:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           action: keep
           regex: http
+    # The kubelet's own two endpoints, scraped directly on 10250 rather than through the
+    # apiserver's /api/v1/nodes/<node>/proxy/ path. The two authorize against different
+    # subresources: the proxy path needs `nodes/proxy`, which the chart's ClusterRole does not
+    # grant — this job answered 403 and scraped nothing at all — while a direct scrape needs
+    # `nodes/metrics`, which it does. insecure_skip_verify because the kubelet's cert is
+    # self-signed.
     - job_name: cadvisor
       scheme: https
       kubernetes_sd_configs:
         - role: node
       tls_config:
-        ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         insecure_skip_verify: true
       bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
       relabel_configs:
-        - target_label: __address__
-          replacement: kubernetes.default.svc:443
-        # Regex captures are written $${1} — vmagent's own syntax, not a Flux cluster var, and
-        # the escape is mandatory: Flux's strict envsubst runs over this whole file, comments
-        # included, and errors on any unescaped capture it reads as an unset variable.
+        # Regex captures are written $${1} — vmagent's own syntax, not a Flux cluster var, and the
+        # escape is mandatory: Flux's substitution runs over this whole file, comments included.
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $${1}:10250
+          target_label: __address__
+        - target_label: __metrics_path__
+          replacement: /metrics/cadvisor
+        # cadvisor carries no node of its own, and `node` is what the Kubernetes dashboards select
+        # on. `instance` matches the node-exporter job's, so a node reads the same in both.
         - source_labels: [__meta_kubernetes_node_name]
-          regex: (.+)
-          target_label: __metrics_path__
-          replacement: /api/v1/nodes/$${1}/proxy/metrics/cadvisor
+          target_label: node
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: instance
       metric_relabel_configs:
         - source_labels: [__name__]
           action: drop
           regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
+    # Same endpoint minus /cadvisor: the kubelet's own metrics, kept down to the PVC gauges. The
+    # raw endpoint is ~76k samples per node per scrape and would outweigh every other job here.
+    - job_name: kubelet
+      scheme: https
+      kubernetes_sd_configs:
+        - role: node
+      tls_config:
+        insecure_skip_verify: true
+      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+      relabel_configs:
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $${1}:10250
+          target_label: __address__
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: node
+        - source_labels: [__meta_kubernetes_node_name]
+          target_label: instance
+      metric_relabel_configs:
+        - source_labels: [__name__]
+          action: keep
+          regex: kubelet_volume_stats_.*
     # The chart names the metrics Service `k8up-metrics` in its own namespace. The job counters
     # the alerts read are the operator's — the backup Jobs it creates run in the backed up
     # namespaces and expose nothing themselves.

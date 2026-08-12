@@ -1,0 +1,50 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# One ConfigMap per dashboard: a ConfigMap caps at 1 MiB and nodes.json is 455 KB on its own.
+# `grafana_folder` is the annotation the dashboards sidecar turns into the Grafana folder.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+configMapGenerator:
+  - name: grafana-dashboard-nodes
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Infrastructure
+    files:
+      - nodes.json
+  - name: grafana-dashboard-traefik
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Infrastructure
+    files:
+      - traefik.json
+  - name: grafana-dashboard-k8s-global
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Kubernetes
+    files:
+      - k8s-global.json
+  - name: grafana-dashboard-k8s-namespaces
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Kubernetes
+    files:
+      - k8s-namespaces.json
+  - name: grafana-dashboard-k8s-pods
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Kubernetes
+    files:
+      - k8s-pods.json
+generatorOptions:
+  disableNameSuffixHash: true

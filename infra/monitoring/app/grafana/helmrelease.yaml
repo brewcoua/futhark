@@ -1,8 +1,8 @@
 ---
-# Primary dashboard + alerting UI. Datasources are provisioned here (editable: false); contact
-# points, notification policies and alert rules are in alerting/, delivered by the chart's
-# alerts sidecar. Dashboards stay UI-managed, which is why the volume is backed up — grafana.db
-# is the only copy of anything drawn in the UI.
+# Primary dashboard + alerting UI. Everything Grafana serves is provisioned from git: datasources
+# here (editable: false), contact points/notification policies/alert rules from alerting/, and
+# dashboards from dashboards/ — the last two through the chart's sidecars, one ConfigMap per
+# concern, generated in kustomization.yaml.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -50,7 +50,10 @@ spec:
       enabled: true
       storageClassName: local-path
       size: ${GRAFANA_STORAGE}
-      # Opts grafana.db into the nightly backup. VictoriaMetrics and VictoriaLogs deliberately
+      # Opts grafana.db into the nightly backup. Dashboards and alert rules come from git now, so
+      # what is actually irreplaceable in there is the state Grafana owns itself: alert instance
+      # state, silences, annotations, and the user/org table.
+      # VictoriaMetrics and VictoriaLogs deliberately
       # carry no equivalent: both already expire their own data
       # (${VM_RETENTION}/${VL_RETENTION}), and metrics worth B2 egress is not a trade this
       # cluster makes. See docs/src/operations/recovery.md.
@@ -119,6 +122,21 @@ spec:
         # Chart default is "both", which also watches Secrets. searchNamespace stays unset, so
         # the sidecar only looks in its own namespace.
         resource: configmap
+      # Dashboards come from dashboards/*.json, one ConfigMap each, reconciled by their own
+      # Kustomization (infra/monitoring/dashboards-ks.yaml). The sidecar writes each into
+      # /var/lib/grafana/dashboards/<grafana_folder>/, and foldersFromFilesStructure is what turns
+      # that directory back into the Grafana folder.
+      dashboards:
+        enabled: true
+        resource: configmap
+        label: grafana_dashboard
+        labelValue: "1"
+        folderAnnotation: grafana_folder
+        provider:
+          # A UI edit would be overwritten on the next sync anyway; refusing the save says so
+          # instead of losing the work silently.
+          allowUiUpdates: false
+          foldersFromFilesStructure: true
     rbac:
       # Chart default (namespaced: false) hands the sidecar configmaps+secrets read across the
       # whole cluster. Namespaced instead — but the chart's Role omits the read rule for the
@@ -129,9 +147,34 @@ spec:
         - apiGroups: [""]
           resources: ["configmaps"]
           verbs: ["get", "watch", "list"]
-    # No dashboardProviders/dashboards block: dashboards stay UI-managed, not git.
-    # Unauthenticated on the mesh until auth.generic_oauth is pointed at Pocket ID — see
-    # docs/src/conventions/domains.md.
+    # Login against Pocket ID. tofu/oidc registers the client and writes GRAFANA_OIDC_CLIENT_ID
+    # and _SECRET into /infra/monitoring, the folder secret.yaml already syncs, so both arrive as
+    # environment through envFromSecret above. $__env{} keeps them out of the rendered ConfigMap.
+    #
+    # The local admin login stays enabled: Pocket ID is edge-exposed and Grafana is mesh-only, so
+    # an outage there must not lock the operator out of the alerting UI.
+    grafana.ini:
+      server:
+        # Grafana builds the OAuth redirect URI from this. Wrong here is an invalid_request at the
+        # callback, with nothing in Grafana's own logs.
+        root_url: https://dash.${SUB_INTERNAL}.${DOMAIN}
+      auth.generic_oauth:
+        enabled: true
+        name: Pocket ID
+        icon: signin
+        client_id: $__env{GRAFANA_OIDC_CLIENT_ID}
+        client_secret: $__env{GRAFANA_OIDC_CLIENT_SECRET}
+        # Without the `groups` scope the claim role_attribute_path reads is absent, and every
+        # login is refused by the strict flag below.
+        scopes: openid profile email groups
+        auth_url: https://auth.${DOMAIN}/authorize
+        token_url: https://auth.${DOMAIN}/api/oidc/token
+        api_url: https://auth.${DOMAIN}/api/oidc/userinfo
+        use_pkce: true
+        # The groups are fleet-wide, in tofu/oidc/groups.tf.
+        role_attribute_path: contains(groups[*], 'administrators') && 'Admin' || contains(groups[*], 'users') && 'Viewer'
+        # A user in neither group is refused rather than admitted with a default role.
+        role_attribute_strict: true
     ingress:
       enabled: true
       ingressClassName: internal

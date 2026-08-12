@@ -99,10 +99,43 @@ defaults (5m and 4h) mean the healthchecks.io ping lands about every four hours.
 to match the rule, because Alertmanager flushes on `group_interval` ticks and requires
 `repeat_interval` to be at least as long.
 
+**Dashboards are in `grafana/dashboards/`**, one JSON file each, generated into one ConfigMap
+per dashboard labelled `grafana_dashboard: "1"` and annotated `grafana_folder` with the Grafana
+folder to file it under. The chart's dashboards sidecar writes each into
+`/var/lib/grafana/dashboards/<folder>/`, and `foldersFromFilesStructure` turns that directory back
+into the folder name. `allowUiUpdates: false`, so Grafana refuses a UI edit rather than accepting
+one the next sync would overwrite.
+
+They are reconciled by their own Flux `Kustomization`, `infra/monitoring/dashboards-ks.yaml`,
+whose only distinguishing feature is that it has no `postBuild`. Dashboard JSON is full of
+Grafana's own `${namespace}`-style interpolations. `postBuild` substitution would blank the ones
+it reads as undefined cluster variables, and on `${__field.labels.node}` it does not get that
+far: the build fails with `envsubst error: variable substitution failed: missing closing brace`.
+Do not fold this directory back into the `monitoring` Kustomization, and do not escape the JSON
+to make that possible.
+
+Adding a dashboard is three steps: drop the JSON in `grafana/dashboards/`, add a
+`configMapGenerator` entry for it, and point `grafana_folder` at a folder. Pin the datasource by
+its provisioned uid (`victoriametrics` or `victorialogs`) instead of shipping a `datasource`
+template variable, so a dashboard cannot be pointed at the wrong store by a stray dropdown.
+
 `vmagent`'s scrape targets are in `metrics/scrape-configs.yaml`, merged into the release with
 `valuesFrom` rather than kept inline, so adding a target does not mean editing a `HelmRelease`.
 One file, not one per job: Flux merges `valuesFrom` entries with arrays replaced, so two
 ConfigMaps each holding `scrape_configs` would silently clobber each other.
+
+The `cadvisor` and `kubelet` jobs scrape each node's kubelet directly on port 10250, not through
+the API server's `/api/v1/nodes/<node>/proxy/` path. The proxy path authorizes against
+`nodes/proxy`, which the vmagent chart's `ClusterRole` does not grant, so it answered `403` and
+collected no `container_*` metrics at all. A direct scrape authorizes against `nodes/metrics`,
+which the chart does grant. Both jobs relabel `node` and `instance` from the discovered node
+name, because cadvisor carries neither and the dashboards select on `node`. The `kubelet` job
+keeps only `kubelet_volume_stats_*`; the full endpoint is around 76,000 samples per node per
+scrape.
+
+`config.global.external_labels` stamps `cluster` on every series. It exists because the
+Kubernetes dashboards select `cluster="$cluster"` on every query and nothing else here emits that
+label.
 
 Retention and volume size for both stores are in
 `infra/substitutions/app/monitoring-sizing.yaml`, reaching the releases as `${VM_RETENTION}` and

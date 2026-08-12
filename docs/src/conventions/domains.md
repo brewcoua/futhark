@@ -78,9 +78,9 @@ of an internal app needs an oauth2-proxy (or equivalent) bridge wired to Pocket 
 that lands, mesh membership is the only access control these hosts have.
 
 An app that speaks OIDC itself needs no bridge. It registers a client in `tofu/oidc` and
-authenticates against Pocket ID directly. Grafana is the near-term case: `auth.generic_oauth`
-is the natural fit and is not configured yet. `vmsingle` has no such option and waits on the
-bridge.
+authenticates against Pocket ID directly. Grafana does this through `auth.generic_oauth`, mapping
+the `administrators` and `users` groups to Admin and Viewer. `vmsingle` has no such option and
+waits on the bridge, so its host is still mesh-membership-only.
 
 ## One thing that will bite you
 
