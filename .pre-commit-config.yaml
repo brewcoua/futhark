@@ -39,7 +39,7 @@ repos:
     hooks:
       - id: fix-smartquotes
   - repo: https://github.com/ansible/ansible-lint
-    rev: v26.6.0
+    rev: v26.8.0
     hooks:
       - id: ansible-lint
         entry: bash -c 'cd ansible && ansible-galaxy collection install -r requirements.yml && ansible-lint'
