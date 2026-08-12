@@ -86,11 +86,11 @@ TF_VAR_domain=config/sops/cluster.sops.yaml#["stringData"]["DOMAIN"]
 The expression goes to `sops --extract` verbatim, so one line shape reaches a node fact and a
 Flux Secret alike. Who owns what:
 
-| Value                               | Owner                                      | Why                                                                                                                                                      |
-| ----------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| node addresses                      | `config/sops/ops.sops.yaml`, under `nodes` | `roles/netbird` writes each node's `mesh_ip` back into it after a mesh join, so it is recorded where it is discovered                                    |
-| the domain and its subdomain labels | `config/sops/cluster.sops.yaml`            | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                |
-| the backup bucket and its region    | `config/sops/cluster.sops.yaml`            | Velero's `BackupStorageLocation` is a CR whose bucket is fixed when Flux renders it, so that file has to hold it. [`b2`](b2.md) provisions what it names |
+| Value                               | Owner                                      | Why                                                                                                                                                           |
+| ----------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| node addresses                      | `config/sops/ops.sops.yaml`, under `nodes` | `roles/netbird` writes each node's `mesh_ip` back into it after a mesh join, so it is recorded where it is discovered                                         |
+| the domain and its subdomain labels | `config/sops/cluster.sops.yaml`            | Flux substitutes the same keys into manifests, and Ansible reads them too                                                                                     |
+| the backup bucket and its region    | `config/sops/cluster.sops.yaml`            | Flux substitutes both into K8up's operator environment when it renders the HelmRelease, so that file has to hold them. [`b2`](b2.md) provisions what it names |
 
 A value that is neither identifying nor secret needs no reference at all: `tofu/netbird` reads the
 mesh CIDR straight out of the committed file that owns it, as a `local`.
@@ -115,12 +115,12 @@ that touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify 
 
 ## Modules
 
-| Module                  | Manages                                                                     |
-| ----------------------- | --------------------------------------------------------------------------- |
-| [`bunny`](bunny.md)     | Public DNS records in the existing Bunny DNS zone                           |
-| [`oidc`](oidc.md)       | Pocket ID OIDC clients, writing the minted secret into Infisical            |
-| [`netbird`](netbird.md) | Mesh access policy, account settings, and the internal DNS zone             |
-| [`b2`](b2.md)           | The Backblaze B2 bucket Velero backs up to, and the application key it uses |
+| Module                  | Manages                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------- |
+| [`bunny`](bunny.md)     | Public DNS records in the existing Bunny DNS zone                                         |
+| [`oidc`](oidc.md)       | Pocket ID OIDC clients, writing the minted secret into Infisical                          |
+| [`netbird`](netbird.md) | Mesh access policy, account settings, and the internal DNS zone                           |
+| [`b2`](b2.md)           | The Backblaze B2 bucket the restic repository lives in, and the application key K8up uses |
 
 What each touches. Every arrow into a secret store is a read except the one marked in red, which
 is the whole read-only rule and its single exception: `oidc` writes under a separate identity,
@@ -162,7 +162,7 @@ sops -> modules: identifying values\n(ops.sops.yaml, refs.env)
 modules.bunny -> bunny-api: DNS records
 modules.netbird -> nb-api: policies, route, DNS zone
 modules.oidc -> pocketid: OIDC clients
-modules.b2 -> b2-api: bucket, Velero's key
+modules.b2 -> b2-api: bucket, K8up's key
 modules.b2 -> b2-state: "its own state, encrypted\n(the one remote backend)"
 
 bunny-api: Bunny DNS API { class: external }

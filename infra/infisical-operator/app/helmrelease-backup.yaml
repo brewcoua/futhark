@@ -34,4 +34,4 @@ spec:
     scopedRBAC: true
     scopedNamespaces:
       - infisical-backup
-      - velero
+      - k8up

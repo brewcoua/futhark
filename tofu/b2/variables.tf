@@ -1,10 +1,10 @@
 # Declared in this module's refs.env and read from config/sops/cluster.sops.yaml at plan/apply time —
-# that file is the canonical record, because Velero's BackupStorageLocation is a CR whose bucket is
-# fixed when the manifest renders, so Flux has to have it. Not held in this module's own
+# that file is the canonical record, because Flux substitutes the bucket into K8up's operator
+# environment when the HelmRelease renders, so Flux has to have it. Not held in this module's own
 # `tofu.b2` section: a second encrypted copy of the same name drifts silently, and it would also
 # *win*, since a module's own values are exported after the refs.
 variable "backups_bucket" {
-  description = "Name of the B2 bucket Velero writes to — same value Flux substitutes into $${B2_BUCKET}."
+  description = "Name of the B2 bucket K8up's restic repository lives in — same value Flux substitutes into $${B2_BUCKET}."
   type        = string
   validation {
     condition     = length(var.backups_bucket) > 0
@@ -27,8 +27,8 @@ variable "state_passphrase" {
 
 # Also from config/sops/cluster.sops.yaml. A B2 bucket has no region argument — the region is a fact
 # of the account, fixed when it was created — so nothing here sets it. It is declared because the
-# S3 endpoint derives from it, for this module's own backend and for Velero's s3Url alike, and
-# account.tf asserts the account agrees.
+# S3 endpoint derives from it, for this module's own backend and for restic's repository URL alike,
+# and account.tf asserts the account agrees.
 variable "region" {
   description = "B2 region, e.g. eu-central-003. Not a bucket setting — the S3 endpoint derives from it."
   type        = string

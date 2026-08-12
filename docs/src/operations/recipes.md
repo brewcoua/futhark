@@ -113,21 +113,23 @@ so you do not need it in your environment. Re-converging the cluster is `just an
 
 ## `bak`, backups
 
-| Recipe                        | Does                                                          |
-| ----------------------------- | ------------------------------------------------------------- |
-| `bak backups`                 | Every backup and its status                                   |
-| `bak restores`                | Every restore and its status                                  |
-| `bak schedules`               | Schedules, and when each last ran                             |
-| `bak describe <backup>`       | What a backup contains, including which volumes it copied     |
-| `bak logs <backup>`           | A backup's log                                                |
-| `bak now`                     | Run the daily schedule immediately                            |
-| `bak restore <ns> [<backup>]` | **Wipes** the namespace's `local-path` PVCs and restores them |
+| Recipe                | Does                                                          |
+| --------------------- | ------------------------------------------------------------- |
+| `bak schedules`       | Every Schedule and the jobs it most recently produced         |
+| `bak snapshots`       | Every restic snapshot, and which volume it holds              |
+| `bak jobs`            | Backup, check and prune jobs, newest last                     |
+| `bak logs <job> <ns>` | A job's log, including restic's summary of what it copied     |
+| `bak now <ns>`        | Back up a namespace immediately                               |
+| `bak restore <ns>`    | **Wipes** the namespace's `local-path` PVCs and restores them |
+
+A snapshot carries no size, so a run that copied nothing looks like one that worked. `bak logs` is
+where the file and byte counts are.
 
 `bak restore` deletes data. It prints which PVCs it will destroy and which it will leave alone,
 and requires you to type the namespace back before it proceeds. Only `local-path` PVCs are ever
-wiped, so the rclone-backed classes are never touched. It is deliberately not reachable from any other recipe. The backup defaults to the
-newest completed one. [Backup and recovery](recovery.md) covers what it does behind that prompt,
-and why a hand-run `velero restore` is not equivalent.
+wiped, so the rclone-backed classes are never touched. It is deliberately not reachable from any
+other recipe, and restores the newest snapshot of each volume. [Backup and recovery](recovery.md)
+covers what it does behind that prompt, and why a hand-written `Restore` is not equivalent.
 
 ## `tf`, the cloud plane
 

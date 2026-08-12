@@ -1,0 +1,30 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/k8up-io/k8up/master/config/crd/apiextensions.k8s.io_v1_customresourcedefinition_schedules.k8up.io.yaml
+#
+# Repository maintenance, which is a property of the bucket and not of any one namespace: there
+# is one restic repository behind every Schedule, so a prune run from `auth` would forget
+# snapshots belonging to `monitoring` just the same. Running it once, from the operator's own
+# namespace, is both correct and avoids three jobs contending for restic's exclusive prune lock.
+#
+# It backs nothing up — there are no annotated PVCs here — so it carries no backup block.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: maintenance
+  namespace: k8up
+spec:
+  # Reads every pack file and verifies it against the index. This is the only thing that catches
+  # bit rot or a truncated upload, and it catches it while there is still an older snapshot to
+  # fall back on rather than at restore time.
+  check:
+    schedule: "0 4 * * 0"
+  prune:
+    schedule: "0 5 * * 0"
+    # Deliberately generous: the three volumes in scope total a few megabytes once the excludes
+    # in each app's PVC annotation are applied, so depth costs almost nothing. B2's
+    # days_from_hiding_to_deleting = 30 (tofu/b2/buckets.tf) means a prune reclaims no billed
+    # storage for a further 30 days either way.
+    retention:
+      keepDaily: 14
+      keepWeekly: 8
+      keepMonthly: 6

@@ -81,20 +81,21 @@ config:
         - source_labels: [__name__]
           action: drop
           regex: (container_tasks_state|container_memory_failures_total|container_fs_.*)
-    # The chart names the metrics Service `velero` in its own namespace. node-agent exposes its
-    # own metrics on the pods, but the backup/restore counters the alerts read are the server's.
-    - job_name: velero
+    # The chart names the metrics Service `k8up-metrics` in its own namespace. The job counters
+    # the alerts read are the operator's — the backup Jobs it creates run in the backed up
+    # namespaces and expose nothing themselves.
+    - job_name: k8up
       kubernetes_sd_configs:
         - role: endpoints
           namespaces:
-            names: [velero]
+            names: [k8up]
       relabel_configs:
         - source_labels: [__meta_kubernetes_service_name]
           action: keep
-          regex: velero
+          regex: k8up-metrics
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           action: keep
-          regex: http-monitoring
+          regex: http
     # Both Traefiks are discovered the same way, for the same reason: each is a hostNetwork pod, so
     # its status.podIP is the node's kubelet --node-ip, which
     # ansible/roles/k8s_cluster/templates/config.yaml.j2 sets to the node's mesh IP. That is the

@@ -118,7 +118,7 @@ plan module:
     pass-cli run -- tofu plan
 
 # Variadic like `output`, so the flags a rotation needs reach tofu: `just tf apply b2
-# -replace=b2_application_key.velero` mints a new Velero key, per docs/src/operations/rotation.md.
+# -replace=b2_application_key.k8up` mints a new B2 key, per docs/src/operations/rotation.md.
 
 # Apply a tofu module
 apply module *args:
@@ -134,7 +134,7 @@ apply module *args:
 
 # Same composition as plan/apply, because a module whose state is remote cannot be read without
 # authenticating against the backend first. Variadic, so the flags reach tofu: `just tf output b2
-# -raw velero_b2_key_id`.
+# -raw k8up_b2_key_id`.
 
 # Read a module's outputs
 output module *args:

@@ -203,7 +203,7 @@ Worth stating, because the absence is easy to mistake for coverage:
   fails later, in traffic. The [isolating test](../ansible/networking.md#the-isolating-test) is
   the substitute.
 - **Credential expiry.** Nothing watches it. See above.
-- **Backups that copied nothing.** A backup with zero volumes still reports `Completed`.
-  `just bak describe <backup>` is the check, and the 26h alert in
-  `infra/monitoring/app/grafana/alerting/backup.yaml` is the backstop. See
-  [Backup and recovery](recovery.md).
+- **Backups that copied nothing.** A malformed exclude annotation makes K8up skip that PVC and
+  the job still succeeds. `just bak snapshots` is the check, and the 26h alert in
+  `infra/monitoring/app/grafana/alerting/backup.yaml` is the backstop only for a namespace that
+  stopped entirely. See [Backup and recovery](recovery.md).

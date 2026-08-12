@@ -3,4 +3,37 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - schedule.yaml
+  - schedules.yaml
+  - schedule-maintenance.yaml
+# The defaults every Schedule shares, patched in here so each one states only its namespace —
+# the same reasoning as the Flux Kustomization patch in infra/kustomization.yaml.
+patches:
+  # Both the per-namespace Schedules and the maintenance one.
+  - target:
+      group: k8up.io
+      kind: Schedule
+    patch: |
+      apiVersion: k8up.io/v1
+      kind: Schedule
+      metadata:
+        name: unused
+      spec:
+        failedJobsHistoryLimit: 3
+        successfulJobsHistoryLimit: 1
+  # Only the per-namespace Schedules. `maintenance` must not match: giving it a backup block
+  # would run a nightly job over a namespace with no annotated PVCs.
+  - target:
+      group: k8up.io
+      kind: Schedule
+      name: backup
+    patch: |
+      apiVersion: k8up.io/v1
+      kind: Schedule
+      metadata:
+        name: unused
+      spec:
+        backup:
+          schedule: "0 3 * * *"
+          # A backup that cannot finish overnight is a backup that is wrong about something.
+          # Without this the job would sit in the repository's lock until someone noticed.
+          activeDeadlineSeconds: 3600

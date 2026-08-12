@@ -4,50 +4,48 @@ import '_kube.just'
 help:
     @just --list bak
 
-# List backups and their status
-backups:
-    velero backup get
-
-# List past restores and their status
-restores:
-    velero restore get
-
-# List backup schedules and when each last ran
+# List backup schedules and the jobs they most recently produced
 schedules:
-    velero schedule get
+    kubectl get schedules.k8up.io -A
 
-# Show a backup's contents, including which volumes it actually copied
-describe backup:
-    velero backup describe {{ backup }} --details
+# List every restic snapshot in the repository, with the volume each one holds
+snapshots:
+    kubectl get snapshots.k8up.io -A \
+      -o 'custom-columns=NAMESPACE:.metadata.namespace,ID:.spec.id,DATE:.spec.date,PATH:.spec.paths[0]'
 
-# Show a backup's log
-logs backup:
-    velero backup logs {{ backup }}
+# List the backup, check and prune jobs K8up has run, newest last
+jobs:
+    kubectl get jobs -A -l k8up.io/owned-by --sort-by=.metadata.creationTimestamp
 
-# Run the daily schedule immediately instead of waiting for 03:00
-now:
-    velero backup create --from-schedule daily --wait
+# Show a job's log, including restic's summary of what it actually copied
+logs job namespace:
+    kubectl -n {{ namespace }} logs job/{{ job }}
 
-# Restore a namespace's local-path volumes from a backup, WIPING them first. The backup defaults
-# to the newest completed one; the rclone-backed classes are left alone.
+# Back up a namespace immediately instead of waiting for 03:00
+now ns:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    kubectl -n {{ ns }} create -f - <<'EOF'
+    apiVersion: k8up.io/v1
+    kind: Backup
+    metadata:
+      generateName: manual-
+    spec:
+      failedJobsHistoryLimit: 3
+      successfulJobsHistoryLimit: 1
+    EOF
+
+# Restore a namespace's local-path volumes from the repository, WIPING them first. The snapshot
+# defaults to the newest one for each volume; the rclone-backed classes are left alone.
 #
 # Deliberately not reachable from any aggregate recipe, and gated on typing the namespace back
 # rather than on [confirm]: this deletes PVCs, and the operator should have to look at the list
 # of which ones before it happens.
-restore ns backup='':
+restore ns:
     #!/usr/bin/env bash
     set -euo pipefail
-    backup="{{ backup }}"
 
     kubectl get namespace "{{ ns }}" > /dev/null
-
-    # kubectl, not `velero backup get`, which only formats as table/json/yaml.
-    if [ -z "$backup" ]; then
-      backup=$(kubectl -n velero get backups.velero.io \
-        -o 'jsonpath={range .items[?(@.status.phase=="Completed")]}{.status.startTimestamp}{" "}{.metadata.name}{"\n"}{end}' \
-        | sort | awk 'END {print $2}')
-      [ -n "$backup" ] || { echo "no Completed backup to restore from (see: just bak backups)" >&2; exit 1; }
-    fi
 
     wipe=$(kubectl -n "{{ ns }}" get pvc \
       -o 'jsonpath={range .items[?(@.spec.storageClassName=="local-path")]}{.metadata.name}{"\n"}{end}')
@@ -73,10 +71,10 @@ restore ns backup='':
     [ -n "$ks$hr" ] || { echo "nothing in Flux owns namespace '{{ ns }}' (see: just fx get)" >&2; exit 1; }
 
     echo
-    echo "restoring namespace '{{ ns }}' from backup '$backup'."
+    echo "restoring namespace '{{ ns }}' from the newest snapshot of each volume."
     echo "  suspending:" $ks $hr
     echo
-    echo "  DELETED and recreated from the backup:"
+    echo "  DELETED and recreated from the repository:"
     echo "$wipe" | sed 's/^/    pvc\//'
     if [ -n "$keep" ]; then
       echo "  left alone:"
@@ -94,12 +92,42 @@ restore ns backup='':
     # delete: resuming below is what puts the replica counts back.
     kubectl -n "{{ ns }}" scale deployment,statefulset --all --replicas=0
     kubectl -n "{{ ns }}" wait --for=delete pod --all --timeout=5m
-    echo "$wipe" | xargs -r kubectl -n "{{ ns }}" delete pvc
 
-    velero restore create --from-backup "$backup" --include-namespaces "{{ ns }}" \
-      --existing-resource-policy=update --wait
+    # Recreate each PVC from its own live spec rather than letting Flux do it. K8up restores into
+    # an existing claim, and resuming Flux to get one back would also scale the workloads up
+    # again — straight onto a volume that is still empty.
+    for pvc in $wipe; do
+      spec=$(kubectl -n "{{ ns }}" get pvc "$pvc" -o json \
+        | jq 'del(.metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp,
+                  .metadata.annotations["pv.kubernetes.io/bind-completed"],
+                  .metadata.annotations["pv.kubernetes.io/bound-by-controller"],
+                  .metadata.annotations["volume.kubernetes.io/selected-node"],
+                  .metadata.finalizers, .spec.volumeName, .status)')
+      kubectl -n "{{ ns }}" delete pvc "$pvc"
+      echo "$spec" | kubectl apply -f -
+    done
+
+    # One Restore per volume: a restic snapshot holds exactly one path, so there is no snapshot
+    # that carries a whole namespace. Without spec.snapshot K8up takes the newest one whose
+    # paths match, which is why spec.paths is set — it is the only thing stopping a restore of
+    # `grafana` from silently landing another volume's contents.
+    for pvc in $wipe; do
+      kubectl -n "{{ ns }}" create -f - <<EOF
+    apiVersion: k8up.io/v1
+    kind: Restore
+    metadata:
+      generateName: restore-$pvc-
+    spec:
+      paths: ["/data/$pvc"]
+      restoreMethod:
+        folder:
+          claimName: $pvc
+    EOF
+    done
+
+    kubectl -n "{{ ns }}" wait --for=condition=complete job -l k8up.io/owned-by --timeout=30m
 
     for h in $hr; do flux resume helmrelease "$h" -n flux-system; done
     for k in $ks; do flux resume kustomization "$k"; done
     echo
-    echo "restored. verify the app, then check: just bak restores"
+    echo "restored. verify the app, then check: just bak jobs"

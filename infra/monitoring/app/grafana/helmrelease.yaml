@@ -50,12 +50,22 @@ spec:
       enabled: true
       storageClassName: local-path
       size: ${GRAFANA_STORAGE}
-    # Opts grafana.db into Velero's nightly backup. The chart names the volume `storage`.
-    # VictoriaMetrics and VictoriaLogs deliberately carry no equivalent: both already expire
-    # their own data (${VM_RETENTION}/${VL_RETENTION}), and metrics worth B2 egress is not a
-    # trade this cluster makes. See docs/src/operations/recovery.md.
-    podAnnotations:
-      backup.velero.io/backup-volumes: storage
+      # Opts grafana.db into the nightly backup. VictoriaMetrics and VictoriaLogs deliberately
+      # carry no equivalent: both already expire their own data
+      # (${VM_RETENTION}/${VL_RETENTION}), and metrics worth B2 egress is not a trade this
+      # cluster makes. See docs/src/operations/recovery.md.
+      annotations:
+        k8up.io/backup: "true"
+        # grafana.db is 1.3 MB of it; the plugins directory is 255 MB, most of that the
+        # VictoriaLogs datasource shipping a backend binary for every platform. Grafana
+        # reinstalls plugins from the `plugins` value below whenever they are missing, so
+        # copying them to B2 nightly buys nothing.
+        #
+        # K8up mounts each PVC at /data/<claim-name>, which is where the path comes from. The
+        # value is a JSON array; a malformed one makes K8up log "failed to parse restic backup
+        # args from the annotation" and skip this PVC entirely, so verify the snapshot after
+        # changing it.
+        k8up.io/backup-restic-args: '["--exclude=/data/grafana/plugins"]'
     # local-path is single-node hostPath; a rolling update can schedule the new pod before the
     # old one releases the volume. Recreate avoids two grafana.db writers.
     # `deploymentStrategy`, not `strategy`: the chart ignores the latter silently, and a rolling

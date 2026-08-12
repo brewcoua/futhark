@@ -7,7 +7,7 @@ groups:
     interval: 10m
     rules:
       - uid: backup-failed
-        title: Velero backup failed
+        title: K8up job failed
         condition: A
         for: 0m
         data:
@@ -17,30 +17,15 @@ groups:
             model:
               refId: A
               instant: true
-              expr: increase(velero_backup_failure_total[24h]) > 0
+              # No jobType filter on purpose. A failed `check` means the repository no longer
+              # verifies against its own index, and a failed `prune` means it is accumulating
+              # packs nothing will ever reclaim — both are worth the same page as a failed
+              # backup, and neither has a symptom anyone would notice otherwise.
+              expr: increase(k8up_jobs_failed_counter[24h]) > 0
         noDataState: OK
         execErrState: Alerting
         annotations:
-          summary: "Velero schedule {{ $labels.schedule }} recorded a failed backup in the last 24h"
-      - uid: backup-partially-failed
-        title: Velero backup partially failed
-        condition: A
-        for: 0m
-        data:
-          - refId: A
-            datasourceUid: victoriametrics
-            relativeTimeRange: { from: 86400, to: 0 }
-            model:
-              refId: A
-              instant: true
-              # A partial failure still reports Completed-with-warnings and leaves a restorable
-              # backup, so it is not caught by backup-failed — but the volume that failed to copy
-              # is exactly the one you would want back.
-              expr: increase(velero_backup_partial_failure_total[24h]) > 0
-        noDataState: OK
-        execErrState: Alerting
-        annotations:
-          summary: "Velero schedule {{ $labels.schedule }} recorded a partially failed backup in the last 24h"
+          summary: "K8up {{ $labels.jobType }} job in {{ $labels.namespace }} failed in the last 24h"
       - uid: backup-stale
         title: No successful backup in 26h
         condition: A
@@ -48,16 +33,17 @@ groups:
         data:
           - refId: A
             datasourceUid: victoriametrics
-            relativeTimeRange: { from: 3600, to: 0 }
+            relativeTimeRange: { from: 93600, to: 0 }
             model:
               refId: A
               instant: true
               # The schedule runs at 03:00, so 26h is one missed run plus slack. This is the rule
-              # that catches the silent cases the two above cannot — a suspended schedule, a
-              # Velero pod that never came up, an expired B2 key — where nothing fails because
-              # nothing ran.
-              expr: time() - velero_backup_last_successful_timestamp > 93600
+              # that catches the silent cases the one above cannot — a deleted Schedule, an
+              # operator pod that never came up, an expired B2 key — where nothing fails because
+              # nothing ran. A namespace that has never backed up successfully has no series at
+              # all, which is why noDataState alerts rather than staying quiet.
+              expr: increase(k8up_jobs_successful_counter{jobType="backup"}[26h]) == 0
         noDataState: Alerting
         execErrState: Alerting
         annotations:
-          summary: "Velero schedule {{ $labels.schedule }} has no successful backup in over 26h"
+          summary: "K8up has no successful backup of {{ $labels.namespace }} in over 26h"

@@ -8,8 +8,8 @@ mod tf '.just/tofu.just'
 mod ks '.just/ks.just'
 # Flux sync state and reconciliation
 mod fx '.just/flux.just'
-# Velero backups, restores and schedules
-mod bak '.just/velero.just'
+# K8up backups, restores and snapshots
+mod bak '.just/backup.just'
 # The mdBook under docs/
 mod docs '.just/docs.just'
 

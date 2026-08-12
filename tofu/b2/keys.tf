@@ -1,5 +1,5 @@
-# Velero's credential, scoped to the one bucket. The module mints it and stops there: the outputs
-# below are filed into Infisical /infra/velero by hand, per the rule in docs/src/tofu/index.md.
+# K8up's credential, scoped to the one bucket. The module mints it and stops there: the outputs
+# below are filed into Infisical /infra/k8up by hand, per the rule in docs/src/tofu/index.md.
 # tofu/oidc is the one module that writes to a secret store, and it stays the only one.
 #
 # capabilities and bucket_ids both force replacement, and replacement is destroy-then-create: the
@@ -7,25 +7,28 @@
 # breaks backups until the new values reach Infisical, with no way back. See
 # docs/src/operations/rotation.md.
 #
-# No readBucketEncryption: the backups are SSE-C, which is a per-request header Velero sends from
-# its own key file, not a bucket setting anyone needs to read.
-resource "b2_application_key" "velero" {
-  key_name     = "velero"
+# deleteFiles is not optional here even though a backup never deletes: restic's prune is what
+# reclaims space, and it does so by deleting pack files.
+#
+# No readBucketEncryption: restic encrypts client-side, so nothing about the bucket's own
+# encryption settings is ever read.
+resource "b2_application_key" "k8up" {
+  key_name     = "k8up"
   bucket_ids   = [b2_bucket.backups.bucket_id]
   capabilities = ["listBuckets", "listFiles", "readFiles", "writeFiles", "deleteFiles"]
 }
 
-# B2_KEY_ID and B2_APPLICATION_KEY in Infisical /infra/velero, which infra/backup/app/secret.yaml
-# templates into Velero's credentials file. The id is not sensitive on its own, but it is
-# identifying, so it is printed only when asked for by name.
-output "velero_b2_key_id" {
-  description = "File into Infisical /infra/velero as B2_KEY_ID."
-  value       = b2_application_key.velero.application_key_id
+# B2_KEY_ID and B2_APPLICATION_KEY in Infisical /infra/k8up, which infra/backup/app/secret.yaml
+# hands to the operator as BACKUP_GLOBALACCESSKEYID and BACKUP_GLOBALSECRETACCESSKEY. The id is
+# not sensitive on its own, but it is identifying, so it is printed only when asked for by name.
+output "k8up_b2_key_id" {
+  description = "File into Infisical /infra/k8up as B2_KEY_ID."
+  value       = b2_application_key.k8up.application_key_id
   sensitive   = true
 }
 
-output "velero_b2_application_key" {
-  description = "File into Infisical /infra/velero as B2_APPLICATION_KEY. Shown once per mint; read it with `tofu output -raw`."
-  value       = b2_application_key.velero.application_key
+output "k8up_b2_application_key" {
+  description = "File into Infisical /infra/k8up as B2_APPLICATION_KEY. Shown once per mint; read it with `tofu output -raw`."
+  value       = b2_application_key.k8up.application_key
   sensitive   = true
 }

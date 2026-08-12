@@ -29,7 +29,7 @@ metadata:
     futk.eu/tier: infra
 ---
 # The backup tier is not a node tier: it exists so the B2 credentials sit behind a machine
-# identity no other tier can authenticate as. Its operator's RBAC reaches only here and `velero`.
+# identity no other tier can authenticate as. Its operator's RBAC reaches only here and `k8up`.
 # See docs/src/conventions/secrets.md.
 apiVersion: v1
 kind: Namespace
@@ -65,7 +65,7 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: velero
+  name: k8up
   labels:
     futk.eu/tier: infra
 ---

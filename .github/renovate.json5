@@ -61,12 +61,6 @@
       matchPackageNames: ["gitleaks/gitleaks"],
     },
     {
-      // The chart's appVersion is the server; the mise.toml pin is the client driving restores.
-      description: "velero: chart and CLI move together",
-      groupName: "velero",
-      matchPackageNames: ["velero", "velero-io/velero"],
-    },
-    {
       description: "VictoriaMetrics stack moves together",
       groupName: "victoria-metrics",
       matchPackageNames: ["/^victoria-(metrics|logs)-/"],

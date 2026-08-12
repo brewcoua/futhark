@@ -5,13 +5,13 @@
 # module portable at all.
 #
 # What normally forbids that is a minted credential sitting in state in plaintext, which
-# b2_application_key.velero is. The encryption block below is what makes it safe: OpenTofu
+# b2_application_key.k8up is. The encryption block below is what makes it safe: OpenTofu
 # encrypts the state client-side, so what B2 receives is already ciphertext. Lose the passphrase
 # and you lose the state, not the backups: recoverable by re-import.
 #
 # This was SSE-C (AWS_SSE_CUSTOMER_KEY) until 2026-08-10 and silently did nothing — OpenTofu
 # validates that variable's length and then writes the object without the customer-key headers, so
-# the state sat readable in the bucket with Velero's key in it. Client-side encryption is checkable
+# the state sat readable in the bucket with the backup B2 key in it. Client-side encryption is checkable
 # by eye, which is the actual reason to prefer it: fetch the object and it is not JSON.
 #
 # A *partial* configuration. bucket, key, region and endpoint arrive as -backend-config from

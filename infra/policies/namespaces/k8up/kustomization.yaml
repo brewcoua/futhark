@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+#
+# The operator reaches Backblaze over the public internet, which needs no rule here: the baseline
+# is policyTypes: [Ingress] only, so egress stays open everywhere. See
+# docs/src/conventions/network-policy.md. That is also what lets the backup Jobs reach B2 from
+# `actual`, `auth` and `monitoring`, where they actually run — nothing has to be added to those
+# namespaces' overlays. Nothing outside this namespace needs to reach the operator except
+# monitoring's scrape of its metrics endpoint.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: k8up
+resources:
+  - ../_templates/netpol-default-deny
+  - ../_templates/netpol-allow-same-namespace
+  - ../_templates/netpol-allow-from-monitoring

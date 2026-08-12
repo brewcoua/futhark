@@ -1,13 +1,11 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/source-controller/main/config/crd/bases/source.toolkit.fluxcd.io_helmrepositories.yaml
-# The project moved to github.com/velero-io/velero and the old org 301s there, but the chart
-# index is GitHub Pages, which does not follow an org rename: velero-io.github.io/helm-charts is
-# a 404 and this is still the only URL that serves it. Don't "fix" it to match the new org.
+# The chart lives in the operator's own repository, published to GitHub Pages from the same tree.
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: velero
+  name: k8up
   namespace: flux-system
 spec:
   interval: 1h
-  url: https://vmware-tanzu.github.io/helm-charts
+  url: https://k8up-io.github.io/k8up

@@ -11,8 +11,8 @@ spec:
     - name: substitutions
   # Which B2 bucket to write to (${B2_BUCKET}/${B2_REGION}). Identifying, so committed
   # SOPS-encrypted in config/sops/ rather than literally here — and not in Infisical with the B2
-  # keys, because a BackupStorageLocation fixes its bucket at render time. The reasoning is in
-  # docs/src/conventions/secrets.md.
+  # keys, because tofu/b2 provisions the bucket and needs the same name at plan time. The
+  # reasoning is in docs/src/conventions/secrets.md.
   postBuild:
     substituteFrom:
       - kind: Secret

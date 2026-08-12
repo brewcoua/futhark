@@ -8,3 +8,13 @@ useDefault = true
 # at all, which is the failure mode that actually matters here.
 [[allowlists]]
 paths = ['''\.sops\.(ya?ml|env|json)$''']
+
+# `key:` under a Kubernetes secretKeyRef names an entry in a Secret; it never holds one. The
+# default generic-api-key rule reads it as an assignment, and a SCREAMING_SNAKE_CASE entry name
+# clears its entropy threshold — `key: B2_APPLICATION_KEY` in infra/backup/app/helmrelease.yaml
+# is the case that prompted this. Narrow on purpose: a real secret is not shaped like an
+# identifier, so the pattern cannot cover one.
+[[allowlists]]
+description = "secretKeyRef entry names, which are identifiers rather than values"
+regexTarget = "match"
+regexes = ['''key: [A-Z][A-Z0-9_]*$''']

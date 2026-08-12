@@ -11,6 +11,6 @@ resources:
   - namespaces/cert-manager
   - namespaces/monitoring
   - namespaces/csi-rclone
-  - namespaces/velero
+  - namespaces/k8up
   - namespaces/ingress-internal
   - namespaces/ingress-edge

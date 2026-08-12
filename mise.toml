@@ -19,11 +19,8 @@ opentofu = "1.12.5"
 # Tracks k8s_cluster_version in ansible/roles/k8s_cluster/defaults/main.yml.
 kubectl = "1.36.3"
 
-# CLIs whose server side is pinned elsewhere and must match: the Velero chart in
-# infra/backup/app/helmrelease.yaml, the Flux distribution in flux/cluster.yaml. Velero is
-# addressed at its release page because mise's registry entry still names the pre-rename
-# vmware-tanzu repo, which is what Renovate would then track.
-"github:velero-io/velero" = "1.18.2"
+# Pinned to match the Flux distribution in flux/cluster.yaml. K8up needs no CLI of its own —
+# .just/backup.just drives it entirely through its CRs.
 flux2 = "2.9.4"
 
 # Also the `rev:` of the gitleaks hook in .pre-commit-config.yaml.

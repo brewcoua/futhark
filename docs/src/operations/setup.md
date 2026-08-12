@@ -20,7 +20,7 @@ Before step 1, have:
   requires both, and installs everything else itself.
 
 Three values cannot exist until something else is running, so they are filled in twice: the edge
-node's mesh address (step 7), Velero's B2 application key (step 8) and the Pocket ID API token
+node's mesh address (step 7), the backup B2 application key (step 8) and the Pocket ID API token
 (step 10). Each is called out where it lands. Blue runs forward through the twelve steps, green
 marks the first and last, and each red dashed arrow reaches back to a step that has to be
 revisited once the value it needed finally exists.
@@ -58,7 +58,7 @@ stores -> repo -> hosts -> cluster -> cloud -> after
 hosts -> repo: "MESH_IP was a placeholder in step 5.\nThe node had not joined the mesh yet" {
   class: backfill
 }
-hosts -> stores: "Velero's B2 key was a placeholder in step 2.\ntofu/b2 mints it here" {
+hosts -> stores: "The backup B2 key was a placeholder in step 2.\ntofu/b2 mints it here" {
   class: backfill
 }
 cloud -> stores: "POCKETID_API_TOKEN was a placeholder in step 1.\nPocket ID did not exist yet" {
@@ -158,11 +158,11 @@ with a `prod` environment.
 Create three Universal Auth machine identities. With yourself that is 4 of the 5 the free tier
 allows:
 
-- **`cluster-reader`**: read-only on the whole project, **denied** `/infra/velero`. Leave
+- **`cluster-reader`**: read-only on the whole project, **denied** `/infra/k8up`. Leave
   `accessTokenTrustedIps` alone for now. You set it at step 12, once the cluster has an egress
   address.
 - **`tofu-writer`**: write on `/nodes/kenaz/actual` only.
-- **`backup-reader`**: read on `/infra/velero` and nothing else. The split is deliberate. Losing
+- **`backup-reader`**: read on `/infra/k8up` and nothing else. The split is deliberate. Losing
   the cluster's read credential must not also mean losing the ability to decrypt B2. See
   [Secrets](../conventions/secrets.md).
 
@@ -171,18 +171,19 @@ Copy all three client ID and secret pairs into Proton Pass per the table above.
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
 
-| Folder                | Secrets                                                                                           | Consumed by                                                                    |
-| --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `/infra/cert-manager` | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                                        |
-| `/infra/csi-rclone`   | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                                                |
-| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`                                     |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                                                  | `infra/auth/app/infisicalsecret.yaml`                                          |
-| `/infra/velero`       | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `B2_SSE_C_KEY`, `KOPIA_REPOSITORY_PASSWORD`                    | `infra/backup/app/secret.yaml` and `secret-repo.yaml`, read as `backup-reader` |
-| `/nodes/kenaz/actual` | none, leave empty                                                                                 | written by `just tf apply oidc`                                                |
+| Folder                | Secrets                                                                                           | Consumed by                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `/infra/cert-manager` | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                 |
+| `/infra/csi-rclone`   | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                         |
+| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`              |
+| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                                                  | `infra/auth/app/infisicalsecret.yaml`                   |
+| `/infra/k8up`         | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader` |
+| `/nodes/kenaz/actual` | none, leave empty                                                                                 | written by `just tf apply oidc`                         |
 
 `B2_KEY_ID` and `B2_APPLICATION_KEY` are placeholders for now. `tofu/b2` mints that key at step 8.
-The other two are yours to generate, both from `openssl rand -base64 32`. **Lose either and the
-backups are ciphertext forever**, which is the point of them. The durability table is in
+`RESTIC_PASSWORD` is yours to generate, from `openssl rand -base64 32`, and it must exist before
+the first backup runs: it is baked into the repository at creation. **Lose it and the backups are
+ciphertext forever**, which is the point of it. The durability table is in
 [Backup and recovery](recovery.md).
 
 That table goes stale as apps are added. The authoritative version is the tree itself: every
@@ -313,7 +314,7 @@ Secret:
   [Domains](../conventions/domains.md).
 - `PUBLIC_IP`, `MESH_IP`: the edge node's addresses. **Put a placeholder in `MESH_IP` for now**,
   because the node has not joined the mesh yet. Step 7 fills it.
-- `B2_BUCKET`, `B2_REGION`: where Velero writes.
+- `B2_BUCKET`, `B2_REGION`: where the restic repository lives.
 
 No `tofu.<module>` section carries a node address or a domain. Each module declares those in its
 `refs.env` and reads them from whichever of the two files owns them, at plan and apply time. See
@@ -395,7 +396,7 @@ after step 7: the value is empty until `roles/netbird` records it, and an empty 
 apply. Nothing answers on that address yet, which is fine. The record is static, and the name
 starts answering usefully once step 9 brings `traefik-internal` up on it.
 
-Then the bucket Velero backs up to, and the key it uses:
+Then the bucket the backups live in, and the key K8up uses:
 
 ```bash
 just tf init b2
@@ -404,10 +405,10 @@ just tf plan b2 && just tf apply b2
 
 Read [b2](../tofu/b2.md) first. It needs a state bucket and a state passphrase created by hand, and if a
 bucket already exists it has to be imported rather than created. File the two outputs into
-Infisical `/infra/velero` as `B2_KEY_ID` and `B2_APPLICATION_KEY`, replacing the placeholders from
+Infisical `/infra/k8up` as `B2_KEY_ID` and `B2_APPLICATION_KEY`, replacing the placeholders from
 step 2. Do this before the cluster, because `infra/backup` reconciles at step 9 and reads them
-there. Get it wrong and the symptom is a `BackupStorageLocation` stuck `Unavailable` with the
-daily `Schedule` still reading green.
+there. Get it wrong and the symptom is every K8up job failing against a repository it cannot
+open.
 
 Verify:
 

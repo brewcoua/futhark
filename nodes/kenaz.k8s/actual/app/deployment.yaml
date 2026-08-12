@@ -16,12 +16,6 @@ spec:
     metadata:
       labels:
         app: actual
-      annotations:
-        # The budget SQLite, whose only off-node copy is Velero's. `user-files` is deliberately
-        # absent: it is storagebox-crypt, already off-node and covered by the box's own
-        # snapshots, and naming it here would drag every attachment back through rclone to be
-        # re-uploaded to B2. See docs/src/operations/recovery.md.
-        backup.velero.io/backup-volumes: server-files
     spec:
       # Service "actual" -> kubelet injects ACTUAL_PORT=tcp://<ip>:80, colliding with
       # convict's ACTUAL_* env prefix and breaking Actual's port validation.

@@ -1,13 +1,23 @@
 ---
 # Pocket ID's SQLite DB + app data. local-path is node-local hostPath storage — avoids the
 # locking issues a network filesystem (storagebox-crypt) can cause for SQLite, same
-# reasoning as nodes/kenaz.k8s/actual's pvc-server-files.yaml. Node-local, so the volume is
-# opted into Velero's nightly backup by the annotation on deployment.yaml.
+# reasoning as nodes/kenaz.k8s/actual's pvc-server-files.yaml. Node-local, so the volume opts
+# into the nightly backup below.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: pocketid-data
   namespace: auth
+  annotations:
+    k8up.io/backup: "true"
+    # 62 of the 68 MB on this volume is the GeoLite2 city database, which Pocket ID downloads
+    # from MaxMind and refreshes on its own. Backing it up would be paying B2 to store a copy of
+    # someone else's public file, ten times larger than the data that actually matters.
+    #
+    # K8up mounts each PVC at /data/<claim-name>, which is where the path comes from. The value
+    # is a JSON array; a malformed one makes K8up log "failed to parse restic backup args from
+    # the annotation" and skip this PVC entirely, so verify the snapshot after changing it.
+    k8up.io/backup-restic-args: '["--exclude=/data/pocketid-data/GeoLite2-City.mmdb"]'
 spec:
   accessModes:
     - ReadWriteOnce

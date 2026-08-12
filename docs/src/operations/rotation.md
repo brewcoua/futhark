@@ -38,7 +38,7 @@ Every procedure here follows the same shape, and the order is what makes it safe
 5. Prove the same consumer still works after the revoke.
 
 Step 5 is not ceremony. It is the only evidence that nothing else was quietly using the old
-credential. `just bak backups` after a B2 key rotation is the worked example.
+credential. `just bak jobs` after a B2 key rotation is the worked example.
 
 Because the old value stays live until step 4, rollback for steps 1 through 3 is always the same:
 put the old value back where you got it and re-run the verification. After step 4 there is no
@@ -46,12 +46,12 @@ rollback, which is why the proof comes first.
 
 ## Standing schedule
 
-| Credential                  | Cadence                               | Why                                                |
-| --------------------------- | ------------------------------------- | -------------------------------------------------- |
-| `netbird-enrollment` PAT    | Before expiry, 365 days at most       | NetBird caps PAT lifetime                          |
-| `netbird-policy` PAT        | Before expiry, 365 days at most       | Same cap                                           |
-| Velero's B2 application key | On a schedule of your choosing        | The only replaceable credential in the backup path |
-| Everything else             | On suspicion, or operator offboarding | No expiry, no automatic trigger                    |
+| Credential                    | Cadence                               | Why                                                |
+| ----------------------------- | ------------------------------------- | -------------------------------------------------- |
+| `netbird-enrollment` PAT      | Before expiry, 365 days at most       | NetBird caps PAT lifetime                          |
+| `netbird-policy` PAT          | Before expiry, 365 days at most       | Same cap                                           |
+| The backup B2 application key | On a schedule of your choosing        | The only replaceable credential in the backup path |
+| Everything else               | On suspicion, or operator offboarding | No expiry, no automatic trigger                    |
 
 Expiry dates are not tracked anywhere in this repository. Put both NetBird dates in a calendar
 when you issue the tokens. What breaks when each lapses is in
@@ -406,11 +406,11 @@ Used by `tofu/oidc` only.
 
 Three distinct credentials, and they are easy to confuse:
 
-| Item                   | Used by                                                 | Rotation                                 |
-| ---------------------- | ------------------------------------------------------- | ---------------------------------------- |
-| `backblaze-tofu`       | `tofu/b2`'s provider                                    | Below                                    |
-| `backblaze-tofu-state` | `tofu/b2`'s S3 state backend, plus its state passphrase | Below                                    |
-| Velero's B2 key        | Velero, via Infisical `/infra/velero`                   | [Velero's B2 key](#veleros-b2-key) below |
+| Item                   | Used by                                                 | Rotation                                      |
+| ---------------------- | ------------------------------------------------------- | --------------------------------------------- |
+| `backblaze-tofu`       | `tofu/b2`'s provider                                    | Below                                         |
+| `backblaze-tofu-state` | `tofu/b2`'s S3 state backend, plus its state passphrase | Below                                         |
+| The backup B2 key      | K8up, via Infisical `/infra/k8up`                       | [The backup B2 key](#the-backup-b2-key) below |
 
 For `backblaze-tofu`:
 
@@ -495,45 +495,44 @@ filesystem path in the config does not exist inside the driver container.
 
 ## Infisical, per app
 
-### Velero's B2 key
+### The backup B2 key
 
 The only credential in the backup path that can be replaced at all. `tofu/b2` mints it.
 
-**Blast radius:** backups stop. Nothing fails loudly, because a suspended or failing schedule is
-not an error state on the `BackupStorageLocation` alone. The 26h "no backup succeeded" alert in
-`infra/monitoring/app/grafana/alerting/backup.yaml` is what catches it.
+**Blast radius:** backups stop. Every K8up job fails, which the "K8up job failed" alert in
+`infra/monitoring/app/grafana/alerting/backup.yaml` catches within the hour.
 
 Both `capabilities` and `bucket_ids` force replacement, so rotation is the create loop, forced:
 
-1. Mint the replacement. **This destroys the old key first** — `b2_application_key.velero` has no
+1. Mint the replacement. **This destroys the old key first** — `b2_application_key.k8up` has no
    `create_before_destroy`, so from here until step 3 lands no valid key exists and backups fail.
    There is no rollback past this point, because the old key is already gone:
 
    ```bash
-   just tf apply b2 -replace=b2_application_key.velero
+   just tf apply b2 -replace=b2_application_key.k8up
    ```
 
 2. Read the two `sensitive` outputs:
 
    ```bash
-   just tf output b2 -raw velero_b2_key_id           # -> B2_KEY_ID
-   just tf output b2 -raw velero_b2_application_key  # -> B2_APPLICATION_KEY
+   just tf output b2 -raw k8up_b2_key_id           # -> B2_KEY_ID
+   just tf output b2 -raw k8up_b2_application_key  # -> B2_APPLICATION_KEY
    ```
 
-3. File both into Infisical `/infra/velero`.
+3. File both into Infisical `/infra/k8up`.
 4. Verify with a real backup, not with a plan:
 
    ```bash
-   just bak now
-   just bak backups
+   just bak now monitoring
+   just bak jobs
    ```
 
-   The new backup must reach `Completed`.
+   The new job must reach `Complete`.
 
 5. Confirm the old key is gone, rather than revoking it by hand — the apply in step 1 deleted it:
 
    ```bash
-   b2 key list --long    # one `velero` entry, the new id from step 2
+   b2 key list --long    # one `k8up` entry, the new id from step 2
    ```
 
 **No rollback.** The old key is destroyed in step 1, before anything has been verified. If step 4
@@ -572,16 +571,13 @@ grep -rl 'kind: InfisicalStaticSecret' infra nodes
 
 ## What cannot be rotated
 
-Four values. Each one is unrotatable for a different reason, and in three cases the data is lost
+Three values. Each one is unrotatable for a different reason, and in two cases the data is lost
 with the key.
 
-**`KOPIA_REPOSITORY_PASSWORD`.** Baked into the Kopia repository when Velero's node-agent first
-initialises it, and unchangeable afterwards without starting a new repository. A new repository
-means the existing backups stay readable only with the old password. See
+**`RESTIC_PASSWORD`.** Baked into the restic repository when K8up's first backup job initialises
+it, and unchangeable afterwards without starting a new repository. A new repository means the
+existing backups stay readable only with the old password. See
 [Backup and recovery](recovery.md#encryption).
-
-**`B2_SSE_C_KEY`.** Backblaze stores the manifest tarballs as ciphertext it cannot read. Changing
-the key orphans every tarball already written under the old one.
 
 **The four `rclone-crypt` passwords.** `password` and `password2` on each crypt remote derive the
 keys that wrapped the data. Change one and the data it wrapped is unreadable. They are stored
@@ -594,9 +590,10 @@ at publishing status `In production`. Left in `Testing`, Google issues tokens th
 days and the mount fails silently on the eighth. See
 [The rclone remotes](rclone.md#the-google-drive-credential).
 
-Losing any of the first three loses the data it protects, with no recovery path. That is the same
-property that keeps the provider from reading it. Both backup keys have a copy in Proton Pass for
-exactly this reason, and that copy is the one deliberate duplication in the secrets scheme.
+Losing either of the first two loses the data it protects, with no recovery path. That is the
+same property that keeps the provider from reading it. The restic password has a copy in Proton
+Pass for exactly this reason, and that copy is the one deliberate duplication in the secrets
+scheme.
 
 ## Operator offboarding
 

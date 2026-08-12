@@ -1,52 +1,77 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
-# Off-node durability for the local-path PVCs. Which volumes those are is not decided here: a
-# volume is backed up only if its pod carries backup.velero.io/backup-volumes naming it, so the
-# rclone-backed tiers are excluded by never opting in. See docs/src/operations/recovery.md.
+# Off-node durability for the local-path PVCs, as restic snapshots in a Backblaze B2 bucket.
+#
+# Which volumes those are is not decided here: a PVC is backed up only if it carries
+# k8up.io/backup: "true", and which namespaces are in scope at all is decided by where a Schedule
+# exists. See docs/src/operations/recovery.md.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: velero
+  name: k8up
   namespace: flux-system
 spec:
   interval: 1h
-  releaseName: velero
-  targetNamespace: velero
+  releaseName: k8up
+  targetNamespace: k8up
   install:
+    crds: Create
     remediation:
       retries: 3
   upgrade:
+    # Helm never upgrades a chart's crds/ directory on its own, which would leave the CRDs pinned
+    # at whatever version first installed them while the operator moves on.
+    crds: CreateReplace
     remediation:
       retries: 3
   chart:
     spec:
-      chart: velero
-      version: "12.1.0" # chart 12.1.0 -> Velero 1.18.1
+      chart: k8up
+      version: "4.10.0" # chart 4.10.0 -> K8up 2.16.0
       sourceRef:
         kind: HelmRepository
-        name: velero
+        name: k8up
         namespace: flux-system
   values:
-    # The object-store plugin. The chart ships no provider, and refuses to start without one.
-    initContainers:
-      - name: velero-plugin-for-aws
-        image: velero/velero-plugin-for-aws:v1.14.2@sha256:0751144c1c8e52d52c48717fbd13ad5a3061e612ae4d7ad744a946cd5b139d1a
-        imagePullPolicy: IfNotPresent
-        volumeMounts:
-          - name: plugins
-            mountPath: /target
+    k8up:
+      # Opt-in, not opt-out. Without this K8up backs up every PVC in a namespace that has a
+      # Schedule, which would drag VictoriaMetrics and VictoriaLogs into the bucket and pull
+      # actual-user-files back through rclone to re-upload bytes the Storage Box already holds.
+      skipWithoutAnnotation: true
 
-    # No storage class here has a CSI snapshotter — local-path is hostPath, the others are
-    # rclone — so volume data moves as a filesystem copy through the node-agent, and there is no
-    # VolumeSnapshotLocation to create.
-    deployNodeAgent: true
-    snapshotsEnabled: false
-    nodeAgent:
-      # No podVolumePath/pluginVolumePath override: k3s keeps kubelet at the upstream
-      # /var/lib/kubelet the chart defaults to. Pointing these at a root with no pods under it
-      # fails silently — every backup completes successfully having copied nothing, and `velero
-      # backup describe --details` showing zero podvolumebackups is the only symptom.
-      resources:
+      # Global backend settings. Declared once here rather than in each Schedule's own backend
+      # block, which is what keeps a Schedule down to the name of its namespace.
+      #
+      # restic reaches B2 over its S3 endpoint. Velero could not: velero-plugin-for-aws sets an
+      # x-amz-tagging header on every PutObject even when no tagging is configured, and B2 rejects
+      # that header, which failed every backup at the point of writing its metadata.
+      envVars:
+        - name: BACKUP_GLOBALS3BUCKET
+          value: ${B2_BUCKET}
+        - name: BACKUP_GLOBALS3ENDPOINT
+          value: https://s3.${B2_REGION}.backblazeb2.com
+        - name: BACKUP_GLOBALACCESSKEYID
+          valueFrom:
+            secretKeyRef:
+              name: k8up-b2
+              key: B2_KEY_ID
+        - name: BACKUP_GLOBALSECRETACCESSKEY
+          valueFrom:
+            secretKeyRef:
+              name: k8up-b2
+              key: B2_APPLICATION_KEY
+        # What actually encrypts the bucket's contents: restic is client-side AES-256, so
+        # Backblaze holds ciphertext it cannot read. Baked into the repository at creation and
+        # unchangeable afterwards without starting a new one. Losing it loses every backup.
+        - name: BACKUP_GLOBALREPOPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: k8up-b2
+              key: RESTIC_PASSWORD
+
+      # Applied to the backup, check and prune Jobs the operator creates, which run in the backed
+      # up namespaces rather than here.
+      globalResources:
         requests:
           cpu: 50m
           memory: 128Mi
@@ -54,44 +79,21 @@ spec:
           cpu: 500m
           memory: 1Gi
 
-    configuration:
-      uploaderType: kopia
-      backupStorageLocation:
-        - name: default
-          provider: aws
-          bucket: ${B2_BUCKET}
-          default: true
-          config:
-            region: ${B2_REGION}
-            s3Url: https://s3.${B2_REGION}.backblazeb2.com
-            s3ForcePathStyle: "true"
-            # B2's S3 API rejects the AWS SDK's default trailing checksum, which surfaces as the
-            # BackupStorageLocation going Unavailable with an opaque 400.
-            checksumAlgorithm: ""
-            # SSE-C: the key never leaves the cluster, so Backblaze holds ciphertext it cannot
-            # read. This covers the resource tarballs, which Velero would otherwise upload as
-            # plain gzip — volume data is separately encrypted by Kopia under the repository
-            # password. The chart mounts the whole credentials Secret at /credentials, so this
-            # path is the `customer-key` entry of velero-b2. See docs/src/operations/recovery.md.
-            customerKeyEncryptionFile: /credentials/customer-key
-
-    credentials:
-      existingSecret: velero-b2
+    # Scraped by vmagent from infra/monitoring/app/metrics/scrape-configs.yaml, like everything
+    # else here — the chart's ServiceMonitor would need an operator this cluster does not run.
+    # The default rules it would ship are replaced by the two in
+    # infra/monitoring/app/grafana/alerting/backup.yaml.
+    metrics:
+      serviceMonitor:
+        enabled: false
+      prometheusRule:
+        enabled: false
+      grafanaDashboard:
+        enabled: false
 
     resources:
       requests:
-        cpu: 50m
+        cpu: 20m
         memory: 128Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
-
-    # Scraped by vmagent from infra/monitoring/app/metrics/scrape-configs.yaml, like everything
-    # else here — the chart's ServiceMonitor would need an operator this cluster does not run.
-    metrics:
-      enabled: true
-      serviceMonitor:
-        enabled: false
-        autodetect: false
-      prometheusRule:
-        enabled: false
+        memory: 256Mi

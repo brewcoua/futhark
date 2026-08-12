@@ -209,7 +209,7 @@ rclone obscure "$(openssl rand -base64 32)"
 
 Four values, all distinct. The two crypts do not share a password, so a leak of one does not read
 the other's data. **Copy all four into the Proton Pass vault** before they go into Infisical, for
-the same reason as Velero's encryption keys in [Backup and recovery](recovery.md#encryption): lose
+the same reason as the restic repository password in [Backup and recovery](recovery.md#encryption): lose
 one and its data is ciphertext forever, and Infisical is not a backup of itself. These are among
 the values that [cannot be rotated](rotation.md#what-cannot-be-rotated).
 

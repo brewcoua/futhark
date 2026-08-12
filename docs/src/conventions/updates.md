@@ -50,9 +50,8 @@ never arrives. `.github/workflows/validate.yml` validates the config itself on e
 nothing can validate an annotation that is simply absent.
 
 Group rules exist for the pins that are one decision written twice: the `gitleaks` version in both
-`mise.toml` and `.pre-commit-config.yaml`, the Velero chart and its CLI, the
-VictoriaMetrics stack, mdbook and its d2 preprocessor, the Flux operator and the distribution it
-installs.
+`mise.toml` and `.pre-commit-config.yaml`, the VictoriaMetrics stack, mdbook and its d2
+preprocessor, the Flux operator and the distribution it installs.
 
 ## What merges itself
 

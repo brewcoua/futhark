@@ -108,7 +108,7 @@
   no_log: true
 
 # Same Secret name and shape, different identity. backup_reader is the only one granted
-# /infra/velero in the Infisical console, and cluster_reader is denied it — that pairing is what
+# /infra/k8up in the Infisical console, and cluster_reader is denied it — that pairing is what
 # keeps the keys protecting every backup out of reach of the credential every other tier holds.
 - name: Bridge the backup tier's Infisical credential
   kubernetes.core.k8s:

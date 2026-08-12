@@ -16,7 +16,7 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. `hostNetwork: true`, bound to the ingress node's mesh address                                             |
 | `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the ingress node's public address                                                                                  |
 | `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt over sftp) and `gdrive-crypt` (Google Drive, write-once media) |
-| `backup`             | Velero, and the nightly schedule that carries the `local-path` volumes to Backblaze B2. See [Backup and recovery](../operations/recovery.md)                     |
+| `backup`             | K8up, and the nightly schedules that carry the `local-path` volumes to Backblaze B2 as restic snapshots. See [Backup and recovery](../operations/recovery.md)    |
 | `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                               |
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                              |
 | `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                      |
@@ -137,7 +137,7 @@ chart emits a `Role`/`RoleBinding` per listed namespace and no cluster-wide secr
   `infisical-node-<hostname>`, `installCRDs: false` and `dependsOn` the infra release, because
   two installs racing to own the same CRDs is the documented failure mode.
 - **backup tier**: `helmrelease-backup.yaml`, release namespace `infisical-backup`, scoped to
-  itself and `velero`. Not per-host, and the only tier with a machine identity of its own.
+  itself and `k8up`. Not per-host, and the only tier with a machine identity of its own.
 
 Each tier's namespace appears first in its own `scopedNamespaces`, and not by accident: that is
 what lets the operator read the `InfisicalAuth` and credential Secret it authenticates with.
@@ -145,7 +145,7 @@ The infra and node tiers share one Infisical machine identity, because the free 
 identities at five, so what separates _them_ is RBAC plus the `ValidatingAdmissionPolicy` in
 `config/`, which pins each `InfisicalStaticSecret`'s `secretPath` to its namespace's tier. The backup tier goes
 further and authenticates as a second identity, because the admission policy alone would let any
-infra namespace read `/infra/velero` and those are the keys that decrypt every backup. The
+infra namespace read `/infra/k8up` and that is the password that decrypts every backup. The
 reasoning, and what still defeats it, is in
 [Secrets](../conventions/secrets.md#infisical-and-how-tier-isolation-is-enforced).
 
