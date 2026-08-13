@@ -24,7 +24,9 @@ spec:
         name: victoria-metrics
         namespace: flux-system
   # Scrape targets live in scrape-configs.yaml, generated into this ConfigMap by
-  # kustomization.yaml. helm-controller watches it, so an edit triggers an upgrade.
+  # kustomization.yaml. helm-controller reads it when it reconciles this release, not when the
+  # ConfigMap changes, so an edit lands within `interval` above — `just fx redeploy vmagent` to
+  # take it now. Reconciling the monitoring Kustomization only updates the ConfigMap.
   valuesFrom:
     - kind: ConfigMap
       name: vmagent-scrape
