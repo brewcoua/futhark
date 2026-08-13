@@ -310,8 +310,14 @@ the same `auth-sso@kubernetescrd` as Glance. Plain manifests in `infra/gatus/app
 `storage.type: memory`, so there is no PVC and no K8up `Schedule` entry.
 
 Add a check by adding an endpoint to `infra/gatus/app/config.yaml`. That file **is** substituted
-by Flux, unlike Glance's config, because it contains no `${}` of Gatus's own — so
-`${SUB_INTERNAL}` and `${DOMAIN}` in it are filled in by `postBuild`.
+by Flux, unlike Glance's config, because Gatus writes none of its own placeholders in the syntax
+`postBuild` claims, so `${SUB_INTERNAL}` and `${DOMAIN}` in it are filled in.
+
+The cost of that is a rule about the whole file, comments included: never write a dollar sign
+followed by an empty brace pair. envsubst reads every byte it is given, reads that as a variable
+with no name, and fails the Kustomization with
+`envsubst error: variable substitution failed: unable to parse variable name`. The build stops
+there, so the symptom is the whole component going `False`, not one bad endpoint.
 
 Each endpoint is probed over its public hostname through traefik-internal rather than over a
 cluster Service. That is deliberate: the path being tested then includes DNS, the mesh route, the

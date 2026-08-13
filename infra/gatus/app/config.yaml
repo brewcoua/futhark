@@ -2,8 +2,10 @@
 # probing anything itself (see infra/glance/config/widget-gatus.yml), so a check is written once
 # and shows up on both the status page and the dashboard.
 #
-# Unlike infra/glance, this file *is* expanded by Flux: it contains no ${} of Gatus's own, so
-# postBuild fills in the hostnames. See ../ks.yaml.
+# Unlike infra/glance, this file *is* expanded by Flux: Gatus spells none of its own placeholders
+# the way postBuild does, so postBuild is free to fill in the hostnames. See ../ks.yaml.
+# Write no bare dollar-brace pair anywhere in here, comments included: envsubst reads the whole
+# file and an empty variable name fails the build.
 #
 # Every endpoint is probed over its public name through traefik-internal, not over a cluster
 # Service, deliberately: that path also covers DNS, the mesh route, the router and the
