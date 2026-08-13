@@ -36,10 +36,10 @@ spec:
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 192Mi
       limits:
         cpu: 200m
-        memory: 256Mi
+        memory: 384Mi
     # Redundant with the pod's fsGroup: local-path is hostPath-backed, so kubelet already fixes
     # ownership at mount. It also cannot work here — the chart runs it as uid 0 with every
     # capability but CHOWN dropped, so `chown -R` gets EACCES descending into the 0700 dirs
@@ -111,7 +111,7 @@ spec:
       resources:
         requests:
           cpu: 10m
-          memory: 32Mi
+          memory: 80Mi
         limits:
           cpu: 100m
           # 64Mi OOMKilled the alerts sidecar on startup; its Python/kube-client baseline alone
