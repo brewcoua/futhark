@@ -81,7 +81,7 @@ login. See
 [Internal ingresses are unauthenticated by default](../conventions/domains.md#internal-ingresses-are-unauthenticated-by-default)
 for how to opt an app in.
 
-Three settings in `app/oauth2-proxy-configmap.yaml` carry the design, and changing any of them
+Four settings in `app/oauth2-proxy-configmap.yaml` carry the design, and changing any of them
 changes what the reader sees:
 
 - `OAUTH2_PROXY_UPSTREAMS: static://202` with `OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"` is
@@ -95,6 +95,11 @@ changes what the reader sees:
 - `OAUTH2_PROXY_COOKIE_NAME` uses the `__Secure-` prefix, not `__Host-`. The `__Host-` prefix
   forbids a `Domain` attribute, and a `Domain` attribute is exactly what shares the session across
   subdomains.
+- `OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256` has to be set, because every client in
+  `tofu/oidc/clients.tf` is minted with `pkce_enabled`. oauth2-proxy sends no `code_challenge`
+  unless asked, and Pocket ID answers an authorize request without one with `invalid_request`.
+  That surfaces as a 403 on the protected host reading `Login Failed: The upstream identity
+provider returned an error`, not as a startup failure, so it appears only on the first login.
 
 The gate is binary. `OAUTH2_PROXY_ALLOWED_GROUPS` admits `administrators` and `users`, and the app
 behind the middleware learns nothing about which one the reader is in. An app that needs roles has

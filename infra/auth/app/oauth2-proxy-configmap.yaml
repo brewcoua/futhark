@@ -17,6 +17,10 @@ data:
   # on top of that would only reject accounts Pocket ID has already vouched for.
   OAUTH2_PROXY_EMAIL_DOMAINS: "*"
   OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+  # Not optional: the client is minted with pkce_enabled in tofu/oidc/clients.tf, so Pocket ID
+  # rejects an authorize request carrying no code_challenge with invalid_request. oauth2-proxy
+  # sends one only when this is set, unlike Grafana, whose use_pkce covers the same ground.
+  OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
   # Trust Traefik's X-Forwarded-*: it is what lets the forwardAuth Middleware address the pod
   # in-cluster while oauth2-proxy still builds the redirect for the browser's original host.
   OAUTH2_PROXY_REVERSE_PROXY: "true"
