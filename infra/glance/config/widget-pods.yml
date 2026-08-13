@@ -17,7 +17,7 @@
     notready:
       url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
       parameters:
-        query: kube_pod_status_ready{condition="true"} == 0
+        query: kube_pod_status_ready{condition="true"} == 0 unless on (namespace, pod) (kube_pod_status_phase{phase="Succeeded"} == 1)
   template: |
     <p class="size-h6 color-subdue">Pods by phase</p>
     <ul class="list-horizontal-text margin-top-5">
@@ -48,8 +48,9 @@
       </ul>
     {{ end }}
 
-    {{/* A Job's pod stays not-ready for its whole life and is not a fault, so a Completed pod
-         showing up in this list is expected. Anything else here is worth a look. */}}
+    {{/* A Job's pod is never ready, not even once it has done its work, so Succeeded pods are
+         subtracted in the query itself — backups and one-shot jobs would otherwise fill this
+         list permanently. Everything left is a live pod that is not serving. */}}
     {{ with .Subrequest "notready" }}
       {{ if eq (len (.JSON.Array "data.result")) 0 }}
         <p class="color-positive margin-top-15">Every pod is ready.</p>

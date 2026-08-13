@@ -14,8 +14,8 @@
       widgets:
         - $include: widget-gitops.yml
         - $include: widget-pods.yml
-        - $include: widget-backups.yml
 
     - size: small
       widgets:
+        - $include: widget-backups.yml
         - $include: widget-certificates.yml

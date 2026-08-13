@@ -10,6 +10,14 @@
 # Every endpoint is probed over its public name through traefik-internal, not over a cluster
 # Service, deliberately: that path also covers DNS, the mesh route, the router and the
 # certificate, which is what actually breaks.
+#
+# Every endpoint asserts more than a status code, because a service that answers slowly or sits
+# behind a certificate nobody is renewing is not healthy:
+#   [CONNECTED]              separates "TCP/TLS never came up" from "answered wrongly"
+#   [CERTIFICATE_EXPIRATION] cert-manager renews at 30 days, so under 10 days left means the
+#                            renewal itself has stopped working
+#   [RESPONSE_TIME]          1s for a health handler, 2s for the two endpoints that render a page
+#   [BODY]                   proves the process is serving, not merely listening
 storage:
   # In memory, so no PVC and nothing for k8up. History is lost on restart; the long-term series
   # live in VictoriaMetrics and the dashboards in Grafana.
@@ -25,51 +33,80 @@ endpoints:
     url: https://dash.${SUB_INTERNAL}.${DOMAIN}/api/health
     interval: 60s
     conditions:
+      - "[CONNECTED] == true"
       - "[STATUS] == 200"
       - "[BODY].database == ok"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
 
   - name: VictoriaMetrics
     group: Core
     url: https://metrics.${SUB_INTERNAL}.${DOMAIN}/health
     interval: 60s
     conditions:
+      - "[CONNECTED] == true"
       - "[STATUS] == 200"
+      - "[BODY] == pat(*OK*)"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
 
   - name: VictoriaLogs
     group: Core
     url: https://logs.${SUB_INTERNAL}.${DOMAIN}/health
     interval: 60s
     conditions:
+      - "[CONNECTED] == true"
       - "[STATUS] == 200"
+      - "[BODY] == pat(*OK*)"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
 
+  # 204, not 200: Pocket ID's healthz answers with no content at all, so there is no body to assert.
   - name: Pocket ID
     group: Core
     url: https://auth.${DOMAIN}/healthz
     interval: 60s
     conditions:
-      - "[STATUS] == 200"
+      - "[CONNECTED] == true"
+      - "[STATUS] == 204"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
 
   - name: oauth2-proxy
     group: Core
     url: https://sso.${SUB_INTERNAL}.${DOMAIN}/ping
     interval: 60s
     conditions:
+      - "[CONNECTED] == true"
       - "[STATUS] == 200"
+      - "[BODY] == pat(*OK*)"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
 
   # Behind auth-sso, so an anonymous probe is redirected to Pocket ID. A 302 here means the
-  # forwardAuth chain is intact; a 200 would mean the login had stopped being enforced.
+  # forwardAuth chain is intact; a 200 would mean the login had stopped being enforced — or that
+  # the redirect was followed, which is why ignore-redirect is set. Gatus spells the option that
+  # way; a `follow-redirects` key is silently ignored and the check then measures Pocket ID's
+  # login page instead. The redirect body is empty, so the status is the whole assertion.
   - name: Glance
     group: Apps
     url: https://home.${SUB_INTERNAL}.${DOMAIN}
     interval: 60s
     client:
-      follow-redirects: false
+      ignore-redirect: true
     conditions:
+      - "[CONNECTED] == true"
       - "[STATUS] == 302"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
 
   - name: Actual
     group: Apps
     url: https://actual.${SUB_INTERNAL}.${DOMAIN}
     interval: 60s
     conditions:
+      - "[CONNECTED] == true"
       - "[STATUS] == 200"
+      - '[BODY] == pat(*<div id="root">*)'
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"

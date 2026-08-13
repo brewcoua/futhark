@@ -12,10 +12,13 @@
         {{ $used := .Float "value.1" }}
         <li>
           <div class="flex justify-between items-end size-h5">
-            <span class="text-truncate">
+            {{/* min-width on the name and no shrink on the value: a flex item defaults to
+                 min-width: auto, so a long PVC name refuses to truncate and pushes the percentage
+                 onto its own line instead. */}}
+            <span class="text-truncate" style="min-width: 0">
               <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.persistentvolumeclaim" }}
             </span>
-            <span class="color-highlight text-very-compact">{{ printf "%.0f" $used }} <span class="color-base">%</span></span>
+            <span class="color-highlight text-very-compact" style="flex-shrink: 0">{{ printf "%.0f" $used }} <span class="color-base">%</span></span>
           </div>
           <div class="progress-bar">
             <div class="progress-value{{ if ge $used 85.0 }} progress-value-notice{{ end }}" style="--percent: {{ printf "%.0f" $used }}"></div>

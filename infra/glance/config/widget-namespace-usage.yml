@@ -13,38 +13,46 @@
       parameters:
         query: topk(8, sum by (namespace) (container_memory_working_set_bytes{container!=""}) > 0)
   template: |
-    {{ $cpuMax := 0.001 }}
-    {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $cpuMax }}{{ $cpuMax = .Float "value.1" }}{{ end }}{{ end }}
-    <p class="size-h6 color-subdue">CPU</p>
-    <ul class="list list-gap-10 margin-top-5">
-      {{ range .JSON.Array "data.result" }}
-        <li>
-          <div class="flex justify-between items-end size-h5">
-            <span class="text-truncate">{{ .String "metric.namespace" }}</span>
-            <span class="color-highlight text-very-compact">{{ printf "%.0f" (mul 1000.0 (.Float "value.1")) }} <span class="color-base">m</span></span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $cpuMax)) }}"></div>
-          </div>
-        </li>
-      {{ end }}
-    </ul>
+    {{/* auto-fit rather than two fixed columns: the pair stacks again on a phone, where two
+         columns of truncated namespace names would say nothing. */}}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
+      <div>
+        {{ $cpuMax := 0.001 }}
+        {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $cpuMax }}{{ $cpuMax = .Float "value.1" }}{{ end }}{{ end }}
+        <p class="size-h6 color-subdue">CPU</p>
+        <ul class="list list-gap-10 margin-top-5">
+          {{ range .JSON.Array "data.result" }}
+            <li>
+              <div class="flex justify-between items-end size-h5">
+                <span class="text-truncate" style="min-width: 0">{{ .String "metric.namespace" }}</span>
+                <span class="color-highlight text-very-compact" style="flex-shrink: 0">{{ printf "%.0f" (mul 1000.0 (.Float "value.1")) }} <span class="color-base">m</span></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $cpuMax)) }}"></div>
+              </div>
+            </li>
+          {{ end }}
+        </ul>
+      </div>
 
-    {{ with .Subrequest "memory" }}
-      {{ $memMax := 1.0 }}
-      {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $memMax }}{{ $memMax = .Float "value.1" }}{{ end }}{{ end }}
-      <p class="size-h6 color-subdue margin-top-15">Memory</p>
-      <ul class="list list-gap-10 margin-top-5">
-        {{ range .JSON.Array "data.result" }}
-          <li>
-            <div class="flex justify-between items-end size-h5">
-              <span class="text-truncate">{{ .String "metric.namespace" }}</span>
-              <span class="color-highlight text-very-compact">{{ printf "%.0f" (div (.Float "value.1") 1048576.0) }} <span class="color-base">MiB</span></span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $memMax)) }}"></div>
-            </div>
-          </li>
+      <div>
+        {{ with .Subrequest "memory" }}
+          {{ $memMax := 1.0 }}
+          {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $memMax }}{{ $memMax = .Float "value.1" }}{{ end }}{{ end }}
+          <p class="size-h6 color-subdue">Memory</p>
+          <ul class="list list-gap-10 margin-top-5">
+            {{ range .JSON.Array "data.result" }}
+              <li>
+                <div class="flex justify-between items-end size-h5">
+                  <span class="text-truncate" style="min-width: 0">{{ .String "metric.namespace" }}</span>
+                  <span class="color-highlight text-very-compact" style="flex-shrink: 0">{{ printf "%.0f" (div (.Float "value.1") 1048576.0) }} <span class="color-base">MiB</span></span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $memMax)) }}"></div>
+                </div>
+              </li>
+            {{ end }}
+          </ul>
         {{ end }}
-      </ul>
-    {{ end }}
+      </div>
+    </div>

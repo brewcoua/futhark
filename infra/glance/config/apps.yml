@@ -10,6 +10,8 @@
     - size: small
       widgets:
         - $include: widget-gatus-summary.yml
+        - $include: widget-workloads.yml
+        - $include: widget-restarts.yml
 
         - type: releases
           title: Upgrades
@@ -39,8 +41,6 @@
     - size: full
       widgets:
         - $include: widget-gatus.yml
-        - $include: widget-workloads.yml
-        - $include: widget-restarts.yml
         - $include: widget-http-services.yml
         - $include: widget-namespace-usage.yml
 

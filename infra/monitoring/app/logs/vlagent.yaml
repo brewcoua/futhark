@@ -38,7 +38,9 @@ spec:
         # vlagent only accepts KB/MB/GB/TB/KiB/MiB/GiB/TiB suffixes, not bare "G".
         maxDiskUsagePerURL: 1GiB
     collector:
-      excludeFilter: kubernetes.namespace_name:=kube-system
+      # The field is kubernetes.pod_namespace — kubernetes.namespace_name does not exist, so the
+      # filter matched nothing and kube-system was shipped in full.
+      excludeFilter: kubernetes.pod_namespace:=kube-system
     # The only host-level log collected: fail2ban's, written to a file by ansible's fail2ban
     # role precisely so this DaemonSet can read it — the chart's defaultVolumes already mount
     # /var/log read-only from each node. vlagent adds `hostname` and `file` itself.
