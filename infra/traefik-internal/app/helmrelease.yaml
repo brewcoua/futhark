@@ -100,7 +100,7 @@ spec:
         addServicesLabels: true
         service:
           enabled: true
-    # JSON access logs to stdout, collected into VictoriaLogs by the vlagent DaemonSet.
+    # JSON access logs to stdout, collected into VictoriaLogs by the fluent-bit DaemonSet.
     accessLog:
       enabled: true
       format: json

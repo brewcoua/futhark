@@ -120,7 +120,7 @@ Store that in Infisical at `/infra/auth` before the Deployment first reconciles.
 ## Monitoring
 
 One Flux `Kustomization`, four workloads, one directory each under `infra/monitoring/app/`:
-`metrics/` (vmsingle + vmagent), `logs/` (vlsingle + vlagent), `exporters/` and `grafana/`.
+`metrics/` (vmsingle + vmagent), `logs/` (vlsingle + fluent-bit), `exporters/` and `grafana/`.
 Only `helmrepositories.yaml` stays flat, since every one of them draws on it.
 
 **Alert rules are in `grafana/alerting/`**, one file per group (`watchdog.yaml`,
@@ -175,10 +175,9 @@ template variable, so a dashboard cannot be pointed at the wrong store by a stra
 `pod-logs.json` is the dashboard to reach for when reading a workload's logs. Its namespace, pod
 and container dropdowns come from `kube_pod_info` and `kube_pod_container_info` in
 VictoriaMetrics, so they list every pod rather than only the ones that logged in the window. Its
-`Level` dropdown holds a regexp alternation, `Error` being `error|fatal|panic|critical`, and every
-panel matches it twice: against the `level` field a JSON-logging workload produces, and against
-the raw message for the lines that have no `level` field. Either half alone misses most of the
-cluster's errors. Anything typed into `Search` is ANDed onto every panel's query.
+`Level` dropdown holds a regexp alternation, `Error` being `error|fatal`, matched against the
+`level` field that the collector sets on every line — see [Log levels](#log-levels). Anything
+typed into `Search` is ANDed onto every panel's query.
 
 `vmagent`'s scrape targets are in `metrics/scrape-configs.yaml`, merged into the release with
 `valuesFrom` rather than kept inline, so adding a target does not mean editing a `HelmRelease`.
@@ -205,15 +204,29 @@ memory are not there. Those are per-workload and stay next to the release that s
 The file cannot live under `infra/monitoring/`: a `substituteFrom` source has to exist before its
 consumer reconciles.
 
+## Log levels
+
+Every line reaching VictoriaLogs carries a `level` field, one of
+`trace`/`debug`/`info`/`warn`/`error`/`fatal`, set by the Fluent Bit collector in
+`infra/monitoring/app/logs/fluent-bit.yaml`. A workload that logs JSON has its own `level` (or
+`lvl`, or `severity`) normalised; for the rest, a Lua filter reads the severity out of the front
+of the message — klog's `I0812`, zap's tab-delimited `INFO`, zerolog's `WRN`, colour codes
+stripped first — and defaults to `info` when there is none.
+
+That derivation is deliberately at ingest rather than in each query. Matching severity words
+against message text is what made gatus' healthy `errors=0` heartbeat read as an error, and every
+dashboard and widget had to repeat the same expression to be wrong in the same way. The collector
+is Fluent Bit rather than VictoriaLogs' own `vlagent` only because vlagent cannot transform what
+it ships.
+
 ## Host logs
 
-The `vlagent` DaemonSet collects container logs, and one file from the host itself:
-`/var/log/fail2ban.log`, declared as a `fileCollector` glob in
-`infra/monitoring/app/logs/vlagent.yaml`. It works with no shipper on the node and no route from the
-host into the cluster, because the chart already mounts each node's `/var/log` read-only.
+The collector also tails one file from the host itself, `/var/log/fail2ban.log`. It works with no
+shipper on the node and no route from the host into the cluster, because the DaemonSet already
+mounts each node's `/var/log` read-only.
 
-Query the bans in Grafana against the `VictoriaLogs` datasource as `app:fail2ban`. vlagent
-attaches `hostname` and `file` on its own, so events stay attributable per node.
+Query the bans in Grafana against the `VictoriaLogs` datasource as `app:fail2ban`. A
+`record_modifier` filter attaches `app` and `hostname`, so events stay attributable per node.
 
 The other half, the jails and why fail2ban logs to a file at all, is in
 [Inventory and roles](../ansible/index.md#fail2ban).

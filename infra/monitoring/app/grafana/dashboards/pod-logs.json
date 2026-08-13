@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Pod logs from VictoriaLogs. Pick a namespace, pod and container, then narrow by level. Level is an alternation of severity words, matched against the parsed `level` field where a workload logs JSON and against the raw message where it does not: roughly a third of the lines in this cluster carry no `level` field at all.",
+  "description": "Pod logs from VictoriaLogs. Pick a namespace, pod and container, then narrow by level. Every line carries a normalised `level` field, set by the Fluent Bit collector at ingest rather than matched here: see infra/monitoring/app/logs/fluent-bit.yaml.",
   "editable": false,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -69,8 +69,8 @@
             "uid": "victorialogs"
           },
           "editorMode": "code",
-          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats count() as lines",
-          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats count() as lines",
+          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats count() as lines",
+          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats count() as lines",
           "queryType": "stats",
           "refId": "A"
         }
@@ -118,8 +118,8 @@
             "uid": "victorialogs"
           },
           "editorMode": "code",
-          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats count_uniq(kubernetes.pod_name) as pods",
-          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats count_uniq(kubernetes.pod_name) as pods",
+          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats count_uniq(kubernetes.pod_name) as pods",
+          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats count_uniq(kubernetes.pod_name) as pods",
           "queryType": "stats",
           "refId": "A"
         }
@@ -184,9 +184,9 @@
             "uid": "victorialogs"
           },
           "editorMode": "code",
-          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats by (_time:$__interval, kubernetes.pod_name) count() as lines",
+          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats by (_time:$__interval, kubernetes.pod_name) count() as lines",
           "legendFormat": "{{kubernetes.pod_name}}",
-          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats by (_time:$__interval, kubernetes.pod_name) count() as lines",
+          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats by (_time:$__interval, kubernetes.pod_name) count() as lines",
           "queryType": "statsRange",
           "refId": "A"
         }
@@ -242,8 +242,8 @@
             "uid": "victorialogs"
           },
           "editorMode": "code",
-          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats by (kubernetes.pod_namespace, kubernetes.pod_name) count() as lines | sort by (lines desc) | limit 20",
-          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | stats by (kubernetes.pod_namespace, kubernetes.pod_name) count() as lines | sort by (lines desc) | limit 20",
+          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats by (kubernetes.pod_namespace, kubernetes.pod_name) count() as lines | sort by (lines desc) | limit 20",
+          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | stats by (kubernetes.pod_namespace, kubernetes.pod_name) count() as lines | sort by (lines desc) | limit 20",
           "queryType": "stats",
           "refId": "A"
         }
@@ -283,8 +283,8 @@
             "uid": "victorialogs"
           },
           "editorMode": "code",
-          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | format \"[<kubernetes.pod_name>/<kubernetes.container_name>] <_msg>\" as _msg",
-          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND (level:~\"(?i)^($level)$\" OR (level:\"\" AND ~\"(?i)($level)\")) AND $search | format \"[<kubernetes.pod_name>/<kubernetes.container_name>] <_msg>\" as _msg",
+          "expr": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | format \"[<kubernetes.pod_name>/<kubernetes.container_name>] <_msg>\" as _msg",
+          "query": "kubernetes.pod_namespace:\"$namespace\" AND kubernetes.pod_name:~\"^(${pod:regex})$\" AND kubernetes.container_name:~\"^(${container:regex})$\" AND level:~\"^($level)$\" AND $search | format \"[<kubernetes.pod_name>/<kubernetes.container_name>] <_msg>\" as _msg",
           "queryType": "logs",
           "refId": "A"
         }
@@ -367,7 +367,7 @@
       },
       {
         "current": { "selected": true, "text": "All", "value": ".*" },
-        "description": "Severity words as a regexp alternation, matched against the `level` field and, for lines that have none, against the message.",
+        "description": "Severity words as a regexp alternation, matched against the `level` field the collector derives for every line.",
         "hide": 0,
         "includeAll": false,
         "label": "Level",
@@ -378,13 +378,13 @@
           {
             "selected": false,
             "text": "Error",
-            "value": "error|fatal|panic|critical"
+            "value": "error|fatal"
           },
-          { "selected": false, "text": "Warn", "value": "warn|warning" },
+          { "selected": false, "text": "Warn", "value": "warn" },
           { "selected": false, "text": "Info", "value": "info" },
           { "selected": false, "text": "Debug", "value": "debug|trace" }
         ],
-        "query": "All : .*, Error : error|fatal|panic|critical, Warn : warn|warning, Info : info, Debug : debug|trace",
+        "query": "All : .*, Error : error|fatal, Warn : warn, Info : info, Debug : debug|trace",
         "queryValue": "",
         "skipUrlSync": false,
         "type": "custom"

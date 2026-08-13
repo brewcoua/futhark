@@ -1,0 +1,191 @@
+---
+# Node-local log shipper — unpinned DaemonSet, reads each node's own /var/log.
+#
+# This is Fluent Bit rather than VictoriaLogs' own vlagent because the `level` field has to be
+# derived here, once, rather than re-derived by every dashboard and widget that reads severity:
+# vlagent ships logs verbatim and cannot transform them (VictoriaLogs#858 is still open), so
+# three quarters of the lines arrived with a `level` field and the rest with the severity buried
+# in the message text. See the lua block below.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: fluent-bit
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: fluent-bit
+  targetNamespace: monitoring
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: fluent-bit
+      version: "0.58.0" # chart 0.58.0 -> Fluent Bit 5.1.0
+      sourceRef:
+        kind: HelmRepository
+        name: fluent
+        namespace: flux-system
+  values:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 192Mi
+    # The Kubernetes filter reads pod metadata from the API server; the chart's own Role covers it.
+    env:
+      - name: NODE_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: spec.nodeName
+    # The chart's defaults also mount /var/lib/docker/containers and /etc/machine-id; this cluster
+    # runs containerd and neither is read. /var/lib/fluent-bit is the only writable path: it holds
+    # the tail offset databases and the filesystem buffer, both of which have to survive a restart
+    # or every pod restart re-ships whatever the node still has on disk.
+    daemonSetVolumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: state
+        hostPath:
+          path: /var/lib/fluent-bit
+          type: DirectoryOrCreate
+    daemonSetVolumeMounts:
+      - name: varlog
+        mountPath: /var/log
+        readOnly: true
+      - name: state
+        mountPath: /var/lib/fluent-bit
+    luaScripts:
+      # Severity, normalised to one of trace/debug/info/warn/error/fatal, for every line that
+      # reaches VictoriaLogs. Consumers then filter on an exact field value instead of regexing
+      # the message, which is what used to score gatus' `errors=0` heartbeat as an error.
+      #
+      # Also renames the two Kubernetes metadata fields whose names differ from vlagent's, so the
+      # retained history and every existing query keep working across the collector swap.
+      level.lua: |
+        local ALIASES = {
+          trace = "trace", trc = "trace",
+          debug = "debug", dbg = "debug",
+          info = "info", inf = "info", notice = "info",
+          warn = "warn", warning = "warn", wrn = "warn",
+          error = "error", err = "error", eror = "error",
+          fatal = "fatal", ftl = "fatal", panic = "fatal",
+          critical = "fatal", crit = "fatal", emerg = "fatal", alert = "fatal",
+        }
+
+        -- klog writes the severity as the first letter of the line, glued to the date: I0812 …
+        local KLOG = { I = "info", W = "warn", E = "error", F = "fatal" }
+
+        local function detect(msg)
+          local klog = KLOG[msg:match("^(%a)%d%d%d%d ")]
+          if klog then return klog end
+          -- Whole tokens only, and only near the start of the line: `errors=0` tokenises to
+          -- `errors`, which is not a severity, and a severity word quoted deep inside a message
+          -- body must not reclassify the line. Hyphens and dots stay inside the token so that
+          -- `error-log` and `pkg.error` do not read as a bare `error`.
+          for token in msg:sub(1, 80):gmatch("[%w_%-%.]+") do
+            local sev = ALIASES[token:lower()]
+            if sev then return sev end
+          end
+          return "info"
+        end
+
+        function set_level(tag, timestamp, record)
+          local k = record["kubernetes"]
+          if k then
+            k["pod_namespace"], k["namespace_name"] = k["namespace_name"], nil
+            k["pod_node_name"], k["host"] = k["host"], nil
+          end
+
+          local given = record["level"] or record["lvl"] or record["severity"]
+          if type(given) == "string" and given ~= "" then
+            record["level"] = ALIASES[given:lower()] or given:lower()
+          else
+            local msg = record["log"] or record["message"] or record["msg"]
+            if type(msg) ~= "string" then
+              record["level"] = "info"
+            else
+              -- Strip ANSI colour before matching: traefik and actual both colour the severity.
+              record["level"] = detect((msg:gsub("\27%[[%d;]*m", "")))
+            end
+          end
+
+          return 2, timestamp, record
+        end
+    config:
+      service: |
+        [SERVICE]
+            Daemon Off
+            Flush {{ .Values.flush }}
+            Log_Level {{ .Values.logLevel }}
+            Parsers_File /fluent-bit/etc/parsers.conf
+            Parsers_File /fluent-bit/etc/conf/custom_parsers.conf
+            HTTP_Server On
+            HTTP_Listen 0.0.0.0
+            HTTP_Port {{ .Values.metricsPort }}
+            Health_Check On
+            storage.path /var/lib/fluent-bit/storage
+            storage.sync normal
+            storage.checksum off
+            storage.backlog.mem_limit 32M
+      inputs: |
+        [INPUT]
+            Name tail
+            Path /var/log/containers/*.log
+            Exclude_Path /var/log/containers/*_kube-system_*.log
+            multiline.parser cri
+            Tag kube.*
+            DB /var/lib/fluent-bit/containers.db
+            storage.type filesystem
+            Skip_Long_Lines On
+
+        [INPUT]
+            Name tail
+            Path /var/log/fail2ban.log
+            Tag host.fail2ban
+            DB /var/lib/fluent-bit/fail2ban.db
+            storage.type filesystem
+            Skip_Long_Lines On
+      filters: |
+        [FILTER]
+            Name kubernetes
+            Match kube.*
+            Merge_Log On
+            Keep_Log Off
+            Labels On
+            Annotations Off
+            K8S-Logging.Parser On
+            K8S-Logging.Exclude On
+
+        [FILTER]
+            Name record_modifier
+            Match host.fail2ban
+            Record app fail2ban
+            # $$ escapes Flux's postBuild substitution: the variable is Fluent Bit's to expand,
+            # and an unescaped ${NODE_NAME} is emptied before it ever reaches the pod.
+            Record hostname $${NODE_NAME}
+
+        [FILTER]
+            Name lua
+            Match *
+            script /fluent-bit/scripts/level.lua
+            call set_level
+      outputs: |
+        [OUTPUT]
+            Name http
+            Match *
+            Host vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local
+            Port 9428
+            URI /insert/jsonline?_msg_field=log,message,msg&_time_field=date&_stream_fields=kubernetes.pod_namespace,kubernetes.pod_name,kubernetes.container_name,app&ignore_fields=kubernetes.pod_id,kubernetes.docker_id,kubernetes.container_hash,kubernetes.container_image
+            Format json_lines
+            Json_date_format iso8601
+            Json_date_key date
+            Compress gzip
+            Retry_Limit False
+            storage.total_limit_size 1G

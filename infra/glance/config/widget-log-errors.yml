@@ -5,17 +5,16 @@
 # newline-delimited JSON and this widget needs a single JSON document. That is also why the query
 # has to end in a `stats` pipe.
 #
-# `kubernetes.pod_namespace` is the field vlagent actually writes — confirmed against
+# `kubernetes.pod_namespace` is the field the collector actually writes — confirmed against
 # /select/logsql/field_names, not assumed. It is copied to `namespace` because a dot in a label
 # name is a path separator to the template engine, and the copy happens *before* `stats`, not
 # after: renaming a grouping field afterwards leaves the result keyed by the original name, so
 # every row rendered with an empty namespace and the whole thing collapsed into a single count.
 # `pod` is the same copy for the same reason.
 #
-# The severity filter reads the `level` field first and falls back to the message text, because
-# neither alone is enough: about a third of the lines carry no `level` field, and a bare word
-# filter matches `_msg` only, so it misses every JSON logger that puts the severity in `level` and
-# never repeats it in the message.
+# `level` is set on every line by the Fluent Bit collector, not derived here — see
+# infra/monitoring/app/logs/fluent-bit.yaml. Matching severity words against the message text
+# instead used to count gatus' `errors=0` heartbeat as an error.
 #
 # Each row links into the pod-logs Grafana dashboard with the same pod and window already
 # selected. `var-container` is left off deliberately — the dashboard defaults it to All, and the
@@ -30,12 +29,12 @@
   url: http://vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local:9428/select/logsql/stats_query
   parameters:
     query: |
-      _time:15m (level:~"(?i)^(error|fatal|panic|critical)$" OR (level:"" AND ~"(?i)(error|fatal|panic|critical)")) | format "<kubernetes.pod_namespace>" as namespace | format "<kubernetes.pod_name>" as pod | stats by (namespace, pod) count() as errors | sort by (errors desc) | limit 8
+      _time:15m level:~"^(error|fatal)$" | format "<kubernetes.pod_namespace>" as namespace | format "<kubernetes.pod_name>" as pod | stats by (namespace, pod) count() as errors | sort by (errors desc) | limit 8
   template: |
     {{ if eq (len (.JSON.Array "data.result")) 0 }}
       <p class="color-positive">Nothing logged an error in the last fifteen minutes.</p>
     {{ else }}
-      {{ $level := urlquery "error|fatal|panic|critical" }}
+      {{ $level := urlquery "error|fatal" }}
       <ul class="list list-gap-4">
         {{ range .JSON.Array "data.result" }}
           {{ $namespace := .String "metric.namespace" }}

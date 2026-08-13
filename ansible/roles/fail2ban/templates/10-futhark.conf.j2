@@ -1,5 +1,5 @@
-# Fedora defaults logtarget to SYSTEMD-JOURNAL. A file instead, for two reasons: the vlagent
-# DaemonSet already hostPath-mounts /var/log on every node and collects this path into
+# Fedora defaults logtarget to SYSTEMD-JOURNAL. A file instead, for two reasons: the log
+# collector DaemonSet already hostPath-mounts /var/log on every node and collects this path into
 # VictoriaLogs, and the recidive jail reads fail2ban's own log.
 [Definition]
 logtarget = /var/log/fail2ban.log
