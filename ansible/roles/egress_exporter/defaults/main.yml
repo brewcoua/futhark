@@ -1,0 +1,12 @@
+---
+# Where node-exporter's textfile collector reads from — the hostPath mounted into the DaemonSet in
+# infra/monitoring/app/exporters/node-exporter.yaml. Same directory roles/netbird writes the mesh
+# metrics into, and all three spellings have to agree.
+egress_exporter_textfile_dir: /var/lib/node_exporter/textfile_collector
+
+# The lookup service. It has to be reached over the node's own default route, which is the whole
+# point of running this on the ingress host rather than from a pod.
+egress_exporter_url: https://ifconfig.co/json
+
+# The address does not change often, and the service rate-limits. Hourly is well inside both.
+egress_exporter_interval: 1h

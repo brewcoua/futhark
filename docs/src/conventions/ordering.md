@@ -89,6 +89,10 @@ monitoring -> glance
 auth -> glance
 glance-config -> glance
 
+coredns -> gatus
+traefik-internal -> gatus
+auth -> gatus
+
 storage -> actual
 backup -> backup-config
 
@@ -99,6 +103,8 @@ substitutions -> backup { class: presence }
 substitutions -> actual { class: presence }
 substitutions -> infra-policies { class: presence }
 substitutions -> glance { class: presence }
+substitutions -> gatus { class: presence }
+substitutions -> coredns { class: presence }
 
 cert-manager -> infra-policies { class: bulk }
 infisical-operator -> infra-policies { class: bulk }
@@ -112,6 +118,7 @@ auth -> infra-policies { class: bulk }
 infra-policies -> nodes
 infra-policies -> actual
 infra-policies -> glance
+infra-policies -> gatus
 ```
 
 Only those two name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
@@ -120,7 +127,7 @@ They need nothing from the cluster but a namespace to land in. Their `config-ks.
 are where the ordering actually bites, because those apply CRs the controller must already have
 registered CRDs for.
 
-Four edges are less obvious than they look:
+Five edges are less obvious than they look:
 
 - `namespaces` is a root of its own rather than a file next to each component, because
   `infisical-operator` installs its chart with `scopedRBAC: true`. Helm emits a Role and
@@ -139,6 +146,10 @@ Four edges are less obvious than they look:
   It has no `dependsOn` at all, because there is nothing it could need, and `glance` names it so
   the ConfigMap exists before the pod tries to mount it.
   [Cluster infrastructure](../gitops/infra.md#glance) has the reasoning.
+- `gatus` depends on `coredns`, which is the only dependency in the tree on a DNS record rather
+  than on an object. Gatus probes every service by its internal hostname, and those names do not
+  resolve inside the cluster until `coredns` has applied its stub zone. Without the edge, Gatus
+  reconciles green with every check failing.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
   cluster: the `cluster-values` Secret and the `monitoring-sizing` ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
   reconciles, and `traefik-edge`, one of those consumers, is upstream of `infra-policies`, the

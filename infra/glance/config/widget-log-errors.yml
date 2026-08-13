@@ -1,0 +1,30 @@
+# Error lines per namespace, from VictoriaLogs rather than from any metric: a pod that logs a
+# stack trace every minute and never restarts is invisible everywhere else on this page.
+#
+# /select/logsql/stats_query rather than /select/logsql/query, because the latter answers with
+# newline-delimited JSON and this widget needs a single JSON document. That is also why the query
+# has to end in a `stats` pipe.
+#
+# `kubernetes.namespace_name` is the field vlagent writes (see infra/monitoring/app/logs/
+# vlagent.yaml, whose excludeFilter uses the same name); it is renamed here because a dot in a
+# label name is a path separator to the template engine.
+- type: custom-api
+  title: Log errors (15m)
+  cache: 5m
+  url: http://vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local:9428/select/logsql/stats_query
+  parameters:
+    query: |
+      _time:15m error | stats by (kubernetes.namespace_name) count() as errors | rename kubernetes.namespace_name as namespace | sort by (errors desc) | limit 8
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-positive">Nothing logged an error in the last fifteen minutes.</p>
+    {{ else }}
+      <ul class="list list-gap-4">
+        {{ range .JSON.Array "data.result" }}
+          <li class="flex justify-between">
+            <span class="text-truncate">{{ .String "metric.namespace" }}</span>
+            <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }}</span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}

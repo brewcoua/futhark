@@ -1,0 +1,24 @@
+---
+# Internal-only, behind the same forwardAuth as Glance: the page names every internal host and
+# says which of them are down, which is not something to leave open to the whole mesh.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gatus
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: gatus-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: status.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gatus
+                port:
+                  number: 8080

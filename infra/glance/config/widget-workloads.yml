@@ -1,0 +1,23 @@
+# Deployments whose replicas are not all available. Empty is the healthy state, so the widget says
+# so rather than rendering an empty box that reads like a broken query.
+- type: custom-api
+  title: Unavailable workloads
+  cache: 1m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: kube_deployment_status_replicas_unavailable > 0 or kube_statefulset_status_replicas_ready < kube_statefulset_status_replicas
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-positive">All deployments and statefulsets fully available.</p>
+    {{ else }}
+      <ul class="list list-gap-10">
+        {{ range .JSON.Array "data.result" }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">
+              <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.deployment" }}{{ .String "metric.statefulset" }}
+            </span>
+            <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }} down</span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}

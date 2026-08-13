@@ -1,0 +1,98 @@
+# One block per node instead of four stacked lists of the same two names. The markup is Glance's
+# own server-stats layout (.server / .server-info / .server-stats / .progress-bar), which is what
+# the glance-k8s plugin renders too — that plugin exists because it has to scrape the API server,
+# and these numbers are already in vmsingle.
+#
+# Header hidden: the template labels every figure itself.
+- type: custom-api
+  hide-header: true
+  cache: 1m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+  subrequests:
+    memory:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+    disk:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100
+    uptime:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: node_time_seconds - node_boot_time_seconds
+    ready:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: kube_node_status_condition{condition="Ready",status="true"} == 1
+  template: |
+    {{ $root := . }}
+    {{ range .JSON.Array "data.result" }}
+      {{ $instance := .String "metric.instance" }}
+      {{ $node := replaceMatches ":[0-9]+$" "" $instance }}
+      {{ $cpu := .Float "value.1" }}
+
+      {{/* kube-state-metrics keys on the node name and node-exporter on host:port, so every
+           lookup below matches on the instance with its port stripped. */}}
+      {{ $mem := 0.0 }}
+      {{ range ($root.Subrequest "memory").JSON.Array "data.result" }}
+        {{ if eq (replaceMatches ":[0-9]+$" "" (.String "metric.instance")) $node }}{{ $mem = .Float "value.1" }}{{ end }}
+      {{ end }}
+      {{ $disk := 0.0 }}
+      {{ range ($root.Subrequest "disk").JSON.Array "data.result" }}
+        {{ if eq (replaceMatches ":[0-9]+$" "" (.String "metric.instance")) $node }}{{ $disk = .Float "value.1" }}{{ end }}
+      {{ end }}
+      {{ $uptime := 0.0 }}
+      {{ range ($root.Subrequest "uptime").JSON.Array "data.result" }}
+        {{ if eq (replaceMatches ":[0-9]+$" "" (.String "metric.instance")) $node }}{{ $uptime = .Float "value.1" }}{{ end }}
+      {{ end }}
+      {{ $ready := false }}
+      {{ range ($root.Subrequest "ready").JSON.Array "data.result" }}
+        {{ if eq (.String "metric.node") $node }}{{ $ready = true }}{{ end }}
+      {{ end }}
+
+      <div class="server">
+        <div class="server-info">
+          <div class="server-details">
+            <div class="server-name color-highlight size-h3">{{ $node }}</div>
+            <div>{{ printf "%.0f" (div $uptime 86400.0) }}d uptime</div>
+          </div>
+          <div class="shrink-0">
+            <svg class="server-icon" stroke="var(--color-{{ if $ready }}positive{{ else }}negative{{ end }})" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 0 0-.12-1.03l-2.268-9.64a3.375 3.375 0 0 0-3.285-2.602H7.923a3.375 3.375 0 0 0-3.285 2.602l-2.268 9.64a4.5 4.5 0 0 0-.12 1.03v.228m19.5 0a3 3 0 0 1-3 3H5.25a3 3 0 0 1-3-3m19.5 0a3 3 0 0 0-3-3H5.25a3 3 0 0 0-3 3m16.5 0h.008v.008h-.008v-.008Zm-3 0h.008v.008h-.008v-.008Z" />
+            </svg>
+          </div>
+        </div>
+        <div class="server-stats">
+          <div class="flex-1">
+            <div class="flex justify-between items-end size-h5">
+              <div>CPU</div>
+              <div class="color-highlight text-very-compact">{{ printf "%.0f" $cpu }} <span class="color-base">%</span></div>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-value{{ if ge $cpu 85.0 }} progress-value-notice{{ end }}" style="--percent: {{ printf "%.0f" $cpu }}"></div>
+            </div>
+          </div>
+          <div class="flex-1">
+            <div class="flex justify-between items-end size-h5">
+              <div>RAM</div>
+              <div class="color-highlight text-very-compact">{{ printf "%.0f" $mem }} <span class="color-base">%</span></div>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-value{{ if ge $mem 90.0 }} progress-value-notice{{ end }}" style="--percent: {{ printf "%.0f" $mem }}"></div>
+            </div>
+          </div>
+          <div class="flex-1">
+            <div class="flex justify-between items-end size-h5">
+              <div>ROOT</div>
+              <div class="color-highlight text-very-compact">{{ printf "%.0f" $disk }} <span class="color-base">%</span></div>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-value{{ if ge $disk 80.0 }} progress-value-notice{{ end }}" style="--percent: {{ printf "%.0f" $disk }}"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {{ end }}

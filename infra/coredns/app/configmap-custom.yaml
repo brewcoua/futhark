@@ -1,0 +1,33 @@
+---
+# The internal subdomain is an A record in NetBird's own DNS zone (tofu/netbird/dns.tf), and that
+# zone is distributed to the admin group only — the operator's devices. Cluster nodes join
+# node/k8s, so from inside the cluster every internal hostname was NXDOMAIN, which is what broke
+# every healthcheck Glance ran against one.
+#
+# k3s's bundled Corefile ends with `import /etc/coredns/custom/*.server` and mounts this ConfigMap
+# with optional: true, and carries `reload`, so this lands without restarting CoreDNS.
+#
+# The template plugin answers *every* name under the subdomain with the mesh address, existent or
+# not. That is already how NetBird's wildcard behaves for laptops, so it adds no new asymmetry —
+# and traefik-internal listens there with the ${SUB_INTERNAL}.${DOMAIN} wildcard certificate, so
+# TLS validates for anything that actually has a route.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  internal.server: |
+    ${SUB_INTERNAL}.${DOMAIN}:53 {
+      errors
+      template IN A {
+        match .*
+        answer "{{ .Name }} 60 IN A ${MESH_IP}"
+      }
+      # NOERROR/NODATA rather than no block at all: a dual-stack resolver otherwise waits out the
+      # AAAA query before falling back to the A answer.
+      template IN AAAA {
+        match .*
+        rcode NOERROR
+      }
+    }

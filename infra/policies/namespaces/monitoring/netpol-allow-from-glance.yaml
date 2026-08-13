@@ -24,4 +24,6 @@ spec:
             matchLabels:
               kubernetes.io/metadata.name: glance
       ports:
+        # vmsingle, then vlsingle: the apps page reads error counts out of VictoriaLogs.
         - port: 8428
+        - port: 9428

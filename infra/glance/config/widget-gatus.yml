@@ -1,0 +1,248 @@
+# The community `gatus-monitor` widget (glanceapp/community-widgets, by Nedra1998), verbatim apart
+# from the options below. It replaced the built-in `monitor` widget: Glance was probing every
+# internal host itself and every check failed, because those names resolve on the mesh and had no
+# answer inside the cluster. infra/gatus now owns the probing and this only renders it.
+#
+# base-url is the cluster Service rather than status.$SUB_INTERNAL.$DOMAIN: the ingress sits behind
+# auth-sso, so an unauthenticated fetch from this pod would be answered with a redirect to Pocket
+# ID. That makes the endpoint keys unusable as links, so each service gets an explicit `-url`
+# pointing at the service itself, which is the more useful click anyway.
+#
+# Two subrequests per endpoint per refresh (uptime and response time), so the cache is generous.
+- type: custom-api
+  title: Services
+  title-url: https://status.${SUB_INTERNAL}.${DOMAIN}
+  cache: 5m
+  options:
+    base-url: ${GATUS_URL}
+    style: full
+    duration: 24h
+
+    Grafana: sh:grafana
+    Grafana-url: https://dash.${SUB_INTERNAL}.${DOMAIN}
+    VictoriaMetrics: sh:victoriametrics
+    VictoriaMetrics-url: https://metrics.${SUB_INTERNAL}.${DOMAIN}
+    VictoriaLogs: sh:victoriametrics
+    VictoriaLogs-url: https://logs.${SUB_INTERNAL}.${DOMAIN}
+    Pocket ID: sh:pocket-id
+    Pocket ID-url: https://auth.${DOMAIN}
+    oauth2-proxy: sh:oauth2-proxy
+    oauth2-proxy-url: https://sso.${SUB_INTERNAL}.${DOMAIN}
+    Glance: sh:glance
+    Glance-url: https://home.${SUB_INTERNAL}.${DOMAIN}
+    Actual: sh:actual-budget
+    Actual-url: https://actual.${SUB_INTERNAL}.${DOMAIN}
+  template: |
+    {{/* Required config options */}}
+    {{ $baseURL := .Options.StringOr "base-url" "" }}
+
+    {{/* Optional config options */}}
+    {{ $duration := .Options.StringOr "duration" "24h" }}
+    {{ $style := .Options.StringOr "style" "full" }}
+    {{ $groupFilter := .Options.StringOr "group" "" }}
+    {{ $compactMetric := .Options.StringOr "compact-metric" "uptime" }}
+    {{ $showFailingOnly := .Options.BoolOr "show-failing-only" false }}
+    {{ $showOnlyConfigured := .Options.BoolOr "show-only-configured" false }}
+
+
+    {{/* Error message template */}}
+    {{ define "errorMsg" }}
+      <div class="widget-error-header">
+        <div class="color-negative size-h3">ERROR</div>
+        <svg class="widget-error-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"></path>
+        </svg>
+      </div>
+      <p class="break-all">{{ . }}</p>
+    {{ end }}
+
+    {{/* Popover template */}}
+    {{ define "popover" }}
+      <div data-popover-html>
+        <div style="margin: 5px;">
+          <p class="margin-top-12" style="overflow-y: auto; text-align: justify; max-height: 20rem;">
+            {{ range .Array "conditionResults" }}
+              {{ if (.Bool "success") }}
+                <p class="color-positive">{{ .String "condition" }}</p>
+              {{ else }}
+                <p class="color-negative">{{ .String "condition" }}</p>
+              {{ end }}
+            {{ end }}
+          </p>
+        </div>
+      </div>
+    {{ end }}
+
+    {{ $endpoints := newRequest (print $baseURL "/api/v1/endpoints/statuses")
+        | getResponse }}
+
+    {{ $options := .Options }}
+    {{ $displayedItems := 0 }}
+    {{ if eq $style "compact" }}
+      <ul class="dynamic-columns list-gap-8 ">
+      {{ range $i, $endpoint := $endpoints.JSON.Array "" }}
+          {{ $name := $endpoint.String "name" }}
+          {{ $key := $endpoint.String "key" }}
+          {{ $group := $endpoint.String "group" }}
+          {{ $linkUrlOption := $options.StringOr (concat $name "-url") "" }}
+          {{ $linkUrl := $options.StringOr (concat $name "-url") (concat $baseURL "/endpoints/" $key) }}
+          {{ $lastResult := index ( $endpoint.Array "results" ) (sub (len ($endpoint.Array "results")) 1) }}
+          {{ $latestSuccess := $lastResult.Bool "success" }}
+
+          {{ if and $groupFilter (not (eq $groupFilter $group)) }} {{ continue }} {{ end }}
+          {{ if and $showFailingOnly $latestSuccess }} {{ continue }} {{ end }}
+          {{ if and $showOnlyConfigured (eq $linkUrlOption "") }} {{ continue }} {{ end }}
+          {{ $displayedItems = add $displayedItems 1 }}
+
+          {{ $responseTime := "" }}
+          {{ $uptime := "" }}
+          {{ $uptimeValue := "" }}
+
+          {{ if eq $compactMetric "uptime" }}
+            {{ $uptime = newRequest (print $baseURL "/api/v1/endpoints/" $key "/uptimes/" $duration )
+                | getResponse }}
+            {{ $uptimeValue = mul 100 ($uptime.JSON.Float "") }}
+          {{ else }}
+            {{ $responseTime = newRequest (print $baseURL "/api/v1/endpoints/" $key "/response-times/" $duration )
+                | getResponse }}
+          {{ end }}
+
+          <div class="flex items-center gap-12">
+            <a class="size-title-dynamic color-highlight text-truncate block grow" href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">{{ $name }}</a>
+            <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+              {{ if eq $compactMetric "uptime" }}
+                <div>{{ printf "%.1f" $uptimeValue }}%</div>
+              {{ else }}
+                <div>{{ $responseTime.JSON.Int "" }}ms</div>
+              {{ end }}
+            </a>
+
+            {{ if $latestSuccess }}
+              <div class="monitor-site-status-icon-compact">
+                <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+                  <div data-popover-type="html" data-popover-position="above" data-popover-show-delay="500" style="align-content: center;">
+                    {{ template "popover" $lastResult }}
+                    <svg fill="var(--color-positive)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </a>
+              </div>
+            {{ else }}
+              <div class="monitor-site-status-icon-compact">
+                <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+                  <div data-popover-type="html" data-popover-position="above" data-popover-show-delay="500" style="align-content: center;">
+                    {{ template "popover" $lastResult }}
+                    <svg fill="var(--color-negative)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </a>
+              </div>
+            {{ end }}
+
+          </div>
+        {{ end }}
+      </ul>
+    {{ else }}
+
+      <ul class="dynamic-columns list-gap-20 list-with-separator">
+      {{ range $i, $endpoint := $endpoints.JSON.Array "" }}
+          {{ $name := $endpoint.String "name" }}
+          {{ $key := $endpoint.String "key" }}
+          {{ $group := $endpoint.String "group" }}
+          {{ $icon := $options.StringOr $name "" }}
+          {{ $linkUrlOption := $options.StringOr (concat $name "-url") "" }}
+          {{ $linkUrl := $options.StringOr (concat $name "-url") (concat $baseURL "/endpoints/" $key) }}
+          {{ $lastResult := index ( $endpoint.Array "results" ) (sub (len ($endpoint.Array "results")) 1) }}
+          {{ $latestSuccess := $lastResult.Bool "success" }}
+
+          {{ if and $groupFilter (not (eq $groupFilter $group)) }} {{ continue }} {{ end }}
+          {{ if and $showFailingOnly $latestSuccess }} {{ continue }} {{ end }}
+          {{ if and $showOnlyConfigured (or (eq $linkUrlOption "") (eq $icon "")) }} {{ continue }} {{ end }}
+          {{ $displayedItems = add $displayedItems 1 }}
+
+          {{ $uptime := newRequest (print $baseURL "/api/v1/endpoints/" $key "/uptimes/" $duration )
+              | getResponse }}
+          {{ $responseTime := newRequest (print $baseURL "/api/v1/endpoints/" $key "/response-times/" $duration )
+              | getResponse }}
+
+          {{ $uptimeValue := mul 100 ($uptime.JSON.Float "") }}
+
+          {{ $iconUrl := "" }}
+          {{ if $icon }}
+            {{ $iconPrefix := findMatch "^(si|di|mdi|sh):" $icon }}
+            {{ $iconBase := replaceMatches "^(si|di|mdi|sh):" "" $icon }}
+
+            {{ $iconExt := findMatch "\\.[a-z]+$" $iconBase }}
+            {{ $iconExt := replaceMatches "\\." "" $iconExt }}
+            {{ $iconBase = replaceMatches "\\.[a-z]+$" "" $iconBase }}
+            {{ if eq $iconExt "" }} {{ $iconExt = "svg" }} {{ end }}
+
+            {{ if eq $iconPrefix "si:" }}
+              {{ $iconUrl = concat "https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/" $iconBase ".svg" }}
+            {{ else if eq $iconPrefix "di:" }}
+              {{ $iconUrl = concat "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/" $iconExt "/" $iconBase "." $iconExt }}
+            {{ else if eq $iconPrefix "mdi:" }}
+              {{ $iconUrl = concat "https://cdn.jsdelivr.net/npm/@mdi/svg@latest/svg/" $iconBase ".svg" }}
+            {{ else if eq $iconPrefix "sh:" }}
+              {{ $iconUrl = concat "https://cdn.jsdelivr.net/gh/selfhst/icons/" $iconExt "/" $iconBase "." $iconExt }}
+            {{ else }}
+              {{ $iconUrl = $icon }}
+            {{ end }}
+          {{ end }}
+
+          <div class="monitor-site flex items-center gap-15">
+            {{ if $iconUrl }}
+              <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+                <img class="monitor-site-icon" src="{{ $iconUrl | safeURL }}" alt="" loading="lazy">
+              </a>
+            {{ end }}
+            <div class="grow min-width-0">
+              <a class="size-h3 color-highlight text-truncate block" href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">{{ $name }}</a>
+
+              <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+                <ul class="list-horizontal-text">
+                  <li class="{{ if not $latestSuccess }}color-negative{{ end }}">{{ printf "%.1f" $uptimeValue }}%</li>
+                  <li>{{ $responseTime.JSON.Int "" }}ms</li>
+                </ul>
+              </a>
+            </div>
+
+            {{ if $latestSuccess }}
+              <div class="monitor-site-status-icon">
+                <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+                  <div data-popover-type="html" data-popover-position="above" data-popover-show-delay="500" style="align-content: center;">
+                    {{ template "popover" $lastResult }}
+                    <svg fill="var(--color-positive)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </a>
+              </div>
+            {{ else }}
+              <div class="monitor-site-status-icon">
+                <a href="{{ $linkUrl | safeURL }}" target="_blank" rel="noreferrer">
+                  <div data-popover-type="html" data-popover-position="above" data-popover-show-delay="500" style="align-content: center;">
+                    {{ template "popover" $lastResult }}
+                    <svg fill="var(--color-negative)" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495ZM10 5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 10 5Zm0 9a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </a>
+              </div>
+            {{ end }}
+
+          </div>
+        {{ end }}
+      </ul>
+    {{ end }}
+
+    {{ if eq $displayedItems 0 }}
+      <div class="flex items-center justify-center gap-10 padding-block-5">
+        <p>All sites are online</p>
+        <svg class="shrink-0" style="width: 1.7rem;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--color-positive)">
+          <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm13.36-1.814a.75.75 0 1 0-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 0 0-1.06 1.06l2.25 2.25a.75.75 0 0 0 1.14-.094l3.75-5.25Z" clip-rule="evenodd" />
+        </svg>
+      </div>
+    {{ end }}

@@ -1,0 +1,39 @@
+# Traffic at the two Traefiks rather than at the services behind them, so this counts what arrived
+# at the cluster edge, redirects and 404s included.
+- type: custom-api
+  title: Ingress traffic
+  cache: 1m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: sum by (instance, entrypoint) (rate(traefik_entrypoint_requests_total[5m])) > 0
+  subrequests:
+    errors:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: sum by (instance, entrypoint) (rate(traefik_entrypoint_requests_total{code=~"5.."}[5m])) > 0
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-subdue">No requests in the last five minutes.</p>
+    {{ else }}
+      <ul class="list list-gap-4">
+        {{ range .JSON.Array "data.result" }}
+          <li class="flex justify-between">
+            <span class="text-truncate">{{ .String "metric.instance" }} <span class="color-subdue">{{ .String "metric.entrypoint" }}</span></span>
+            <span>{{ printf "%.2f" (.Float "value.1") }} req/s</span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}
+    {{ with .Subrequest "errors" }}
+      {{ if gt (len (.JSON.Array "data.result")) 0 }}
+        <p class="size-h6 color-negative margin-top-15">5xx</p>
+        <ul class="list list-gap-4 margin-top-5">
+          {{ range .JSON.Array "data.result" }}
+            <li class="flex justify-between">
+              <span class="text-truncate">{{ .String "metric.instance" }} <span class="color-subdue">{{ .String "metric.entrypoint" }}</span></span>
+              <span class="color-negative">{{ printf "%.2f" (.Float "value.1") }} /s</span>
+            </li>
+          {{ end }}
+        </ul>
+      {{ end }}
+    {{ end }}

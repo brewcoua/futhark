@@ -1,0 +1,25 @@
+# Volume headroom. local-path PVCs are hostPath-backed and cannot move node, so a full one is a
+# manual resize rather than a rescheduling problem.
+- type: custom-api
+  title: Volumes
+  cache: 5m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: sort_desc(100 * kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)
+  template: |
+    <ul class="list list-gap-10">
+      {{ range .JSON.Array "data.result" }}
+        {{ $used := .Float "value.1" }}
+        <li>
+          <div class="flex justify-between items-end size-h5">
+            <span class="text-truncate">
+              <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.persistentvolumeclaim" }}
+            </span>
+            <span class="color-highlight text-very-compact">{{ printf "%.0f" $used }} <span class="color-base">%</span></span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-value{{ if ge $used 85.0 }} progress-value-notice{{ end }}" style="--percent: {{ printf "%.0f" $used }}"></div>
+          </div>
+        </li>
+      {{ end }}
+    </ul>

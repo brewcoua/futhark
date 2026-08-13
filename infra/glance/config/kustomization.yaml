@@ -15,5 +15,35 @@ configMapGenerator:
       - apps.yml
       - cluster.yml
       - network.yml
+      # Every custom-api widget is its own file, so a query change is a one-file diff. They are
+      # flat rather than in a widgets/ subdirectory because a ConfigMap key cannot contain a
+      # slash, and $include only resolves against the directory this all mounts into. Kustomize
+      # does not glob, so a new widget file has to be listed here to exist at all.
+      - widget-air-quality.yml
+      - widget-backups.yml
+      - widget-certificates.yml
+      - widget-egress.yml
+      - widget-flux.yml
+      - widget-gatus.yml
+      - widget-gatus-summary.yml
+      - widget-gitops.yml
+      - widget-http-services.yml
+      - widget-ingress-traffic.yml
+      - widget-log-errors.yml
+      - widget-mesh.yml
+      - widget-namespace-usage.yml
+      - widget-netbird-peers.yml
+      - widget-nodes.yml
+      - widget-pods.yml
+      - widget-restarts.yml
+      - widget-served-certs.yml
+      - widget-volumes.yml
+      - widget-workloads.yml
+      - widget-xkcd.yml
     options:
       disableNameSuffixHash: true
+# The logo and icons Glance serves from /assets/. Here rather than in ../app because this is the
+# Kustomization Flux does *not* substitute, and a binary blob has no business going through
+# envsubst.
+components:
+  - ../../../config/branding

@@ -11,6 +11,7 @@ resources:
   - namespaces/cert-manager
   - namespaces/monitoring
   - namespaces/glance
+  - namespaces/gatus
   - namespaces/csi-rclone
   - namespaces/k8up
   - namespaces/ingress-internal

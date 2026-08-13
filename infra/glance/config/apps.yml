@@ -1,43 +1,15 @@
 # What is running and whether it is answering. The counterpart to the cluster page: this one is
 # about the workloads, that one is about the platform underneath them.
+#
+# Nothing here probes a service itself any more. infra/gatus owns every healthcheck and this page
+# renders its API, so a check is written down once.
 - name: Apps
   slug: apps
 
   columns:
     - size: small
       widgets:
-        # Reachability from inside the cluster, not from a browser: every internal host here
-        # resolves through the mesh, so a red row means Traefik or the pod, never the reader's
-        # network. auth is the one edge host, checked deliberately from in here for the same reason.
-        - type: monitor
-          title: Services
-          style: compact
-          cache: 2m
-          sites:
-            - title: Grafana
-              url: https://dash.${SUB_INTERNAL}.${DOMAIN}
-              check-url: https://dash.${SUB_INTERNAL}.${DOMAIN}/api/health
-              icon: si:grafana
-            - title: VictoriaMetrics
-              url: https://metrics.${SUB_INTERNAL}.${DOMAIN}
-              check-url: https://metrics.${SUB_INTERNAL}.${DOMAIN}/health
-              icon: si:victoriametrics
-            - title: VictoriaLogs
-              url: https://logs.${SUB_INTERNAL}.${DOMAIN}
-              check-url: https://logs.${SUB_INTERNAL}.${DOMAIN}/health
-              icon: si:victoriametrics
-            - title: Actual
-              url: https://actual.${SUB_INTERNAL}.${DOMAIN}
-              icon: si:actualbudget
-            - title: Pocket ID
-              url: https://auth.${DOMAIN}
-              check-url: https://auth.${DOMAIN}/healthz
-              icon: si:openid
-            # Behind the SSO middleware, so an unauthenticated probe is answered with a redirect
-            # to Pocket ID rather than a 200. That redirect is the healthy response here.
-            - title: Glance
-              url: https://home.${SUB_INTERNAL}.${DOMAIN}
-              alt-status-codes: [302]
+        - $include: widget-gatus-summary.yml
 
         - type: releases
           title: Upgrades
@@ -62,98 +34,21 @@
             - netbirdio/netbird
             - actualbudget/actual
             - glanceapp/glance
+            - TwiN/gatus
 
     - size: full
       widgets:
-        # Deployments whose replicas are not all available. Empty is the healthy state, so the
-        # widget says so rather than rendering an empty box that reads like a broken query.
-        - type: custom-api
-          title: Unavailable workloads
-          cache: 1m
-          url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
-          parameters:
-            query: kube_deployment_status_replicas_unavailable > 0 or kube_statefulset_status_replicas_ready < kube_statefulset_status_replicas
-          template: |
-            {{ if eq (len (.JSON.Array "data.result")) 0 }}
-              <p class="color-positive">All deployments and statefulsets fully available.</p>
-            {{ else }}
-              <ul class="list list-gap-10">
-                {{ range .JSON.Array "data.result" }}
-                  <li class="flex justify-between items-center">
-                    <span class="text-truncate">
-                      <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.deployment" }}{{ .String "metric.statefulset" }}
-                    </span>
-                    <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }} down</span>
-                  </li>
-                {{ end }}
-              </ul>
-            {{ end }}
-
-        - type: custom-api
-          title: Restarts (24h)
-          cache: 5m
-          url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
-          parameters:
-            query: topk(10, sum by (namespace, container) (increase(kube_pod_container_status_restarts_total[24h])) > 0)
-          template: |
-            {{ if eq (len (.JSON.Array "data.result")) 0 }}
-              <p class="color-positive">No container restarted in the last 24 hours.</p>
-            {{ else }}
-              <ul class="list list-gap-10">
-                {{ range .JSON.Array "data.result" }}
-                  <li class="flex justify-between items-center">
-                    <span class="text-truncate">
-                      <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.container" }}
-                    </span>
-                    <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }}</span>
-                  </li>
-                {{ end }}
-              </ul>
-            {{ end }}
-
-        # Traefik counts a request against the backend Service it routed to, so this is per-app
-        # traffic rather than per-hostname. The error rate rides in a subrequest against the same
-        # instant so the two columns describe the same moment.
-        - type: custom-api
-          title: HTTP by service
-          cache: 1m
-          url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
-          parameters:
-            query: topk(12, sum by (service) (rate(traefik_service_requests_total[5m])) > 0)
-          subrequests:
-            errors:
-              url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
-              parameters:
-                query: sum by (service) (rate(traefik_service_requests_total{code=~"5.."}[5m])) > 0
-          template: |
-            {{ if eq (len (.JSON.Array "data.result")) 0 }}
-              <p class="color-subdue">No traffic in the last five minutes.</p>
-            {{ else }}
-              <ul class="list list-gap-10">
-                {{ range .JSON.Array "data.result" }}
-                  <li class="flex justify-between items-center">
-                    <span class="text-truncate">{{ .String "metric.service" }}</span>
-                    <span>{{ printf "%.2f" (.Float "value.1") }} req/s</span>
-                  </li>
-                {{ end }}
-              </ul>
-              {{ with .Subrequest "errors" }}
-                {{ if gt (len (.JSON.Array "data.result")) 0 }}
-                  <p class="size-h6 color-negative margin-top-15">Serving 5xx</p>
-                  <ul class="list list-gap-4 margin-top-5">
-                    {{ range .JSON.Array "data.result" }}
-                      <li class="flex justify-between items-center">
-                        <span class="text-truncate">{{ .String "metric.service" }}</span>
-                        <span class="color-negative">{{ printf "%.2f" (.Float "value.1") }} /s</span>
-                      </li>
-                    {{ end }}
-                  </ul>
-                {{ end }}
-              {{ end }}
-            {{ end }}
+        - $include: widget-gatus.yml
+        - $include: widget-workloads.yml
+        - $include: widget-restarts.yml
+        - $include: widget-http-services.yml
+        - $include: widget-namespace-usage.yml
 
     - size: small
       widgets:
+        - $include: widget-flux.yml
+        - $include: widget-log-errors.yml
+
         # The Renovate queue, seen from GitHub. Anything sitting here is a pinned version in this
         # repository that has moved upstream.
         - type: repository

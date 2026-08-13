@@ -2,15 +2,11 @@
 - name: Home
   slug: home
 
-  head-widgets:
-    - type: search
-      search-engine: duckduckgo
-      autofocus: true
-
   columns:
     - size: small
       widgets:
         - type: clock
+          hide-header: true
           hour-format: 24h
           timezones:
             - timezone: America/New_York
@@ -19,27 +15,28 @@
               label: Tokyo
 
         - type: calendar
+          hide-header: true
           first-day-of-week: monday
 
         # Open-Meteo's geocoder matches on place name, not on "city, country": searching
         # "Delft, Netherlands" returns nothing at all. The province is what narrows it to the
         # right Delft.
         - type: weather
+          hide-header: true
           location: Delft, South Holland
           units: metric
           hour-format: 24h
 
+        - $include: widget-air-quality.yml
+
     - size: full
       widgets:
+        # The header of a group widget is its tab strip, so it is never hidden.
         - type: group
           widgets:
             - type: hacker-news
             - type: lobsters
               sort-by: hot
-            - type: reddit
-              subreddit: selfhosted
-            - type: reddit
-              subreddit: kubernetes
 
         - type: rss
           title: Feeds
@@ -47,44 +44,21 @@
           limit: 12
           collapse-after: 6
           feeds:
-            - url: https://feeds.nos.nl/nosnieuwsalgemeen
-              title: NOS
-            - url: https://feeds.feedburner.com/tweakers/mixed
-              title: Tweakers
+            - url: https://nltimes.nl/rss
+              title: NL Times
+            - url: https://www.dutchnews.nl/feed/
+              title: DutchNews
+            - url: https://www.lemonde.fr/rss/une.xml
+              title: Le Monde
             - url: https://feeds.arstechnica.com/arstechnica/index
               title: Ars Technica
             - url: https://lwn.net/headlines/newrss
               title: LWN
 
-        - type: split-column
-          widgets:
-            - type: custom-api
-              title: xkcd
-              title-url: https://xkcd.com/
-              cache: 6h
-              url: https://xkcd.com/info.0.json
-              template: |
-                <p class="size-h5 color-highlight">{{ .JSON.String "title" }}</p>
-                <img class="margin-top-10 max-width-100" src="{{ .JSON.String "img" }}" alt="{{ .JSON.String "alt" }}" title="{{ .JSON.String "alt" }}">
-
-            - type: custom-api
-              title: Astronomy Picture of the Day
-              title-url: https://apod.nasa.gov/apod/astropix.html
-              cache: 12h
-              url: https://api.nasa.gov/planetary/apod?api_key=${NASA_API_KEY}
-              headers:
-                Accept: application/json
-              template: |
-                {{ if eq (.JSON.String "media_type") "image" }}
-                  <p class="size-h5 color-highlight">{{ .JSON.String "title" }}</p>
-                  <img class="margin-top-10 max-width-100" src="{{ .JSON.String "url" }}" alt="{{ .JSON.String "title" }}">
-                {{ else }}
-                  <p class="color-subdue">Today's entry is a {{ .JSON.String "media_type" }}, not an image.</p>
-                {{ end }}
-
     - size: small
       widgets:
         - type: markets
+          hide-header: true
           sort-by: change
           markets:
             - symbol: "^AEX"
@@ -98,39 +72,34 @@
             - symbol: ETH-USD
               name: Ethereum
 
-        # WAQI reports the nearest station to the coordinates, which for Delft is usually one of the
-        # Rijnmond stations rather than Delft itself, so treat it as regional.
-        - type: custom-api
-          title: Air Quality
-          cache: 1h
-          url: https://api.waqi.info/feed/geo:52.0116;4.3571/?token=${WAQI_TOKEN}
-          template: |
-            <div class="flex justify-between items-center">
-              <span class="size-h2 color-highlight">{{ .JSON.String "data.aqi" }}</span>
-              {{ if le (.JSON.Int "data.aqi") 50 }}
-                <span class="color-positive">Good</span>
-              {{ else if le (.JSON.Int "data.aqi") 100 }}
-                <span class="color-primary">Moderate</span>
-              {{ else }}
-                <span class="color-negative">Poor</span>
-              {{ end }}
-            </div>
-            <p class="size-h6 margin-top-5">AQI at {{ .JSON.String "data.city.name" }}</p>
-            <ul class="list list-gap-4 margin-top-10">
-              <li class="flex justify-between"><span class="color-subdue">PM2.5</span><span>{{ .JSON.String "data.iaqi.pm25.v" }}</span></li>
-              <li class="flex justify-between"><span class="color-subdue">Humidity</span><span>{{ .JSON.String "data.iaqi.h.v" }}%</span></li>
-              <li class="flex justify-between"><span class="color-subdue">Pressure</span><span>{{ .JSON.String "data.iaqi.p.v" }} hPa</span></li>
-            </ul>
+        - $include: widget-xkcd.yml
 
         - type: bookmarks
+          hide-header: true
           groups:
-            - title: Daily
+            - title: Futhark
               links:
-                - title: GitHub
-                  url: https://github.com
-                  icon: si:github
+                - title: Grafana
+                  url: https://dash.${SUB_INTERNAL}.${DOMAIN}
+                  icon: sh:grafana
+                - title: Actual Budget
+                  url: https://actual.${SUB_INTERNAL}.${DOMAIN}
+                  icon: sh:actual-budget
+            - title: Personal
+              links:
                 - title: Proton Mail
                   url: https://mail.proton.me
-                  icon: si:protonmail
-                - title: NS
-                  url: https://www.ns.nl/en
+                  icon: sh:proton-mail
+                - title: GitHub
+                  url: https://github.com
+                  icon: sh:github
+            # Neither has an icon in selfh.st, so both point at their own favicon rather than
+            # render as the only two blank rows on the page.
+            - title: University
+              links:
+                - title: Brightspace
+                  url: https://brightspace.tudelft.nl
+                  icon: https://brightspace.tudelft.nl/favicon.ico
+                - title: Osiris
+                  url: https://my.tudelft.nl
+                  icon: https://my.tudelft.nl/favicon.png

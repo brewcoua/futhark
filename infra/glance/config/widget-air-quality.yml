@@ -1,0 +1,23 @@
+# WAQI reports the nearest station to the coordinates, which for Delft is usually one of the
+# Rijnmond stations rather than Delft itself, so treat it as regional.
+- type: custom-api
+  title: Air quality
+  cache: 1h
+  url: https://api.waqi.info/feed/geo:52.0116;4.3571/?token=${WAQI_TOKEN}
+  template: |
+    <div class="flex justify-between items-center">
+      <span class="size-h2 color-highlight">{{ .JSON.String "data.aqi" }}</span>
+      {{ if le (.JSON.Int "data.aqi") 50 }}
+        <span class="color-positive">Good</span>
+      {{ else if le (.JSON.Int "data.aqi") 100 }}
+        <span class="color-primary">Moderate</span>
+      {{ else }}
+        <span class="color-negative">Poor</span>
+      {{ end }}
+    </div>
+    <p class="size-h6 margin-top-5">AQI at {{ .JSON.String "data.city.name" }}</p>
+    <ul class="list list-gap-4 margin-top-10">
+      <li class="flex justify-between"><span class="color-subdue">PM2.5</span><span>{{ .JSON.String "data.iaqi.pm25.v" }}</span></li>
+      <li class="flex justify-between"><span class="color-subdue">Humidity</span><span>{{ .JSON.String "data.iaqi.h.v" }}%</span></li>
+      <li class="flex justify-between"><span class="color-subdue">Pressure</span><span>{{ .JSON.String "data.iaqi.p.v" }} hPa</span></li>
+    </ul>

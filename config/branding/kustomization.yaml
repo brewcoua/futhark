@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# Reusable Kustomize Component: the cluster's logo and icons as a ConfigMap, for any app that can
+# serve a static asset directory. Glance is the only consumer today
+# (infra/glance/config/kustomization.yaml adds `components: [../../../config/branding]`), which is
+# why the keys are named the way Glance's branding block references them.
+#
+# Only three of the files here are mounted. The rest of config/branding stays as the source set a
+# regenerated icon pack lands in; the 512x512 PNG in particular is left out because nothing serves
+# it and a ConfigMap has a 1 MiB ceiling.
+#
+# disableNameSuffixHash for the same reason as the config ConfigMap next to it: a new name on every
+# edit would roll the Glance pod and throw away every widget's cache.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+configMapGenerator:
+  - name: glance-assets
+    files:
+      - logo.svg=logo/logo.svg
+      - favicon.svg=favicons/favicon.svg
+      - app-icon.png=favicons/web-app-manifest-192x192.png
+    options:
+      disableNameSuffixHash: true

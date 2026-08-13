@@ -10,11 +10,15 @@ server:
   # Traefik terminates TLS and sets X-Forwarded-*; without this every generated link would be
   # http:// against the pod's own address.
   proxied: true
+  # Served at /assets/. The directory is the glance-assets ConfigMap, generated from
+  # config/branding by the Component that kustomization.yaml pulls in.
+  assets-path: /app/assets
 
 branding:
   app-name: futhark
-  # The rune the cluster is named after. A text logo avoids mounting an assets volume for one glyph.
-  logo-text: ᚠ
+  logo-url: /assets/logo.svg
+  favicon-url: /assets/favicon.svg
+  app-icon-url: /assets/app-icon.png
 
 pages:
   - $include: home.yml

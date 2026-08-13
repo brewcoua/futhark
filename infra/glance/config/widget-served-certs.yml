@@ -1,0 +1,30 @@
+# What each Traefik is serving right now, which is not the same question as what cert-manager holds
+# on the cluster page: this is the certificate actually presented to a client.
+#
+# Two fixes over the first version, which listed everything twice under a name like
+# `*.example.com*.example.com`: both Traefik instances export this series, so `max by (cn, sans)`
+# collapses them, and the template used to concatenate the two labels with no separator.
+- type: custom-api
+  title: Served certificates
+  cache: 1h
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: sort(max by (cn, sans) ((traefik_tls_certs_not_after - time()) / 86400))
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-subdue">Neither Traefik has served a TLS certificate yet.</p>
+    {{ else }}
+      <ul class="list list-gap-4">
+        {{ range .JSON.Array "data.result" }}
+          {{ $cn := .String "metric.cn" }}
+          {{ $sans := .String "metric.sans" }}
+          <li class="flex justify-between">
+            <span class="text-truncate">
+              {{ $cn }}
+              {{ if and $sans (ne $sans $cn) }}<span class="color-subdue">+ {{ $sans }}</span>{{ end }}
+            </span>
+            <span class="{{ if lt (.Float "value.1") 14.0 }}color-negative{{ end }}">{{ printf "%.0f" (.Float "value.1") }}d</span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}

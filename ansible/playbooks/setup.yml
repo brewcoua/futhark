@@ -10,13 +10,15 @@
   # references that Jinja would try to evaluate — see .just/ansible.just.
   vars_files:
     - "{{ playbook_dir }}/../.generated/secrets.yml"
-  # Four tags, so a single concern can be re-converged without running the whole thing:
+  # Five tags, so a single concern can be re-converged without running the whole thing:
   #
   #   base      hostname, dnf upgrade, base tooling
   #   access    the admin user and the SSH hardening that depends on it — one tag, never two,
   #             because ssh_harden without admin_user locks the host out permanently
   #   firewall  fail2ban and the public 443 ingress
   #   mesh      the NetBird join and the pod -> mesh routing
+  #   metrics   what the node publishes to node-exporter's textfile collector on its own,
+  #             separately from what the mesh watchdog writes under the mesh tag
   #
   # Anything that touches how we *connect* is `always`: the identity probe below decides which
   # login and port every later task uses, so skipping it by tag would have `--tags mesh` dial a
@@ -45,6 +47,9 @@
     - role: firewall_ingress
       when: node.public_ingress | default(false)
       tags: firewall
+    - role: egress_exporter
+      when: node.public_ingress | default(false)
+      tags: metrics
   post_tasks:
     # set_fact persists for the rest of the run — the host now answers only as the
     # admin user on the hardened port, even if ssh_identity picked the initial login.

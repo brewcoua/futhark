@@ -1,0 +1,26 @@
+# NetBird's cloud API, which is the control plane's view: a peer listed here as connected can still
+# be one the mesh watchdog reports no handshake for.
+- type: custom-api
+  title: NetBird peers
+  title-url: https://app.netbird.io/peers
+  cache: 10m
+  url: https://api.netbird.io/api/peers
+  headers:
+    Accept: application/json
+    Authorization: Token ${NETBIRD_API_KEY}
+  template: |
+    <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
+      {{ range sortByString "name" "asc" (.JSON.Array "") }}
+        <li class="flex justify-between items-center">
+          <span class="text-truncate">
+            {{ .String "name" }}
+            <span class="color-subdue">{{ .String "ip" }}</span>
+          </span>
+          {{ if .Bool "connected" }}
+            <span class="color-positive">online</span>
+          {{ else }}
+            <span class="color-subdue" {{ .String "last_seen" | parseTime "RFC3339" | toRelativeTime }}></span>
+          {{ end }}
+        </li>
+      {{ end }}
+    </ul>

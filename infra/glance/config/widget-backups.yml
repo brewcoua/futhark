@@ -1,0 +1,70 @@
+# K8up's operator counters. The restic gauges that would give a snapshot count and a per-PVC
+# repository size are only ever pushed to a Prometheus Pushgateway by the backup job itself, and
+# there is no Pushgateway here, so this is job outcomes and nothing more. `just bak snapshots` is
+# the way to ask the repository what it actually holds.
+- type: custom-api
+  title: Backups
+  cache: 10m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: sort_desc(sum by (namespace) (increase(k8up_jobs_successful_counter{jobType="backup"}[24h])))
+  subrequests:
+    failed:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: sum by (namespace, jobType) (increase(k8up_jobs_failed_counter[24h])) > 0
+    schedules:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: sum(k8up_schedules_gauge)
+  template: |
+    {{ $failed := len ((.Subrequest "failed").JSON.Array "data.result") }}
+    {{ $total := 0.0 }}
+    {{ range .JSON.Array "data.result" }}{{ $total = add $total (.Float "value.1") }}{{ end }}
+
+    <div class="flex justify-between items-center">
+      <div>
+        <p class="size-h3 color-highlight">{{ printf "%.0f" ((.Subrequest "schedules").JSON.Float "data.result.0.value.1") }}</p>
+        <p class="size-h6 color-subdue">SCHEDULES</p>
+      </div>
+      <div>
+        <p class="size-h3 color-highlight">{{ printf "%.0f" $total }}</p>
+        <p class="size-h6 color-subdue">RUNS 24H</p>
+      </div>
+      <div>
+        <p class="size-h3 {{ if gt $failed 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $failed }}</p>
+        <p class="size-h6 color-subdue">FAILED</p>
+      </div>
+    </div>
+
+    {{/* Bars are scaled against the busiest namespace, not against a fixed maximum: the useful
+         reading here is which namespace is backing up more often than the others. */}}
+    {{ $max := 1.0 }}
+    {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $max }}{{ $max = .Float "value.1" }}{{ end }}{{ end }}
+    <ul class="list list-gap-10 margin-top-15">
+      {{ range .JSON.Array "data.result" }}
+        <li>
+          <div class="flex justify-between items-end size-h5">
+            <span class="text-truncate">{{ .String "metric.namespace" }}</span>
+            <span class="color-highlight text-very-compact">{{ printf "%.0f" (.Float "value.1") }}</span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $max)) }}"></div>
+          </div>
+        </li>
+      {{ end }}
+    </ul>
+
+    {{ with .Subrequest "failed" }}
+      {{ if gt (len (.JSON.Array "data.result")) 0 }}
+        <p class="size-h6 color-negative margin-top-15">Failed jobs, last 24h</p>
+        <ul class="list list-gap-4 margin-top-5">
+          {{ range .JSON.Array "data.result" }}
+            <li class="flex justify-between">
+              <span>{{ .String "metric.namespace" }} <span class="color-subdue">{{ .String "metric.jobType" }}</span></span>
+              <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }}</span>
+            </li>
+          {{ end }}
+        </ul>
+      {{ end }}
+    {{ end }}

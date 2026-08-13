@@ -1,0 +1,50 @@
+# What each namespace actually costs, from cAdvisor rather than from the requests in the manifests.
+# Bars are scaled against the heaviest namespace, so this ranks; it does not say how close the
+# cluster is to full. Node headroom is the cluster page's nodes widget.
+- type: custom-api
+  title: Usage by namespace
+  cache: 2m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: topk(8, sum by (namespace) (rate(container_cpu_usage_seconds_total{container!=""}[5m])) > 0)
+  subrequests:
+    memory:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: topk(8, sum by (namespace) (container_memory_working_set_bytes{container!=""}) > 0)
+  template: |
+    {{ $cpuMax := 0.001 }}
+    {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $cpuMax }}{{ $cpuMax = .Float "value.1" }}{{ end }}{{ end }}
+    <p class="size-h6 color-subdue">CPU</p>
+    <ul class="list list-gap-10 margin-top-5">
+      {{ range .JSON.Array "data.result" }}
+        <li>
+          <div class="flex justify-between items-end size-h5">
+            <span class="text-truncate">{{ .String "metric.namespace" }}</span>
+            <span class="color-highlight text-very-compact">{{ printf "%.0f" (mul 1000.0 (.Float "value.1")) }} <span class="color-base">m</span></span>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $cpuMax)) }}"></div>
+          </div>
+        </li>
+      {{ end }}
+    </ul>
+
+    {{ with .Subrequest "memory" }}
+      {{ $memMax := 1.0 }}
+      {{ range .JSON.Array "data.result" }}{{ if gt (.Float "value.1") $memMax }}{{ $memMax = .Float "value.1" }}{{ end }}{{ end }}
+      <p class="size-h6 color-subdue margin-top-15">Memory</p>
+      <ul class="list list-gap-10 margin-top-5">
+        {{ range .JSON.Array "data.result" }}
+          <li>
+            <div class="flex justify-between items-end size-h5">
+              <span class="text-truncate">{{ .String "metric.namespace" }}</span>
+              <span class="color-highlight text-very-compact">{{ printf "%.0f" (div (.Float "value.1") 1048576.0) }} <span class="color-base">MiB</span></span>
+            </div>
+            <div class="progress-bar">
+              <div class="progress-value" style="--percent: {{ printf "%.0f" (mul 100.0 (div (.Float "value.1") $memMax)) }}"></div>
+            </div>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Futhark: refresh the published egress address periodically
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec={{ egress_exporter_interval }}
+RandomizedDelaySec=2min
+# The file survives a reboot, and a stale hour is not worth a lookup burst on boot.
+Persistent=false
+
+[Install]
+WantedBy=timers.target

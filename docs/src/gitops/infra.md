@@ -21,6 +21,8 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                              |
 | `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                      |
 | `glance`             | The dashboard at `home.$SUB_INTERNAL.$DOMAIN`. Two Kustomizations, one of which must not be substituted. See below                                               |
+| `gatus`              | Every healthcheck in the cluster, and the status page at `status.$SUB_INTERNAL.$DOMAIN`. See below                                                               |
+| `coredns`            | Not a controller: a stub zone that makes the internal subdomain resolve from inside the cluster, which is what every check above depends on                      |
 
 ## The two ingresses
 
@@ -232,34 +234,94 @@ Three consequences worth knowing before a config edit fails in an unhelpful way:
   adding `SOMETHING` to Infisical at `/infra/glance` first, or the pod crash-loops.
 - Substitution runs over comments too. Writing the literal string `${VAR}` in a YAML comment is
   enough to fail startup with `parsing variable: environment variable VAR not found`.
-- An `$include`d page file must open with its own list marker (`- name: Home`) and indent the rest
-  under it. Glance splices the file at the `$include` line and drops the `-` that was there, so a
-  page file written as a bare mapping silently merges into the page before it.
+- An `$include`d file must open with its own list marker and indent the rest under it, whether it
+  is a page (`- name: Home`) or a single widget (`- type: custom-api`). Glance splices the file at
+  the `$include` line and drops the `-` that was there, so a file written as a bare mapping
+  silently merges into the item before it.
+
+### Config layout
+
+`glance.yml` is the entrypoint and `$include`s one file per page. Each page file then `$include`s
+one file per `custom-api` widget, named `widget-<thing>.yml`, so a query change is a one-file diff.
+Built-in widgets that need no template (clock, calendar, weather, markets, bookmarks, rss, group,
+releases, repository) stay inline in the page file: a page file reads as layout, a widget file
+reads as logic.
+
+Two constraints shape that:
+
+- The files are flat, not in a `widgets/` subdirectory. They all become keys of one ConfigMap, a
+  ConfigMap key cannot contain a slash, and `$include` only resolves against the single directory
+  they mount into.
+- Kustomize does not glob. A new widget file has to be listed in `configMapGenerator.files` in
+  `infra/glance/config/kustomization.yaml` or it does not reach the pod at all, and the
+  `$include` fails at startup.
+
+The logo and icons come from `config/branding`, pulled in as a Kustomize `Component` that
+generates the `glance-assets` ConfigMap. It is mounted at `/app/assets` and served at `/assets/`
+through `server.assets-path`.
 
 Validate a config change without a cluster:
 
 ```bash
 podman run --rm \
   -e SUB_INTERNAL=in -e DOMAIN=example.eu \
-  -e NASA_API_KEY=x -e WAQI_TOKEN=x -e GITHUB_TOKEN=x -e NETBIRD_API_KEY=x \
+  -e WAQI_TOKEN=x -e GITHUB_TOKEN=x -e NETBIRD_API_KEY=x \
+  -e GATUS_URL=http://gatus.gatus.svc.cluster.local:8080 \
   -v ./infra/glance/config:/app/config:ro,Z \
+  -v ./config/branding/logo:/app/assets:ro,Z \
   docker.io/glanceapp/glance:v0.8.5 config:validate
 ```
 
-Exit status 0 means the YAML parses and every widget's options are valid. It does not fetch
-anything, so a broken PromQL query or a wrong metric label still only shows up in the browser.
+The assets mount is required: Glance refuses to start when `assets-path` points at a directory
+that does not exist, and `config:validate` enforces that too. Exit status 0 means the YAML parses,
+every `$include` resolved and every widget's options are valid. It does not fetch anything, so a
+broken PromQL query or a wrong metric label still only shows up in the browser. `config:print`
+with the same arguments prints the spliced result, which is where a widget file missing its
+leading `-` becomes obvious.
 
-Every widget on the cluster and network pages is a `custom-api` query against vmsingle over the
-cluster network, which is what `infra/policies/namespaces/monitoring/netpol-allow-from-glance.yaml`
-opens. Two of them need scrape jobs that exist only for them: `flux` for
-`gotk_reconcile_condition`, and `cert-manager` for
-`certmanager_certificate_expiration_timestamp_seconds`. Both are in
+### Where the widgets get their data
+
+Most widgets on the apps, cluster and network pages are a `custom-api` query against vmsingle over
+the cluster network, which is what `infra/policies/namespaces/monitoring/netpol-allow-from-glance.yaml`
+opens — on 8428 for vmsingle, and on 9428 for the VictoriaLogs error-count widget. Two of them
+need scrape jobs that exist only for them: `flux` for `gotk_reconcile_condition`, and
+`cert-manager` for `certmanager_certificate_expiration_timestamp_seconds`. Both are in
 `infra/monitoring/app/metrics/scrape-configs.yaml`.
+
+The two widgets on the apps page that show service health read Gatus instead, at
+`http://gatus.gatus.svc.cluster.local:8080`, admitted by
+`infra/policies/namespaces/gatus/netpol-allow-from-glance.yaml`. Glance probes nothing itself. See
+[Gatus](#gatus).
+
+The egress widget on the network page reads `futhark_egress_ip_info`, which the ingress node
+publishes through node-exporter's textfile collector. It used to call `ifconfig.co` from the
+Glance pod, which answered with whatever node Glance happened to be scheduled on rather than the
+one traffic actually arrives at. See [The egress exporter](../ansible/egress-exporter.md).
 
 The backups widget shows job outcomes and nothing else. K8up's per-repository gauges, including
 `k8up_backup_restic_available_snapshots`, are only ever pushed to a Prometheus Pushgateway by the
 backup job itself, and there is no Pushgateway here. Ask the repository directly with
 `just bak snapshots`.
+
+## Gatus
+
+Every healthcheck in the cluster, and the status page at `status.$SUB_INTERNAL.$DOMAIN`, behind
+the same `auth-sso@kubernetescrd` as Glance. Plain manifests in `infra/gatus/app`, with
+`storage.type: memory`, so there is no PVC and no K8up `Schedule` entry.
+
+Add a check by adding an endpoint to `infra/gatus/app/config.yaml`. That file **is** substituted
+by Flux, unlike Glance's config, because it contains no `${}` of Gatus's own — so
+`${SUB_INTERNAL}` and `${DOMAIN}` in it are filled in by `postBuild`.
+
+Each endpoint is probed over its public hostname through traefik-internal rather than over a
+cluster Service. That is deliberate: the path being tested then includes DNS, the mesh route, the
+Traefik router and the certificate, which is where failures actually are. Glance's own endpoint
+expects a 302, since an unauthenticated probe of a host behind the SSO middleware is redirected to
+Pocket ID; a 200 there would mean the login had stopped being enforced.
+
+This is why `infra/coredns` exists and why `gatus` `dependsOn` it. Without the stub zone, none of
+those hostnames resolve from inside the cluster and every check fails at DNS. See
+[Who resolves the internal subdomain](../conventions/domains.md#who-resolves-the-internal-subdomain).
 
 ## Infisical operator
 

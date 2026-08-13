@@ -28,6 +28,7 @@
 - [Nodes](ansible/nodes.md)
 - [Pod to mesh networking](ansible/networking.md)
 - [The mesh watchdog](ansible/mesh-watchdog.md)
+- [The egress exporter](ansible/egress-exporter.md)
 
 # Flux, the cluster plane
 

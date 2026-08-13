@@ -1,0 +1,54 @@
+# The community `gatus` widget (glanceapp/community-widgets, by Jack-Overflow), trimmed to its
+# three tiles: the per-endpoint list it also renders is what widget-gatus.yml already shows in
+# full, next to it on the same page.
+#
+# The uptime figure is every stored check result over every endpoint, so it is only as long as
+# Gatus has been up — storage is in memory. Grafana holds the history that outlives a restart.
+- type: custom-api
+  title: Status
+  title-url: https://status.${SUB_INTERNAL}.${DOMAIN}
+  cache: 1m
+  url: ${GATUS_URL}/api/v1/endpoints/statuses
+  template: |
+    {{ $up := 0 }}
+    {{ $down := 0 }}
+    {{ $totalChecks := 0 }}
+    {{ $successfulChecks := 0 }}
+    {{ range .JSON.Array "" }}
+      {{ $results := .Array "results" }}
+      {{ $totalChecks = add $totalChecks (len $results) }}
+      {{ range $results }}
+        {{ if .Bool "success" }}
+          {{ $successfulChecks = add $successfulChecks 1 }}
+        {{ end }}
+      {{ end }}
+      {{ if gt (len $results) 0 }}
+        {{ $latestResult := index $results (sub (len $results) 1) }}
+        {{ if $latestResult.Bool "success" }}
+          {{ $up = add $up 1 }}
+        {{ else }}
+          {{ $down = add $down 1 }}
+        {{ end }}
+      {{ end }}
+    {{ end }}
+    {{ $uptime := 0 }}
+    {{ if gt $totalChecks 0 }}
+      {{ $uptime = div (mul $successfulChecks 1000) $totalChecks }}
+    {{ end }}
+
+    <div class="widget-small-content-bounds">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; text-align: center;">
+        <div>
+          <p class="size-h3 color-positive">{{ $up }}</p>
+          <p class="size-h6">UP</p>
+        </div>
+        <div>
+          <p class="size-h3 {{ if gt $down 0 }}color-negative{{ else }}color-subdue{{ end }}">{{ $down }}</p>
+          <p class="size-h6">DOWN</p>
+        </div>
+        <div>
+          <p class="size-h3 color-highlight">{{ div $uptime 10.0 | printf "%.1f" }}%</p>
+          <p class="size-h6">UPTIME</p>
+        </div>
+      </div>
+    </div>

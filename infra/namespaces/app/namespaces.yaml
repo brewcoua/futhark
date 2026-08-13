@@ -85,6 +85,15 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
+# Every healthcheck in the cluster, and the status page at status.$SUB_INTERNAL.$DOMAIN. Infra
+# tier: it probes infra and app hosts alike, and belongs to neither node.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gatus
+  labels:
+    futk.eu/tier: infra
+---
 # The ingress controllers get their own namespaces instead of kube-system — a reserved namespace
 # for cluster system components, not a place for a workload's HelmRelease to land.
 apiVersion: v1

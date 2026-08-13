@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Publishes this node's public egress address as a node-exporter textfile metric.
+#
+# Glance used to ask ifconfig.co from inside the cluster, which answered with whatever node the
+# dashboard pod happened to run on. Only the ingress node's answer is meaningful, so the lookup
+# belongs here. Managed by ansible/roles/egress_exporter — edits are overwritten.
+set -euo pipefail
+
+METRICS_FILE={{ egress_exporter_textfile_dir }}/futhark_egress.prom
+
+# Written to a temporary file in the same directory and moved into place: node-exporter reads this
+# directory on every scrape and would otherwise be able to read a half-written file.
+tmp=$(mktemp "${METRICS_FILE}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
+
+# A failed lookup leaves the previous file untouched rather than publishing an empty one, so a
+# transient outage of the lookup service does not read as the address having gone away. The metric
+# ages out of the widget on its own if this keeps failing.
+response=$(curl -fsS --max-time 20 {{ egress_exporter_url }}) || {
+  echo "egress lookup failed" >&2
+  exit 1
+}
+
+ip=$(jq -r '.ip // ""' <<<"$response")
+asn_org=$(jq -r '.asn_org // ""' <<<"$response")
+country=$(jq -r '.country // ""' <<<"$response")
+
+[ -n "$ip" ] || { echo "egress lookup returned no address" >&2; exit 1; }
+
+# Label values are quoted Prometheus strings, so a backslash or a quote in the ASN name would
+# break the exposition format.
+escape() { sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' <<<"$1"; }
+
+cat >"$tmp" <<EOF
+# HELP futhark_egress_ip_info The public address this node leaves from, as labels.
+# TYPE futhark_egress_ip_info gauge
+futhark_egress_ip_info{ip="$(escape "$ip")",asn_org="$(escape "$asn_org")",country="$(escape "$country")"} 1
+# HELP futhark_egress_last_run_timestamp_seconds Unix time of the last successful lookup.
+# TYPE futhark_egress_last_run_timestamp_seconds gauge
+futhark_egress_last_run_timestamp_seconds $(date +%s)
+EOF
+
+chmod 0644 "$tmp"
+mv "$tmp" "$METRICS_FILE"
+trap - EXIT

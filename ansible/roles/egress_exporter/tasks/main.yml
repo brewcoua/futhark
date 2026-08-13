@@ -1,0 +1,50 @@
+---
+# Gated by node.public_ingress in playbooks/setup.yml — nothing in here branches on hostname, same
+# convention as roles/firewall_ingress and roles/netbird.
+- name: Install the exporter's dependencies
+  ansible.builtin.dnf:
+    name:
+      # Also installed by roles/netbird, which runs first today. Named here anyway: this role is
+      # gated on public_ingress and that one on mesh, and neither implies the other.
+      - jq
+    state: present
+  when: node.os == 'fedora'
+
+- name: Create the textfile collector directory
+  ansible.builtin.file:
+    path: "{{ egress_exporter_textfile_dir }}"
+    state: directory
+    mode: "0755"
+  when: node.os == 'fedora'
+
+- name: Install the egress exporter script
+  ansible.builtin.template:
+    src: futhark-egress.sh.j2
+    dest: /usr/local/bin/futhark-egress.sh
+    mode: "0755"
+  when: node.os == 'fedora'
+
+- name: Install the egress exporter systemd unit and timer
+  ansible.builtin.template:
+    src: "futhark-egress.{{ item }}.j2"
+    dest: "/etc/systemd/system/futhark-egress.{{ item }}"
+    mode: "0644"
+  loop:
+    - service
+    - timer
+  when: node.os == 'fedora'
+
+- name: Enable the egress exporter timer
+  ansible.builtin.systemd:
+    name: futhark-egress.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+  when: node.os == 'fedora'
+
+# The timer's first run is a minute out, so without this a fresh converge leaves the widget empty
+# for that minute with nothing to say why.
+- name: Publish the address once now
+  ansible.builtin.command: /usr/local/bin/futhark-egress.sh
+  changed_when: true
+  when: node.os == 'fedora'

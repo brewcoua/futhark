@@ -1,0 +1,73 @@
+# Every healthcheck in the cluster, in one place. Glance reads this instance's API rather than
+# probing anything itself (see infra/glance/config/widget-gatus.yml), so a check is written once
+# and shows up on both the status page and the dashboard.
+#
+# Unlike infra/glance, this file *is* expanded by Flux: it contains no ${} of Gatus's own, so
+# postBuild fills in the hostnames. See ../ks.yaml.
+#
+# Every endpoint is probed over its public name through traefik-internal, not over a cluster
+# Service, deliberately: that path also covers DNS, the mesh route, the router and the
+# certificate, which is what actually breaks.
+storage:
+  # In memory, so no PVC and nothing for k8up. History is lost on restart; the long-term series
+  # live in VictoriaMetrics and the dashboards in Grafana.
+  type: memory
+
+ui:
+  title: futhark status
+  header: futhark
+
+endpoints:
+  - name: Grafana
+    group: Core
+    url: https://dash.${SUB_INTERNAL}.${DOMAIN}/api/health
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+      - "[BODY].database == ok"
+
+  - name: VictoriaMetrics
+    group: Core
+    url: https://metrics.${SUB_INTERNAL}.${DOMAIN}/health
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: VictoriaLogs
+    group: Core
+    url: https://logs.${SUB_INTERNAL}.${DOMAIN}/health
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: Pocket ID
+    group: Core
+    url: https://auth.${DOMAIN}/healthz
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  - name: oauth2-proxy
+    group: Core
+    url: https://sso.${SUB_INTERNAL}.${DOMAIN}/ping
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"
+
+  # Behind auth-sso, so an anonymous probe is redirected to Pocket ID. A 302 here means the
+  # forwardAuth chain is intact; a 200 would mean the login had stopped being enforced.
+  - name: Glance
+    group: Apps
+    url: https://home.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    client:
+      follow-redirects: false
+    conditions:
+      - "[STATUS] == 302"
+
+  - name: Actual
+    group: Apps
+    url: https://actual.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    conditions:
+      - "[STATUS] == 200"

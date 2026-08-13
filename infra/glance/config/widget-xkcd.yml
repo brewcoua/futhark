@@ -1,0 +1,8 @@
+# Header hidden: the strip already carries its own title, and the alt text is the hover.
+- type: custom-api
+  hide-header: true
+  cache: 6h
+  url: https://xkcd.com/info.0.json
+  template: |
+    <a class="size-h5 color-highlight" href="https://xkcd.com/{{ .JSON.String "num" }}/" target="_blank" rel="noreferrer">{{ .JSON.String "title" }}</a>
+    <img class="margin-top-10 max-width-100" src="{{ .JSON.String "img" }}" alt="{{ .JSON.String "alt" }}" title="{{ .JSON.String "alt" }}">

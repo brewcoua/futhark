@@ -1,0 +1,22 @@
+# The address the cluster is actually reached at. It used to be an ifconfig.co call from the Glance
+# pod, which answered with whatever node Glance happened to run on — never the ingress node. The
+# ansible egress_exporter role now writes it as a textfile metric on the public_ingress hosts, so
+# this is the edge's own view. See docs/src/ansible/egress-exporter.md.
+- type: custom-api
+  title: Egress
+  cache: 10m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: futhark_egress_ip_info
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-subdue">No egress metric. Check the futhark-egress timer on the ingress node.</p>
+    {{ else }}
+      {{ range .JSON.Array "data.result" }}
+        <p class="size-h4 color-highlight">{{ .String "metric.ip" }}</p>
+        <p class="size-h6 color-subdue margin-top-5">
+          {{ .String "metric.asn_org" }}, {{ .String "metric.country" }}
+          <span class="color-base">via {{ replaceMatches ":[0-9]+$" "" (.String "metric.instance") }}</span>
+        </p>
+      {{ end }}
+    {{ end }}

@@ -1,0 +1,9 @@
+[Unit]
+Description=Futhark: publish this node's public egress address as a metric
+# The lookup is over the public route, not the mesh, so this needs no ordering against netbird.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/futhark-egress.sh

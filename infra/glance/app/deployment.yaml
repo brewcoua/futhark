@@ -45,12 +45,19 @@ spec:
               value: ${SUB_INTERNAL}
             - name: DOMAIN
               value: ${DOMAIN}
+            # A literal, not a Flux variable: the two gatus widgets read the API over the cluster
+            # network, because the ingress in front of it sits behind auth-sso.
+            - name: GATUS_URL
+              value: http://gatus.gatus.svc.cluster.local:8080
           envFrom:
             - secretRef:
                 name: glance-secrets
           volumeMounts:
             - name: config
               mountPath: /app/config
+              readOnly: true
+            - name: assets
+              mountPath: /app/assets
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -79,5 +86,8 @@ spec:
         - name: config
           configMap:
             name: glance-config
+        - name: assets
+          configMap:
+            name: glance-assets
         - name: tmp
           emptyDir: {}

@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: coredns
+spec:
+  path: ./infra/coredns/app
+  dependsOn:
+    - name: substitutions
+  # ${SUB_INTERNAL}.${DOMAIN} — the zone the stub answers for — and ${MESH_IP}, the address it
+  # answers with.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values

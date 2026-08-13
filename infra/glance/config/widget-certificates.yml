@@ -1,0 +1,22 @@
+# Days left on every certificate cert-manager holds, the internal wildcard included. Needs the
+# `cert-manager` scrape job; a renewal that quietly stopped working shows up here weeks before it
+# becomes an outage.
+- type: custom-api
+  title: Certificates
+  cache: 1h
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: sort((certmanager_certificate_expiration_timestamp_seconds - time()) / 86400)
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-subdue">No certificate metrics. Check the cert-manager scrape job.</p>
+    {{ else }}
+      <ul class="list list-gap-4">
+        {{ range .JSON.Array "data.result" }}
+          <li class="flex justify-between">
+            <span class="text-truncate">{{ .String "metric.name" }}</span>
+            <span class="{{ if lt (.Float "value.1") 14.0 }}color-negative{{ end }}">{{ printf "%.0f" (.Float "value.1") }}d</span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}

@@ -71,8 +71,9 @@ rather than host-scoped.
 | `k8s.yml`   | `just ans k8s`            | Installs the k3s controller, joins the workers, then the Flux bootstrap                            |
 
 `setup.yml` runs per host and is gated by the node's own flags. The `netbird` role only runs when
-`node.mesh` is true, and `firewall_ingress` only when `node.public_ingress` is. Nothing
-in any role branches on a hostname, so a future node opts into either by setting the flag.
+`node.mesh` is true, and `firewall_ingress` and `egress_exporter` only when `node.public_ingress`
+is. Nothing in any role branches on a hostname, so a future node opts into either by setting the
+flag.
 
 It also carries tags, so a single concern can be re-converged without running the whole thing:
 
@@ -82,6 +83,7 @@ It also carries tags, so a single concern can be re-converged without running th
 | `access`   | `admin_user`, `ssh_harden`     |
 | `firewall` | `fail2ban`, `firewall_ingress` |
 | `mesh`     | `netbird`                      |
+| `metrics`  | `egress_exporter`              |
 
 `admin_user` and `ssh_harden` share one tag on purpose: `ssh_harden` disables root and password
 login, so running it without `admin_user` locks the host out permanently. `ssh_identity` and the
@@ -108,6 +110,7 @@ over the network with the fetched kubeconfig, with no SSH and no `become`.
 | `fail2ban`         | Bans brute force on `ssh_port`, and repeat offenders, through firewalld                                                         |
 | `netbird`          | Mesh join with a freshly minted single-use setup key, firewalld zoning, the pod-to-mesh routing fix, and the SSH-config opt-out |
 | `firewall_ingress` | Opens 443 in firewalld's public zone. Only on the `public_ingress` node                                                         |
+| `egress_exporter`  | Publishes the node's public address as a node-exporter textfile metric. Only on the `public_ingress` node                       |
 | `k8s_cluster`      | Installs k3s from inventory, server then agents, and writes the kubeconfig                                                      |
 | `flux_bootstrap`   | Flux Operator, the seed Secrets, then `flux/cluster.yaml`                                                                       |
 

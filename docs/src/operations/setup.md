@@ -177,7 +177,7 @@ Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout
 | `/infra/csi-rclone`   | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                         |
 | `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`              |
 | `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`, `SSO_COOKIE_SECRET`                             | `infra/auth/app/*infisicalsecret.yaml`                  |
-| `/infra/glance`       | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`, `NASA_API_KEY`                                   | `infra/glance/app/infisicalsecret.yaml`                 |
+| `/infra/glance`       | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`                                                   | `infra/glance/app/infisicalsecret.yaml`                 |
 | `/infra/k8up`         | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader` |
 | `/nodes/kenaz/actual` | none, leave empty                                                                                 | written by `just tf apply oidc`                         |
 

@@ -1,0 +1,74 @@
+# The watchdog in ansible/roles/netbird writes these through node-exporter's textfile collector, so
+# this is each node's own view of the mesh rather than the control plane's. See
+# docs/src/ansible/mesh-watchdog.md for what the state values mean.
+#
+# One row per node instead of three stacked lists keyed by the same instance name.
+# Header hidden: each row names its node and every figure is labelled.
+- type: custom-api
+  hide-header: true
+  cache: 1m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: futhark_mesh_state
+  subrequests:
+    handshaken:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: futhark_mesh_peers_handshaken
+    total:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: futhark_mesh_peers_total
+    lastrun:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: time() - futhark_mesh_last_run_timestamp_seconds
+  template: |
+    {{ $root := . }}
+    {{ range .JSON.Array "data.result" }}
+      {{ $instance := .String "metric.instance" }}
+      {{ $node := replaceMatches ":[0-9]+$" "" $instance }}
+      {{ $state := .String "value.1" }}
+
+      {{ $handshaken := 0.0 }}
+      {{ range ($root.Subrequest "handshaken").JSON.Array "data.result" }}
+        {{ if eq (.String "metric.instance") $instance }}{{ $handshaken = .Float "value.1" }}{{ end }}
+      {{ end }}
+      {{ $total := 0.0 }}
+      {{ range ($root.Subrequest "total").JSON.Array "data.result" }}
+        {{ if eq (.String "metric.instance") $instance }}{{ $total = .Float "value.1" }}{{ end }}
+      {{ end }}
+      {{ $age := 0.0 }}
+      {{ range ($root.Subrequest "lastrun").JSON.Array "data.result" }}
+        {{ if eq (.String "metric.instance") $instance }}{{ $age = .Float "value.1" }}{{ end }}
+      {{ end }}
+      {{ $percent := 0.0 }}
+      {{ if gt $total 0.0 }}{{ $percent = mul 100.0 (div $handshaken $total) }}{{ end }}
+
+      <div class="margin-bottom-15">
+        <div class="flex justify-between items-center">
+          <span class="color-highlight size-h3 text-truncate">{{ $node }}</span>
+          {{ if eq $state "0" }}
+            <span class="color-positive">ok</span>
+          {{ else if eq $state "1" }}
+            <span class="color-primary">degraded</span>
+          {{ else if eq $state "2" }}
+            <span class="color-negative">down</span>
+          {{ else }}
+            <span class="color-negative">stuck</span>
+          {{ end }}
+        </div>
+        <div class="flex justify-between items-end size-h5 margin-top-5">
+          <span>Handshaken</span>
+          <span class="color-highlight text-very-compact">{{ printf "%.0f" $handshaken }}<span class="color-base">/{{ printf "%.0f" $total }}</span></span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-value{{ if lt $percent 100.0 }} progress-value-notice{{ end }}" style="--percent: {{ printf "%.0f" $percent }}"></div>
+        </div>
+        {{/* The timer runs every fifteen minutes, so anything past that is the probe itself
+             having stopped rather than the mesh being unhealthy. */}}
+        <p class="size-h6 margin-top-5 {{ if gt $age 900.0 }}color-negative{{ else }}color-subdue{{ end }}">
+          probed {{ printf "%.0f" (div $age 60.0) }}m ago
+        </p>
+      </div>
+    {{ end }}

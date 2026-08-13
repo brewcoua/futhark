@@ -12,6 +12,7 @@ resources:
   - auth/ks.yaml
   - cert-manager/ks.yaml
   - cert-manager/config-ks.yaml
+  - coredns/ks.yaml
   - traefik-internal/ks.yaml
   - traefik-edge/ks.yaml
   - storage/ks.yaml
@@ -19,6 +20,7 @@ resources:
   - backup/config-ks.yaml
   - monitoring/ks.yaml
   - monitoring/dashboards-ks.yaml
+  - gatus/ks.yaml
   - glance/ks.yaml
   - glance/config-ks.yaml
 # Every Flux Kustomization CR under infra/ shares interval/prune/sourceRef/wait — patched in

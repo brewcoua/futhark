@@ -1,0 +1,39 @@
+# A Kustomization or HelmRelease whose Ready condition is False is a commit that did not land.
+# Nothing else in this stack reports that, which is why vmagent grew the `flux` scrape job in
+# infra/monitoring/app/metrics/scrape-configs.yaml.
+- type: custom-api
+  title: GitOps
+  cache: 1m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    query: gotk_reconcile_condition{type="Ready",status="False"} == 1
+  subrequests:
+    suspended:
+      url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+      parameters:
+        query: gotk_suspend_status == 1
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-positive">Every Flux resource reconciled.</p>
+    {{ else }}
+      <ul class="list list-gap-10">
+        {{ range .JSON.Array "data.result" }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">
+              <span class="color-subdue">{{ .String "metric.kind" }}</span> {{ .String "metric.namespace" }}/{{ .String "metric.name" }}
+            </span>
+            <span class="color-negative">not ready</span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}
+    {{ with .Subrequest "suspended" }}
+      {{ if gt (len (.JSON.Array "data.result")) 0 }}
+        <p class="size-h6 color-subdue margin-top-15">Suspended</p>
+        <ul class="list list-gap-4 margin-top-5">
+          {{ range .JSON.Array "data.result" }}
+            <li class="text-truncate">{{ .String "metric.kind" }} {{ .String "metric.namespace" }}/{{ .String "metric.name" }}</li>
+          {{ end }}
+        </ul>
+      {{ end }}
+    {{ end }}

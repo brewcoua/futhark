@@ -47,6 +47,33 @@ and `sops --extract` them at plan time. No module keeps a copy. See
 Use `{{ dns.domain }}`, `{{ dns.sub.nodes }}` and `{{ dns.sub.internal }}`. The flat capitals
 exist only because a Kubernetes Secret cannot nest.
 
+## Who resolves the internal subdomain
+
+Two resolvers answer `$SUB_INTERNAL.$DOMAIN`, and they are configured in different planes.
+
+**Your devices.** `tofu/netbird` publishes a wildcard A record in NetBird's own DNS zone, pointing
+at the mesh address traefik-internal listens on. Its `distribution_groups` is the `admin` group, so
+only the operator's peers receive it. The nodes join `node` and `k8s` and do not.
+
+**Pods.** `infra/coredns` writes a `coredns-custom` ConfigMap holding a stub zone that answers the
+same subdomain with the same address. Without it every internal hostname is NXDOMAIN inside the
+cluster: k3s strips loopback resolvers out of the kubelet resolv.conf, so CoreDNS forwards to the
+public Bunny zone, which holds nothing under the internal label. That is what broke every
+healthcheck Glance ran against an internal host.
+
+k3s's bundled Corefile ends with `import /etc/coredns/custom/*.server` and carries `reload`, so the
+ConfigMap lands without restarting CoreDNS. Verify from any pod:
+
+```bash
+kubectl -n glance exec deploy/glance -- nslookup metrics.$SUB_INTERNAL.$DOMAIN
+```
+
+Expect the mesh address. If it is still NXDOMAIN after about 30 seconds, force the reload with
+`kubectl -n kube-system rollout restart deploy/coredns`.
+
+Both resolvers answer for every name under the subdomain, including ones with no Ingress behind
+them. Such a name resolves and then fails at the Traefik router, not at DNS.
+
 ## Changing the domain
 
 Edit the one file, then re-apply everything that resolved it:

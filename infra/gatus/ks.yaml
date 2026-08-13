@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: gatus
+spec:
+  path: ./infra/gatus/app
+  # coredns is a hard dependency, not an ordering nicety: without the stub zone every endpoint in
+  # app/configmap.yaml resolves to NXDOMAIN and the status page comes up entirely red.
+  dependsOn:
+    - name: coredns
+    - name: infra-policies
+    - name: traefik-internal
+    - name: auth
+    - name: substitutions
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values
