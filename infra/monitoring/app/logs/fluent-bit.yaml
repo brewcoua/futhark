@@ -11,6 +11,11 @@ kind: HelmRelease
 metadata:
   name: fluent-bit
   namespace: flux-system
+  annotations:
+    # ${NODE_NAME} below is Fluent Bit's to expand, not Flux's. The Kustomization runs envsubst
+    # in strict mode, where an undeclared variable is a build error and `$$` does not exempt it,
+    # so substitution is switched off for this resource. Nothing else here needs it.
+    kustomize.toolkit.fluxcd.io/substitute: disabled
 spec:
   interval: 1h
   releaseName: fluent-bit
@@ -167,9 +172,7 @@ spec:
             Name record_modifier
             Match host.fail2ban
             Record app fail2ban
-            # $$ escapes Flux's postBuild substitution: the variable is Fluent Bit's to expand,
-            # and an unescaped ${NODE_NAME} is emptied before it ever reaches the pod.
-            Record hostname $${NODE_NAME}
+            Record hostname ${NODE_NAME}
 
         [FILTER]
             Name lua
