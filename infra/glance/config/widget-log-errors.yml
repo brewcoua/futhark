@@ -1,4 +1,4 @@
-# Error lines per namespace, from VictoriaLogs rather than from any metric: a pod that logs a
+# Error lines per pod, from VictoriaLogs rather than from any metric: a pod that logs a
 # stack trace every minute and never restarts is invisible everywhere else on this page.
 #
 # /select/logsql/stats_query rather than /select/logsql/query, because the latter answers with
@@ -10,22 +10,42 @@
 # name is a path separator to the template engine, and the copy happens *before* `stats`, not
 # after: renaming a grouping field afterwards leaves the result keyed by the original name, so
 # every row rendered with an empty namespace and the whole thing collapsed into a single count.
+# `pod` is the same copy for the same reason.
+#
+# The severity filter reads the `level` field first and falls back to the message text, because
+# neither alone is enough: about a third of the lines carry no `level` field, and a bare word
+# filter matches `_msg` only, so it misses every JSON logger that puts the severity in `level` and
+# never repeats it in the message.
+#
+# Each row links into the pod-logs Grafana dashboard with the same pod and window already
+# selected. `var-container` is left off deliberately — the dashboard defaults it to All, and the
+# literal `$__all` that would pin it here sits in a string Glance also scans for env references.
+#
+# `var-level` carries the alternation, not the word "Error": Grafana matches a URL variable
+# against an option's value, and the dashboard's Error option is that alternation. It has to stay
+# character-for-character identical to the one in pod-logs.json.
 - type: custom-api
   title: Log errors (15m)
   cache: 5m
   url: http://vlsingle-victoria-logs-single-server.monitoring.svc.cluster.local:9428/select/logsql/stats_query
   parameters:
     query: |
-      _time:15m error | format "<kubernetes.pod_namespace>" as namespace | stats by (namespace) count() as errors | sort by (errors desc) | limit 8
+      _time:15m (level:~"(?i)^(error|fatal|panic|critical)$" OR (level:"" AND ~"(?i)(error|fatal|panic|critical)")) | format "<kubernetes.pod_namespace>" as namespace | format "<kubernetes.pod_name>" as pod | stats by (namespace, pod) count() as errors | sort by (errors desc) | limit 8
   template: |
     {{ if eq (len (.JSON.Array "data.result")) 0 }}
       <p class="color-positive">Nothing logged an error in the last fifteen minutes.</p>
     {{ else }}
+      {{ $level := urlquery "error|fatal|panic|critical" }}
       <ul class="list list-gap-4">
         {{ range .JSON.Array "data.result" }}
-          <li class="flex justify-between">
-            <span class="text-truncate">{{ .String "metric.namespace" }}</span>
-            <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }}</span>
+          {{ $namespace := .String "metric.namespace" }}
+          {{ $pod := .String "metric.pod" }}
+          {{ $url := print "https://dash.${SUB_INTERNAL}.${DOMAIN}/d/pod-logs/pod-logs?var-namespace=" $namespace "&var-pod=" $pod "&var-level=" $level "&from=now-15m&to=now" }}
+          <li>
+            <a class="flex justify-between" href="{{ $url | safeURL }}" target="_blank" rel="noreferrer">
+              <span class="text-truncate">{{ $namespace }}/{{ $pod }}</span>
+              <span class="color-negative">{{ printf "%.0f" (.Float "value.1") }}</span>
+            </a>
           </li>
         {{ end }}
       </ul>

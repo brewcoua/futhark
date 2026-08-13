@@ -38,6 +38,14 @@ configMapGenerator:
         grafana_folder: Kubernetes
     files:
       - k8s-namespaces.json
+  - name: grafana-dashboard-pod-logs
+    options:
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: Kubernetes
+    files:
+      - pod-logs.json
   - name: grafana-dashboard-k8s-pods
     options:
       labels:

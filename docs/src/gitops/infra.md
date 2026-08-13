@@ -172,6 +172,14 @@ Adding a dashboard is three steps: drop the JSON in `grafana/dashboards/`, add a
 its provisioned uid (`victoriametrics` or `victorialogs`) instead of shipping a `datasource`
 template variable, so a dashboard cannot be pointed at the wrong store by a stray dropdown.
 
+`pod-logs.json` is the dashboard to reach for when reading a workload's logs. Its namespace, pod
+and container dropdowns come from `kube_pod_info` and `kube_pod_container_info` in
+VictoriaMetrics, so they list every pod rather than only the ones that logged in the window. Its
+`Level` dropdown holds a regexp alternation, `Error` being `error|fatal|panic|critical`, and every
+panel matches it twice: against the `level` field a JSON-logging workload produces, and against
+the raw message for the lines that have no `level` field. Either half alone misses most of the
+cluster's errors. Anything typed into `Search` is ANDed onto every panel's query.
+
 `vmagent`'s scrape targets are in `metrics/scrape-configs.yaml`, merged into the release with
 `valuesFrom` rather than kept inline, so adding a target does not mean editing a `HelmRelease`.
 One file, not one per job: Flux merges `valuesFrom` entries with arrays replaced, so two
@@ -287,6 +295,10 @@ opens — on 8428 for vmsingle, and on 9428 for the VictoriaLogs error-count wid
 need scrape jobs that exist only for them: `flux` for `gotk_reconcile_condition`, and
 `cert-manager` for `certmanager_certificate_expiration_timestamp_seconds`. Both are in
 `infra/monitoring/app/metrics/scrape-configs.yaml`.
+
+The error-count widget lists the eight pods that logged the most error lines in the last fifteen
+minutes, and each row links into the `pod-logs` Grafana dashboard with that namespace and pod, the
+`Error` level and the same fifteen-minute window already selected.
 
 The two widgets on the apps page that show service health read Gatus instead, at
 `http://gatus.gatus.svc.cluster.local:8080`, admitted by
