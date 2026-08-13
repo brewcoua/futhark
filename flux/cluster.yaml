@@ -14,6 +14,19 @@ spec:
     # renovate: datasource=github-releases depName=fluxcd/flux2 extractVersion=^v(?<version>.+)$
     version: "2.9.4"
     registry: ghcr.io/fluxcd
+  # Both controllers requeue a dependsOn-blocked object every 30s by default, so a chain of N
+  # Kustomizations costs ~30s per link even when each one is already ready. 5s keeps a cold
+  # bootstrap from idling through it; the cluster is small enough that the extra reconciles
+  # are free.
+  kustomize:
+    patches:
+      - target:
+          kind: Deployment
+          name: (kustomize-controller|helm-controller)
+        patch: |
+          - op: add
+            path: /spec/template/spec/containers/0/args/-
+            value: --requeue-dependency=5s
   sync:
     kind: GitRepository
     url: ssh://git@github.com/brewcoua/futhark.git
