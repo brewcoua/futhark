@@ -178,8 +178,10 @@ config:
     #
     # role: pod, not endpoints: the chart's metrics Service targets a port on a hostNetwork pod,
     # and a Service adds nothing when there is exactly one replica pinned to one node.
-    # traefik-internal has no Service at all now. The discovered address carries whichever container
-    # port came first, so each job forces its own metrics port rather than silently scraping 443.
+    # traefik-internal has no Service at all now. Kept by container port name, as in the flux job:
+    # role: pod yields one target per container port, and forcing __address__ to the metrics port
+    # instead collapsed all of them onto identical labels ("skipping duplicate scrape target"). The
+    # port is named after the chart's entryPoint, so `metrics` in both helmreleases.
     #
     # This job used to be a static target at the traefik-internal Service's ClusterIP on 9180, which
     # never scraped: the chart puts 9180 on a second Service, traefik-internal-metrics, while the
@@ -193,11 +195,9 @@ config:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
           action: keep
           regex: traefik
-        - source_labels: [__address__]
-          action: replace
-          regex: ([^:]+)(?::\d+)?
-          replacement: $${1}:9180
-          target_label: __address__
+        - source_labels: [__meta_kubernetes_pod_container_port_name]
+          action: keep
+          regex: metrics
         - target_label: instance
           replacement: traefik-internal
     # Same shape as traefik-internal above, on the edge Traefik's own metrics port. This one was a
@@ -211,10 +211,8 @@ config:
         - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
           action: keep
           regex: traefik
-        - source_labels: [__address__]
-          action: replace
-          regex: ([^:]+)(?::\d+)?
-          replacement: $${1}:9181
-          target_label: __address__
+        - source_labels: [__meta_kubernetes_pod_container_port_name]
+          action: keep
+          regex: metrics
         - target_label: instance
           replacement: traefik-edge
