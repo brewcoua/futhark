@@ -176,7 +176,8 @@ Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout
 | `/infra/cert-manager` | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                 |
 | `/infra/csi-rclone`   | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                         |
 | `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`              |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`                                                  | `infra/auth/app/infisicalsecret.yaml`                   |
+| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`, `SSO_COOKIE_SECRET`                             | `infra/auth/app/*infisicalsecret.yaml`                  |
+| `/infra/glance`       | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`, `NASA_API_KEY`                                   | `infra/glance/app/infisicalsecret.yaml`                 |
 | `/infra/k8up`         | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader` |
 | `/nodes/kenaz/actual` | none, leave empty                                                                                 | written by `just tf apply oidc`                         |
 
@@ -194,9 +195,15 @@ secret in its `template` block.
 grep -rl 'kind: InfisicalStaticSecret' infra nodes
 ```
 
-No NetBird credential appears in that table, and none should. Nothing inside the cluster talks to
-NetBird, and both PATs stay on the operator machine. `POCKETID_ENCRYPTION_KEY` is new material:
-`openssl rand -base64 32`.
+One NetBird credential appears in that table, and exactly one may. `NETBIRD_API_KEY` is read by
+Glance's peers widget and by nothing else, so it belongs to its own service user with no write
+capability: the worst an attacker who reads it can do is list peers. The two PATs that can change
+the mesh, `netbird-policy` and `netbird-enrollment`, stay on the operator machine and never enter
+the cluster. See [Credential rotation](rotation.md#the-netbird-tokens).
+
+`POCKETID_ENCRYPTION_KEY` and `SSO_COOKIE_SECRET` are both new material, each
+`openssl rand -base64 32`. The cookie secret additionally has to be URL-safe, so pipe it through
+`tr -- '+/' '-_'`. Both must exist before their Deployment first reconciles.
 
 `/infra/csi-rclone` is the one row you cannot fill in yet. Two of its values are minted by `rclone`
 and four more are generated with it, and `rclone` arrives with `just ops setup` at step 3, so create

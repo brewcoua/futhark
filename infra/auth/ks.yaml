@@ -13,8 +13,12 @@ spec:
     # weakest dependsOn in the tree.
     - name: cert-manager-config
     - name: traefik-edge
+    # app/oauth2-proxy-ingress.yaml is internal-class, and app/middleware-sso.yaml needs the
+    # Middleware CRD traefik-internal's release installs.
+    - name: traefik-internal
     - name: substitutions
-  # ${DOMAIN} — the ingress host, the TLS SAN and Pocket ID's own APP_URL.
+  # ${DOMAIN} — the ingress host, the TLS SAN and Pocket ID's own APP_URL. ${SUB_INTERNAL} joins
+  # it for oauth2-proxy's callback host and cookie domain.
   postBuild:
     substituteFrom:
       - kind: Secret

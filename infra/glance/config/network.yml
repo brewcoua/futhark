@@ -1,0 +1,180 @@
+# The mesh and the edge. Two sources: NetBird's own cloud API for what the control plane believes,
+# and vmsingle for what the nodes and Traefik actually observe. They disagree when something is
+# wrong, which is the point of showing both.
+- name: Network
+  slug: network
+
+  columns:
+    - size: small
+      widgets:
+        # The watchdog in ansible/roles/netbird writes these through node-exporter's textfile
+        # collector, so this is each node's own view of the mesh rather than the control plane's.
+        # See docs/src/ansible/mesh-watchdog.md for what the state values mean.
+        - type: custom-api
+          title: Mesh watchdog
+          cache: 1m
+          url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+          parameters:
+            query: futhark_mesh_state
+          subrequests:
+            peers:
+              url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+              parameters:
+                query: futhark_mesh_peers_handshaken
+            lastrun:
+              url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+              parameters:
+                query: time() - futhark_mesh_last_run_timestamp_seconds
+          template: |
+            <ul class="list list-gap-10">
+              {{ range .JSON.Array "data.result" }}
+                <li class="flex justify-between items-center">
+                  <span class="text-truncate">{{ .String "metric.instance" }}</span>
+                  {{ if eq (.String "value.1") "0" }}
+                    <span class="color-positive">ok</span>
+                  {{ else if eq (.String "value.1") "1" }}
+                    <span class="color-primary">degraded</span>
+                  {{ else if eq (.String "value.1") "2" }}
+                    <span class="color-negative">down</span>
+                  {{ else }}
+                    <span class="color-negative">stuck</span>
+                  {{ end }}
+                </li>
+              {{ end }}
+            </ul>
+            <p class="size-h6 color-subdue margin-top-15">Peers handshaken</p>
+            <ul class="list list-gap-4 margin-top-5">
+              {{ range (.Subrequest "peers").JSON.Array "data.result" }}
+                <li class="flex justify-between">
+                  <span class="text-truncate">{{ .String "metric.instance" }}</span>
+                  <span>{{ printf "%.0f" (.Float "value.1") }}</span>
+                </li>
+              {{ end }}
+            </ul>
+            <p class="size-h6 color-subdue margin-top-15">Last probe</p>
+            <ul class="list list-gap-4 margin-top-5">
+              {{ range (.Subrequest "lastrun").JSON.Array "data.result" }}
+                <li class="flex justify-between">
+                  <span class="text-truncate">{{ .String "metric.instance" }}</span>
+                  <span class="{{ if gt (.Float "value.1") 900.0 }}color-negative{{ end }}">{{ printf "%.0f" (div (.Float "value.1") 60.0) }}m ago</span>
+                </li>
+              {{ end }}
+            </ul>
+
+        # The egress address the cluster actually leaves from. Cheap, and it is the first thing worth
+        # checking when mesh routing has quietly changed.
+        - type: custom-api
+          title: Egress
+          cache: 1h
+          url: https://ifconfig.co/json
+          headers:
+            Accept: application/json
+          template: |
+            <p class="size-h4 color-highlight">{{ .JSON.String "ip" }}</p>
+            <p class="size-h6 color-subdue margin-top-5">{{ .JSON.String "asn_org" }}, {{ .JSON.String "country" }}</p>
+
+        - type: bookmarks
+          groups:
+            - title: Consoles
+              links:
+                - title: NetBird
+                  url: https://app.netbird.io
+                  icon: si:wireguard
+                - title: Bunny DNS
+                  url: https://dash.bunny.net/dns
+                - title: Infisical
+                  url: https://app.infisical.com
+                - title: Backblaze B2
+                  url: https://secure.backblaze.com
+                  icon: si:backblaze
+
+    - size: full
+      widgets:
+        # NetBird's cloud API, which is the control plane's view: a peer listed here as connected
+        # can still be one the mesh watchdog reports no handshake for.
+        - type: custom-api
+          title: NetBird peers
+          title-url: https://app.netbird.io/peers
+          cache: 10m
+          url: https://api.netbird.io/api/peers
+          headers:
+            Accept: application/json
+            Authorization: Token ${NETBIRD_API_KEY}
+          template: |
+            <ul class="list list-gap-10 collapsible-container" data-collapse-after="8">
+              {{ range sortByString "name" "asc" (.JSON.Array "") }}
+                <li class="flex justify-between items-center">
+                  <span class="text-truncate">
+                    {{ .String "name" }}
+                    <span class="color-subdue">{{ .String "ip" }}</span>
+                  </span>
+                  {{ if .Bool "connected" }}
+                    <span class="color-positive">online</span>
+                  {{ else }}
+                    <span class="color-subdue" {{ .String "last_seen" | parseTime "RFC3339" | toRelativeTime }}></span>
+                  {{ end }}
+                </li>
+              {{ end }}
+            </ul>
+
+        # Traffic at the two Traefiks rather than at the services behind them, so this counts what
+        # arrived at the cluster edge, redirects and 404s included.
+        - type: custom-api
+          title: Ingress traffic
+          cache: 1m
+          url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+          parameters:
+            query: sum by (instance, entrypoint) (rate(traefik_entrypoint_requests_total[5m])) > 0
+          subrequests:
+            errors:
+              url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+              parameters:
+                query: sum by (instance, entrypoint) (rate(traefik_entrypoint_requests_total{code=~"5.."}[5m])) > 0
+          template: |
+            {{ if eq (len (.JSON.Array "data.result")) 0 }}
+              <p class="color-subdue">No requests in the last five minutes.</p>
+            {{ else }}
+              <ul class="list list-gap-4">
+                {{ range .JSON.Array "data.result" }}
+                  <li class="flex justify-between">
+                    <span class="text-truncate">{{ .String "metric.instance" }} <span class="color-subdue">{{ .String "metric.entrypoint" }}</span></span>
+                    <span>{{ printf "%.2f" (.Float "value.1") }} req/s</span>
+                  </li>
+                {{ end }}
+              </ul>
+            {{ end }}
+            {{ with .Subrequest "errors" }}
+              {{ if gt (len (.JSON.Array "data.result")) 0 }}
+                <p class="size-h6 color-negative margin-top-15">5xx</p>
+                <ul class="list list-gap-4 margin-top-5">
+                  {{ range .JSON.Array "data.result" }}
+                    <li class="flex justify-between">
+                      <span class="text-truncate">{{ .String "metric.instance" }} <span class="color-subdue">{{ .String "metric.entrypoint" }}</span></span>
+                      <span class="color-negative">{{ printf "%.2f" (.Float "value.1") }} /s</span>
+                    </li>
+                  {{ end }}
+                </ul>
+              {{ end }}
+            {{ end }}
+
+        # What each Traefik is serving right now, which is not the same question as what cert-manager
+        # holds on the cluster page: this is the certificate actually presented to a client.
+        - type: custom-api
+          title: Served certificates
+          cache: 1h
+          url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+          parameters:
+            query: sort((traefik_tls_certs_not_after - time()) / 86400)
+          template: |
+            {{ if eq (len (.JSON.Array "data.result")) 0 }}
+              <p class="color-subdue">Neither Traefik has served a TLS certificate yet.</p>
+            {{ else }}
+              <ul class="list list-gap-4">
+                {{ range .JSON.Array "data.result" }}
+                  <li class="flex justify-between">
+                    <span class="text-truncate">{{ .String "metric.cn" }}{{ .String "metric.sans" }}</span>
+                    <span class="{{ if lt (.Float "value.1") 14.0 }}color-negative{{ end }}">{{ printf "%.0f" (.Float "value.1") }}d</span>
+                  </li>
+                {{ end }}
+              </ul>
+            {{ end }}

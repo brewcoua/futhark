@@ -1,0 +1,30 @@
+---
+# Internal-only, unlike pocketid's own ingress next to it: the browser reaches this host for the
+# OIDC callback and for sign-out, and everything protected by the forwardAuth Middleware is
+# internal too. TLS comes from traefik-internal's default *.${SUB_INTERNAL}.${DOMAIN} wildcard,
+# so no Certificate here.
+#
+# This host is also why the cookie domain is .${SUB_INTERNAL}.${DOMAIN}: the callback sets the
+# session cookie here and every protected sibling host has to be able to read it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oauth2-proxy
+  namespace: auth
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: auth-ratelimit@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: sso.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 4180

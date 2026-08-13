@@ -11,6 +11,13 @@ It is the one module allowed to write to a secret store. See the write exception
 One `pocketid_client` plus two `infisical_secret` resources per app, in `clients.tf`. Add a new
 group following the existing blocks' shape as each app adopts OIDC login.
 
+One of those clients is not an app. `pocketid_client.sso` is the oauth2-proxy in `infra/auth`, a
+single relying party standing in for every internal app that speaks no OIDC. Its secrets go to
+`/infra/auth`, and it is the only client whose callback path is fixed by the software rather than
+chosen: oauth2-proxy always uses `/oauth2/callback`. Adding an app behind the SSO middleware needs
+no new client here. See
+[Internal ingresses are unauthenticated by default](../conventions/domains.md#internal-ingresses-are-unauthenticated-by-default).
+
 Plus the two fleet-wide groups in `groups.tf`, `administrators` and `users`. Every client sets
 `allowed_user_groups` to both, so who may log in anywhere is one list rather than one per app, and
 an app that maps roles reads the same `groups` claim. Grafana is the case that does: it maps
@@ -55,8 +62,8 @@ in Proton Pass and referenced from `tofu.oidc` in `config/sops/ops.sops.yaml` as
 `POCKETID_API_TOKEN: pass://<vault>/pocketid/api token`.
 
 An **Infisical machine identity** with write access scoped to the folders this module targets, and
-nothing else. Today that is `/nodes/<hostname>/<app>` for a per-node app and `/infra/monitoring`
-for Grafana. A client whose folder is outside that scope fails the apply on the
+nothing else. Today that is `/nodes/<hostname>/<app>` for a per-node app, `/infra/monitoring` for
+Grafana, and `/infra/auth` for oauth2-proxy. A client whose folder is outside that scope fails the apply on the
 `infisical_secret` resource, not on the Pocket ID one, so the client exists and its secret is
 nowhere. Widen the scope in the Infisical UI, then apply again. Deliberately not the read-only
 identity the cluster

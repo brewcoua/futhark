@@ -274,13 +274,19 @@ new reconciles.
 
 ### The NetBird tokens
 
-Two Personal Access Tokens, one per service user. Both expire, 365 days out at most. A PAT
+Three Personal Access Tokens, one per service user. All expire, 365 days out at most. A PAT
 inherits the role of the user it belongs to, so issue the replacement **on the same service user**
 and no role changes.
 
-**Blast radius:** neither takes the mesh down. Peers keep their configuration and keep connecting.
-What stops is changing anything: no policy applies, and no new node joins. The full table of what
-breaks is [Checks and CI](checks.md#netbird-token-expiry).
+Two of them, `netbird-policy` and `netbird-enrollment`, live only on the operator machine. The
+third belongs to a read-only service user, is stored in Infisical at `/infra/glance`, and is the
+only NetBird credential that enters the cluster. Keep it that way: it is safe in there because it
+cannot change the mesh.
+
+**Blast radius:** none takes the mesh down. Peers keep their configuration and keep connecting.
+What stops is changing anything: no policy applies, and no new node joins. Losing the read-only
+one costs one widget. The full table of what breaks is
+[Checks and CI](checks.md#netbird-token-expiry).
 
 1. In the NetBird dashboard, **Team → Users**, open the service user, then **Access Tokens**.
 2. Create a new token with the same name. The plaintext is shown once and stored hashed, so file
@@ -306,6 +312,15 @@ breaks is [Checks and CI](checks.md#netbird-token-expiry).
    the lookup and the mint, so this only exercises the token on a peer that is not currently
    joined. If every peer is up, the honest check is to re-enrol one deliberately, or to accept that
    the token is unverified until the next join.
+
+   The read-only one, used by Glance: file it into Infisical at `/infra/glance` as
+   `NETBIRD_API_KEY` instead of into Proton Pass alone, wait for the
+   `InfisicalStaticSecret` interval, then restart the pod and confirm the NetBird peers widget on
+   `home.$SUB_INTERNAL.$DOMAIN` lists peers again.
+
+   ```bash
+   just ks restart glance glance
+   ```
 
 5. Delete the old token in the dashboard.
 

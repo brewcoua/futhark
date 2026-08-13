@@ -69,18 +69,38 @@ user promoted to Admin for the duration. See
 Verify: `just fx failing` is empty, `just ks certs` shows every certificate `Ready` under the new
 domain, and `just ops mesh` still resolves.
 
-## Internal ingresses are unauthenticated
+## Internal ingresses are unauthenticated by default
 
-An `internal`-class `Ingress` is reachable by anything on the mesh, with no login in front of
-it. `infra/auth` (Pocket ID) is a plain OIDC provider: it has no forwardAuth/verify endpoint of
-the kind Authelia exposes, so Traefik has nothing to delegate a request to. Putting SSO in front
-of an internal app needs an oauth2-proxy (or equivalent) bridge wired to Pocket ID first; until
-that lands, mesh membership is the only access control these hosts have.
+An `internal`-class `Ingress` is reachable by anything on the mesh, with no login in front of it.
+That is still the default, and it is what `metrics.$SUB_INTERNAL.$DOMAIN` and
+`logs.$SUB_INTERNAL.$DOMAIN` rely on today. Mesh membership is their only access control.
 
-An app that speaks OIDC itself needs no bridge. It registers a client in `tofu/oidc` and
-authenticates against Pocket ID directly. Grafana does this through `auth.generic_oauth`, mapping
-the `administrators` and `users` groups to Admin and Viewer. `vmsingle` has no such option and
-waits on the bridge, so its host is still mesh-membership-only.
+There are three ways an internal host gets a login, in order of preference.
+
+**The app speaks OIDC.** Best case, and no proxy is involved. Register a client in `tofu/oidc`
+and point the app at Pocket ID. Grafana does this through `auth.generic_oauth`, mapping the
+`administrators` and `users` groups to Admin and Viewer. Actual does it too. Only this option can
+express per-user roles, because only the app knows what a role means.
+
+**The SSO middleware.** For an app with no OIDC support, add `auth-sso@kubernetescrd` to the
+Ingress after the namespace's own rate limit:
+
+```yaml
+annotations:
+  traefik.ingress.kubernetes.io/router.middlewares: <namespace>-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+```
+
+That is a Traefik `forwardAuth` pointing at the oauth2-proxy in `infra/auth`, which is registered
+with Pocket ID as one shared client. `infra/glance` is the reference implementation. The gate is
+binary: anyone in `administrators` or `users` gets in, and the app behind it sees no roles. The
+session cookie is scoped to `.$SUB_INTERNAL.$DOMAIN`, so one login covers every host that opts
+in. See [Cluster infrastructure](../gitops/infra.md#auth).
+
+**Neither.** Mesh membership only, which is a deliberate choice for a host whose readers are
+already trusted with the mesh.
+
+Cross-namespace `Middleware` references work because `infra/traefik-internal` sets
+`allowCrossNamespace: true` on its Kubernetes CRD provider.
 
 ## One thing that will bite you
 

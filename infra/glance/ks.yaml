@@ -1,0 +1,28 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: glance
+spec:
+  path: ./infra/glance/app
+  dependsOn:
+    - name: infra-policies
+    - name: traefik-internal
+    - name: infisical-operator-config
+    # app/ingress.yaml references auth-sso@kubernetescrd, and every widget on the cluster and
+    # network pages queries monitoring's vmsingle. Neither is a hard apply-order requirement —
+    # both are runtime lookups — but a dashboard that comes up before either exists is a page of
+    # errors.
+    - name: auth
+    - name: monitoring
+    # The ConfigMap app/deployment.yaml mounts. Its own Kustomization because it must not be
+    # substituted — see config-ks.yaml.
+    - name: glance-config
+    - name: substitutions
+  # ${SUB_INTERNAL} and ${DOMAIN}: the ingress host, and the two environment variables the config
+  # files read back at runtime to spell every internal URL.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values

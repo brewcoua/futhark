@@ -10,6 +10,7 @@ resources:
   - namespaces/auth
   - namespaces/cert-manager
   - namespaces/monitoring
+  - namespaces/glance
   - namespaces/csi-rclone
   - namespaces/k8up
   - namespaces/ingress-internal

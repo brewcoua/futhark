@@ -1,0 +1,23 @@
+---
+# Entrypoint. The four pages are separate files so a change to one is a diff of one; $include
+# resolves relative to this file, and the ConfigMap in kustomization.yaml puts all five in the
+# same directory.
+#
+# Every dollar-brace variable in these files is expanded by Glance from its own environment, not
+# by Flux, and comments are expanded too. Glance exits on a variable that does not exist, so
+# adding one here means adding it to Infisical at /infra/glance first. See docs/src/gitops/infra.md.
+server:
+  # Traefik terminates TLS and sets X-Forwarded-*; without this every generated link would be
+  # http:// against the pod's own address.
+  proxied: true
+
+branding:
+  app-name: futhark
+  # The rune the cluster is named after. A text logo avoids mounting an assets volume for one glyph.
+  logo-text: ᚠ
+
+pages:
+  - $include: home.yml
+  - $include: apps.yml
+  - $include: cluster.yml
+  - $include: network.yml

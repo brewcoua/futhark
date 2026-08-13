@@ -1,0 +1,16 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Split from ks.yaml for the same reason as infra/monitoring/dashboards-ks.yaml: no postBuild.
+# Glance's own environment variable syntax is ${VAR}, identical to Flux's substitution syntax, and
+# every token, hostname and API key in these files is one. Under postBuild they would all be read
+# as unset cluster variables.
+#
+# The values Glance needs are handed to it as real environment variables instead — app/deployment.yaml
+# is in the Kustomization that does get substitution, so it spells ${SUB_INTERNAL} and ${DOMAIN}
+# there once and the config files read them back as ${SUB_INTERNAL} and ${DOMAIN} at runtime.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: glance-config
+spec:
+  path: ./infra/glance/config

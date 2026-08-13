@@ -1,0 +1,83 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: glance
+  namespace: glance
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: glance
+  template:
+    metadata:
+      labels:
+        app: glance
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: glance
+          image: glanceapp/glance:v0.8.5@sha256:32ab73d80f2b8b5fb0735b0431deb36b93fbb6b2fb43592449b0178c8b83e350
+          # No PVC anywhere in this component: Glance holds its widget cache in memory and the
+          # todo widget's items in the browser's local storage, so there is nothing on disk to
+          # keep and nothing for k8up to back up.
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          ports:
+            - name: http
+              containerPort: 8080
+          # The config files are not substituted by Flux (see ../config-ks.yaml), so the two
+          # hostname parts reach them the same way the API tokens do: as environment variables
+          # Glance expands itself.
+          env:
+            # The clock widget and every relative timestamp render in the container's timezone.
+            - name: TZ
+              value: Europe/Amsterdam
+            - name: SUB_INTERNAL
+              value: ${SUB_INTERNAL}
+            - name: DOMAIN
+              value: ${DOMAIN}
+          envFrom:
+            - secretRef:
+                name: glance-secrets
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          # /api/healthz answers without touching any widget's upstream, so a rate-limited
+          # third-party API never restarts the pod.
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: config
+          configMap:
+            name: glance-config
+        - name: tmp
+          emptyDir: {}

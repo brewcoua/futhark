@@ -56,6 +56,7 @@ substitutions: substitutions\n(no dependsOn) { class: boundary }
 infisical-operator-config: infisical-operator-config { class: config }
 cert-manager-config: cert-manager-config { class: config }
 backup-config: backup-config { class: config }
+glance-config: glance-config\n(no dependsOn) { class: config }
 
 nodes: nodes { class: boundary }
 actual: nodes/kenaz.k8s/actual { class: boundary }
@@ -79,7 +80,14 @@ cert-manager-config -> auth
 traefik-internal -> traefik-edge
 traefik-internal -> monitoring
 traefik-internal -> actual
+traefik-internal -> auth
+traefik-internal -> glance
 traefik-edge -> auth
+
+infisical-operator-config -> glance
+monitoring -> glance
+auth -> glance
+glance-config -> glance
 
 storage -> actual
 backup -> backup-config
@@ -90,6 +98,7 @@ substitutions -> monitoring { class: presence }
 substitutions -> backup { class: presence }
 substitutions -> actual { class: presence }
 substitutions -> infra-policies { class: presence }
+substitutions -> glance { class: presence }
 
 cert-manager -> infra-policies { class: bulk }
 infisical-operator -> infra-policies { class: bulk }
@@ -102,6 +111,7 @@ auth -> infra-policies { class: bulk }
 
 infra-policies -> nodes
 infra-policies -> actual
+infra-policies -> glance
 ```
 
 Only those two name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
@@ -110,7 +120,7 @@ They need nothing from the cluster but a namespace to land in. Their `config-ks.
 are where the ordering actually bites, because those apply CRs the controller must already have
 registered CRDs for.
 
-Three edges are less obvious than they look:
+Four edges are less obvious than they look:
 
 - `namespaces` is a root of its own rather than a file next to each component, because
   `infisical-operator` installs its chart with `scopedRBAC: true`. Helm emits a Role and
@@ -124,6 +134,11 @@ Three edges are less obvious than they look:
   on the install. Nothing in the tree currently inverts it, since every `config-ks.yaml` here
   applies CRs, but the inversion is legitimate and is why the rule is stated rather than the
   pattern.
+- `glance-config` is a third kind: a split made for neither CRDs nor mounts, but to keep
+  `postBuild` substitution away from files that spell their own variables the same way Flux does.
+  It has no `dependsOn` at all, because there is nothing it could need, and `glance` names it so
+  the ConfigMap exists before the pod tries to mount it.
+  [Cluster infrastructure](../gitops/infra.md#glance) has the reasoning.
 - `substitutions` has no dependencies, and holds every `postBuild.substituteFrom` source in the
   cluster: the `cluster-values` Secret and the `monitoring-sizing` ConfigMap. A substitution target must exist before the Kustomization that substitutes from it
   reconciles, and `traefik-edge`, one of those consumers, is upstream of `infra-policies`, the

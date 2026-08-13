@@ -40,3 +40,4 @@ spec:
       - csi-rclone
       - monitoring
       - auth
+      - glance

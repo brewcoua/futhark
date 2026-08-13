@@ -77,3 +77,39 @@ resource "infisical_secret" "grafana_oidc_client_id" {
   workspace_id = var.infisical_project_id
   folder_path  = "/infra/monitoring"
 }
+
+# sso — infra/auth's oauth2-proxy. Not an app of its own: one relying party standing in for every
+# internal app that speaks no OIDC, reached through the forwardAuth Middleware auth-sso. The
+# callback path is oauth2-proxy's own and not configurable.
+resource "pocketid_client" "sso" {
+  name                 = "Internal SSO"
+  callback_urls        = ["https://sso.${var.sub_internal}.${var.domain}/oauth2/callback"]
+  logout_callback_urls = ["https://sso.${var.sub_internal}.${var.domain}/oauth2/sign_out"]
+  is_public            = false
+  pkce_enabled         = true
+  # The gate is coarse on purpose: oauth2-proxy only answers yes/no, so anything behind it is
+  # visible to every member of either group. An app needing finer roles should speak OIDC itself.
+  allowed_user_groups = [
+    pocketid_group.administrators.id,
+    pocketid_group.users.id,
+  ]
+}
+
+# /infra/auth is the folder infra/auth/app/infisicalsecret.yaml already syncs; the oauth2-proxy
+# InfisicalStaticSecret reads the same path and remaps these two into OAUTH2_PROXY_* keys.
+# SSO_COOKIE_SECRET lives in that folder too but is seeded by hand — see docs/src/infra/sso.md.
+resource "infisical_secret" "sso_oidc_client_secret" {
+  name         = "SSO_OIDC_CLIENT_SECRET"
+  value        = pocketid_client.sso.client_secret
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/infra/auth"
+}
+
+resource "infisical_secret" "sso_oidc_client_id" {
+  name         = "SSO_OIDC_CLIENT_ID"
+  value        = pocketid_client.sso.id
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/infra/auth"
+}

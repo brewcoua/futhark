@@ -97,6 +97,22 @@ The two templates now hold the same rule, and stay separate anyway. They are two
 happen to agree: which one a namespace composes still records which ingress it expects traffic
 from, and either can change without dragging the other with it.
 
+## Pod-to-pod across namespaces
+
+The templates above cover the two directions that recur: monitoring scraping everything, and an
+ingress reaching one namespace. A pod in one namespace calling a pod in another is neither, and
+`monitoring` is the only namespace with such a caller today.
+
+`infra/policies/namespaces/monitoring/netpol-allow-from-glance.yaml` admits Glance to vmsingle on
+8428, because every widget on Glance's cluster and network pages is an API query against it, and
+Glance is an ordinary pod that no mesh `ipBlock` covers. It is a file in that overlay rather than a
+template in `_templates/`: it names one namespace and one port, and a second caller should get its
+own file rather than a selector wide enough to hide who reads the metrics store.
+
+The alternative was to point Glance at `metrics.$SUB_INTERNAL.$DOMAIN`, which needs no policy at
+all since the request then arrives from traefik-internal. That routes every widget out to the mesh
+interface and back, and leaves the dependency written down nowhere.
+
 ## Rate limiting
 
 Every namespace with an `Ingress` also composes the `middleware-ratelimit` template, a Traefik

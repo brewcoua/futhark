@@ -1,0 +1,27 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# The one namespace that reads this one. Every widget on glance's cluster and network pages is a
+# custom-api call to vmsingle's /api/v1/query, and glance is an ordinary pod, so the mesh ipBlock
+# in netpol-allow-from-ingress-internal that covers the hostNetwork Traefiks does not cover it.
+#
+# Not a shared template: it names one namespace, and a second consumer should get its own file
+# rather than a selector broad enough to hide who is reading the metrics store.
+#
+# Pointing glance at https://metrics.$SUB_INTERNAL.$DOMAIN instead would need no policy at all,
+# since the request would arrive from traefik-internal. It would also route every widget out to
+# the mesh interface and back, and leave this dependency written down nowhere.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-glance
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: glance
+      ports:
+        - port: 8428

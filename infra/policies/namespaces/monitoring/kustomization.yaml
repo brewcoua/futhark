@@ -8,3 +8,4 @@ resources:
   - ../_templates/netpol-allow-same-namespace
   - ../_templates/netpol-allow-from-ingress-internal
   - ../_templates/middleware-ratelimit
+  - netpol-allow-from-glance.yaml

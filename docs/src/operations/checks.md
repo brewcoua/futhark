@@ -180,16 +180,18 @@ reports on the cluster, not on the mesh underneath it.
 
 ## NetBird token expiry
 
-NetBird Personal Access Tokens expire, 365 days out at most. Two are in use, one on each of the
-two service users:
+NetBird Personal Access Tokens expire, 365 days out at most. Three are in use, one on each of the
+three service users:
 
-| Token                | Referenced from           | Breaks when it expires                             |
-| -------------------- | ------------------------- | -------------------------------------------------- |
-| `netbird-policy`     | `tofu.netbird`            | `just tf plan netbird` fails with a 401            |
-| `netbird-enrollment` | `ansible.secrets.netbird` | A node join fails at "Mint a single-use setup key" |
+| Token                | Referenced from           | Breaks when it expires                                     |
+| -------------------- | ------------------------- | ---------------------------------------------------------- |
+| `netbird-policy`     | `tofu.netbird`            | `just tf plan netbird` fails with a 401                    |
+| `netbird-enrollment` | `ansible.secrets.netbird` | A node join fails at "Mint a single-use setup key"         |
+| `netbird-readonly`   | Infisical `/infra/glance` | The NetBird peers widget on the Glance network page errors |
 
-Neither takes the mesh down when it lapses. Peers keep their configuration and keep connecting.
-What stops is changing anything: no policy applies, and no new node joins.
+None takes the mesh down when it lapses. Peers keep their configuration and keep connecting.
+What stops is changing anything: no policy applies, and no new node joins. The read-only one costs
+one widget and nothing else.
 
 Nothing in this repository tracks the expiry dates. Put them in a calendar when you issue the
 tokens. The replacement procedure is

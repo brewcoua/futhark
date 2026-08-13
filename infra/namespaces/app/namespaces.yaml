@@ -76,6 +76,15 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
+# The dashboard at home.$SUB_INTERNAL.$DOMAIN. Infra tier rather than a node app: everything on
+# it is read out of monitoring, and monitoring's policy overlay names this namespace by hand.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: glance
+  labels:
+    futk.eu/tier: infra
+---
 # The ingress controllers get their own namespaces instead of kube-system — a reserved namespace
 # for cluster system components, not a place for a workload's HelmRelease to land.
 apiVersion: v1

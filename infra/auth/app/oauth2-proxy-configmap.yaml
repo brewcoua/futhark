@@ -1,0 +1,40 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2-proxy-config
+  namespace: auth
+data:
+  OAUTH2_PROXY_PROVIDER: oidc
+  OAUTH2_PROXY_OIDC_ISSUER_URL: https://auth.${DOMAIN}
+  OAUTH2_PROXY_REDIRECT_URL: https://sso.${SUB_INTERNAL}.${DOMAIN}/oauth2/callback
+  OAUTH2_PROXY_SCOPE: openid profile email groups
+  OAUTH2_PROXY_OIDC_GROUPS_CLAIM: groups
+  # The same two fleet-wide groups tofu/oidc/groups.tf defines. Membership is assigned in the
+  # Pocket ID UI, so this list changes only when a third group appears.
+  OAUTH2_PROXY_ALLOWED_GROUPS: administrators,users
+  # Pocket ID is the only issuer and it already gated on the groups above; a domain allow-list
+  # on top of that would only reject accounts Pocket ID has already vouched for.
+  OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+  OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+  # Trust Traefik's X-Forwarded-*: it is what lets the forwardAuth Middleware address the pod
+  # in-cluster while oauth2-proxy still builds the redirect for the browser's original host.
+  OAUTH2_PROXY_REVERSE_PROXY: "true"
+  # The pair that makes this a pure gate rather than a proxy, per oauth2-proxy's documented
+  # Traefik static-upstream setup: the Middleware points at `/`, which answers 202 on a valid
+  # session and 302 to Pocket ID otherwise. skip-provider-button removes oauth2-proxy's own
+  # "Sign in with…" page, so the only login UI anyone ever sees is Pocket ID's.
+  OAUTH2_PROXY_UPSTREAMS: static://202
+  OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+  OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+  # One session for every *.${SUB_INTERNAL}.${DOMAIN} app, which is the whole point of a shared
+  # relying party. whitelist-domains bounds where ?rd= may send the browser back to, so the
+  # cookie domain and it have to agree.
+  OAUTH2_PROXY_COOKIE_DOMAINS: .${SUB_INTERNAL}.${DOMAIN}
+  OAUTH2_PROXY_WHITELIST_DOMAINS: .${SUB_INTERNAL}.${DOMAIN}
+  # __Host- is impossible here: that prefix forbids a Domain attribute, and a Domain attribute is
+  # exactly what shares the session across subdomains. __Secure- is the strongest prefix left.
+  OAUTH2_PROXY_COOKIE_NAME: __Secure-futhark-sso
+  OAUTH2_PROXY_COOKIE_SECURE: "true"
+  OAUTH2_PROXY_COOKIE_REFRESH: 1h
+  OAUTH2_PROXY_COOKIE_EXPIRE: 168h

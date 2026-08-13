@@ -11,7 +11,7 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                                  |
 | `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `cluster-values` Secret and `monitoring-sizing`                                           |
-| `auth`               | Pocket ID, the OIDC provider. Pinned to `ogma`, single-writer SQLite, so its Deployment uses `strategy: Recreate` and never runs two pods at once                |
+| `auth`               | Pocket ID, the OIDC provider, plus the oauth2-proxy that fronts apps which cannot speak OIDC. See below                                                          |
 | `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                         |
 | `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. `hostNetwork: true`, bound to the ingress node's mesh address                                             |
 | `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the ingress node's public address                                                                                  |
@@ -20,6 +20,7 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                               |
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                              |
 | `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                      |
+| `glance`             | The dashboard at `home.$SUB_INTERNAL.$DOMAIN`. Two Kustomizations, one of which must not be substituted. See below                                               |
 
 ## The two ingresses
 
@@ -63,6 +64,51 @@ These two releases are the Secret's only consumers of those keys, and the reason
 Where the same address is needed as data rather than as a bind target, it is discovered instead.
 Both Traefik scrape jobs in `infra/monitoring` read it off the API server, since a `hostNetwork`
 pod's `status.podIP` is the kubelet's `node-ip`, which `config.yaml.j2` sets to the mesh address.
+
+## Auth
+
+Two Deployments in one namespace, doing two different jobs.
+
+**Pocket ID** is the OIDC provider, edge-exposed at `auth.$DOMAIN` because it is the login page for
+everything. It is pinned to `ogma` on single-writer SQLite, so its Deployment uses
+`strategy: Recreate` and never runs two pods at once. Apps that speak OIDC talk to it directly and
+need nothing else.
+
+**oauth2-proxy** exists for the apps that do not. It is a single relying party registered as one
+Pocket ID client, exposed internally at `sso.$SUB_INTERNAL.$DOMAIN`, and it publishes the Traefik
+`Middleware` `auth-sso@kubernetescrd`. Any internal Ingress that names that middleware gets a
+login. See
+[Internal ingresses are unauthenticated by default](../conventions/domains.md#internal-ingresses-are-unauthenticated-by-default)
+for how to opt an app in.
+
+Three settings in `app/oauth2-proxy-configmap.yaml` carry the design, and changing any of them
+changes what the reader sees:
+
+- `OAUTH2_PROXY_UPSTREAMS: static://202` with `OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"` is
+  oauth2-proxy's documented Traefik static-upstream setup. The middleware calls the proxy's root
+  path, which answers `202` on a valid session and `302` to Pocket ID otherwise. Because the
+  provider button is skipped, no oauth2-proxy-branded page is ever rendered: the only login UI is
+  Pocket ID's own.
+- `OAUTH2_PROXY_COOKIE_DOMAINS: .$SUB_INTERNAL.$DOMAIN` is what makes one login cover every
+  protected host. `OAUTH2_PROXY_WHITELIST_DOMAINS` has to match, since it bounds where the
+  post-login redirect may send the browser.
+- `OAUTH2_PROXY_COOKIE_NAME` uses the `__Secure-` prefix, not `__Host-`. The `__Host-` prefix
+  forbids a `Domain` attribute, and a `Domain` attribute is exactly what shares the session across
+  subdomains.
+
+The gate is binary. `OAUTH2_PROXY_ALLOWED_GROUPS` admits `administrators` and `users`, and the app
+behind the middleware learns nothing about which one the reader is in. An app that needs roles has
+to speak OIDC itself.
+
+Three secrets at `/infra/auth` feed it. `SSO_OIDC_CLIENT_ID` and `SSO_OIDC_CLIENT_SECRET` are
+minted by `tofu/oidc` (see [oidc](../tofu/oidc.md)). `SSO_COOKIE_SECRET` is seeded by hand, once:
+
+```bash
+openssl rand -base64 32 | tr -- '+/' '-_'
+```
+
+Store that in Infisical at `/infra/auth` before the Deployment first reconciles. Without it the
+`InfisicalStaticSecret` template renders an empty value and oauth2-proxy refuses to start.
 
 ## Monitoring
 
@@ -156,6 +202,59 @@ attaches `hostname` and `file` on its own, so events stay attributable per node.
 
 The other half, the jails and why fail2ban logs to a file at all, is in
 [Inventory and roles](../ansible/index.md#fail2ban).
+
+## Glance
+
+The dashboard at `home.$SUB_INTERNAL.$DOMAIN`, behind `auth-sso@kubernetescrd`. Four pages: home,
+apps, cluster, network. It holds no state, so there is no PVC and no K8up `Schedule` entry: the
+widget cache is in memory and the todo widget's items are in the reader's browser.
+
+It is two Flux `Kustomization`s, and the split is the one thing to understand before editing it.
+
+`glance` reconciles `app/` with `postBuild` substitution, the way every other component does.
+`glance-config` reconciles `config/` **without** it, for the same reason
+`infra/monitoring/dashboards-ks.yaml` does: Glance's own environment variable syntax is
+`${VAR}`, byte for byte what Flux's envsubst consumes, and every API token and hostname in those
+files is one. Under substitution they would all be read as unset cluster variables.
+
+So the values reach Glance as real environment variables instead. `app/deployment.yaml` is in the
+substituted Kustomization and spells `${SUB_INTERNAL}` and `${DOMAIN}` there once; the config files
+read them back at runtime. The API tokens arrive the same way, from the `glance-secrets` Secret.
+
+Three consequences worth knowing before a config edit fails in an unhelpful way:
+
+- Glance exits on a variable that does not resolve. A new `${SOMETHING}` in a config file means
+  adding `SOMETHING` to Infisical at `/infra/glance` first, or the pod crash-loops.
+- Substitution runs over comments too. Writing the literal string `${VAR}` in a YAML comment is
+  enough to fail startup with `parsing variable: environment variable VAR not found`.
+- An `$include`d page file must open with its own list marker (`- name: Home`) and indent the rest
+  under it. Glance splices the file at the `$include` line and drops the `-` that was there, so a
+  page file written as a bare mapping silently merges into the page before it.
+
+Validate a config change without a cluster:
+
+```bash
+podman run --rm \
+  -e SUB_INTERNAL=in -e DOMAIN=example.eu \
+  -e NASA_API_KEY=x -e WAQI_TOKEN=x -e GITHUB_TOKEN=x -e NETBIRD_API_KEY=x \
+  -v ./infra/glance/config:/app/config:ro,Z \
+  docker.io/glanceapp/glance:v0.8.5 config:validate
+```
+
+Exit status 0 means the YAML parses and every widget's options are valid. It does not fetch
+anything, so a broken PromQL query or a wrong metric label still only shows up in the browser.
+
+Every widget on the cluster and network pages is a `custom-api` query against vmsingle over the
+cluster network, which is what `infra/policies/namespaces/monitoring/netpol-allow-from-glance.yaml`
+opens. Two of them need scrape jobs that exist only for them: `flux` for
+`gotk_reconcile_condition`, and `cert-manager` for
+`certmanager_certificate_expiration_timestamp_seconds`. Both are in
+`infra/monitoring/app/metrics/scrape-configs.yaml`.
+
+The backups widget shows job outcomes and nothing else. K8up's per-repository gauges, including
+`k8up_backup_restic_available_snapshots`, are only ever pushed to a Prometheus Pushgateway by the
+backup job itself, and there is no Pushgateway here. Ask the repository directly with
+`just bak snapshots`.
 
 ## Infisical operator
 

@@ -135,6 +135,42 @@ config:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           action: keep
           regex: http
+    # cert-manager's controller Service, created by the chart whenever prometheus.enabled is left
+    # at its default of true and no podmonitor is asked for. The one series that matters here is
+    # certmanager_certificate_expiration_timestamp_seconds: without it, the expiry of the internal
+    # wildcard and the edge certs is only visible by reading the Certificate objects.
+    - job_name: cert-manager
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names: [cert-manager]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: cert-manager
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: http-metrics
+    # The Flux controllers, which the flux-operator's FluxInstance labels app.kubernetes.io/part-of:
+    # flux. Kept by container port name rather than by forcing an address: role: pod yields one
+    # target per container port, and every controller exposes healthz alongside http-prom.
+    #
+    # gotk_reconcile_condition is the drift signal — a Kustomization or HelmRelease whose Ready
+    # condition is False is a commit that did not land, which nothing else in this stack reports.
+    - job_name: flux
+      kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names: [flux-system]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_part_of]
+          action: keep
+          regex: flux
+        - source_labels: [__meta_kubernetes_pod_container_port_name]
+          action: keep
+          regex: http-prom
+        - source_labels: [__meta_kubernetes_pod_name]
+          target_label: pod
     # Both Traefiks are discovered the same way, for the same reason: each is a hostNetwork pod, so
     # its status.podIP is the node's kubelet --node-ip, which
     # ansible/roles/k8s_cluster/templates/config.yaml.j2 sets to the node's mesh IP. That is the

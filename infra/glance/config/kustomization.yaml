@@ -1,0 +1,19 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# One ConfigMap for the whole tree: glance.yml is the entrypoint and $includes the four page
+# files by name, so they have to land in the same directory. disableNameSuffixHash because Glance
+# watches these files and reloads on change; a new ConfigMap name on every edit would roll the pod
+# and throw away every widget's cache instead.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: glance
+configMapGenerator:
+  - name: glance-config
+    files:
+      - glance.yml
+      - home.yml
+      - apps.yml
+      - cluster.yml
+      - network.yml
+    options:
+      disableNameSuffixHash: true
