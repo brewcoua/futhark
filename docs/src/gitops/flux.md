@@ -97,6 +97,23 @@ Every Kustomization carries a `decryption` block naming `flux-system/sops-age`, 
 via `infra/kustomization.yaml` and `nodes/kustomization.yaml`. `flux/infra/ks.yaml` and
 `flux/nodes/ks.yaml` state it in full for the same reason they state everything else in full.
 
+## Binary assets and `.sourceignore`
+
+source-controller applies a built-in exclude list when it packs the artifact, and that list drops
+`*.png` along with the other image and archive extensions. A PNG committed to the repository is
+therefore absent from the tree kustomize-controller builds, even though `kustomize build` and the
+pre-commit hooks pass locally. The failure surfaces as a build error naming a file that plainly
+exists:
+
+```text
+kustomize build failed: ... open .../web-app-manifest-192x192.png: no such file or directory
+```
+
+`.sourceignore` in the repository root is read after those defaults, so a `!` line re-includes what
+they excluded. It currently re-includes the Glance app icon under `config/branding/`. Add a line
+there when a component starts mounting any other binary, and confirm with `just fx get` that the
+consuming Kustomization reconciles.
+
 ## Day-to-day
 
 ```bash

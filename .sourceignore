@@ -1,0 +1,5 @@
+# Read by Flux's source-controller when it packs the GitRepository artifact, and applied after
+# its built-in excludes. Those excludes drop every *.png, so config/branding's app icon never
+# reached the cluster and glance-config failed to build on a file kustomize could see locally.
+# Re-include it. Nothing else in the tree ships a binary Flux has to read.
+!config/branding/**/*.png
