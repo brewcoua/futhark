@@ -32,6 +32,8 @@
     Glance-url: https://home.${SUB_INTERNAL}.${DOMAIN}
     Actual: sh:actual-budget
     Actual-url: https://actual.${SUB_INTERNAL}.${DOMAIN}
+    Copyparty: sh:copyparty
+    Copyparty-url: https://files.${SUB_INTERNAL}.${DOMAIN}
   template: |
     {{/* Required config options */}}
     {{ $baseURL := .Options.StringOr "base-url" "" }}
