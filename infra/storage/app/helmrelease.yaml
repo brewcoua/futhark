@@ -23,6 +23,16 @@ spec:
         name: csi-driver-rclone
         namespace: flux-system
   values:
+    # Chart 0.5.0 is its newest release but pins each Kubernetes CSI sidecar a version behind, and
+    # all three of those older tags carry the same critical grpc CVE. Only the sidecars are
+    # overridden; the rclone image still follows the chart's appVersion.
+    image:
+      csiProvisioner:
+        tag: v6.3.0
+      livenessProbe:
+        tag: v2.19.0
+      nodeDriverRegistrar:
+        tag: v2.17.0
     # No kubeletDir override: k3s uses the upstream /var/lib/kubelet the chart already assumes.
     # k0s did not, and getting that wrong times the install out on `/var/lib/kubelet/pods is not
     # a directory` — worth knowing before adding a distro that moves the kubelet root again.

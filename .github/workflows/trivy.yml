@@ -124,6 +124,19 @@ jobs:
             done
           done
 
+          # Flux's own controllers. Neither render above reaches them: flux/cluster.yaml pins a
+          # distribution version and the operator expands that into per-controller tags in the
+          # cluster, so the operator is otherwise the only thing that ever scans them. The flux2
+          # release manifest is that same expansion, read here without a cluster. Only the four
+          # controllers a default FluxInstance installs are kept.
+          flux_registry=$(yq -N '.spec.distribution.registry' flux/cluster.yaml)
+          flux_version=$(yq -N '.spec.distribution.version' flux/cluster.yaml)
+          if ! curl -fsSL "https://github.com/fluxcd/flux2/releases/download/v$flux_version/install.yaml" | yq -N '
+            .. | select(tag == "!!map") | select(has("image")) | .image | select(tag == "!!str")
+          ' | grep -E '/(source|kustomize|helm|notification)-controller:' | sed "s|^.*/|$flux_registry/|" >> "$images"; then
+            echo "::warning::flux/cluster.yaml: no controller manifest for $flux_version, skipped"
+          fi
+
           if [ -n "${EXTRA_IMAGE:-}" ]; then
             echo "$EXTRA_IMAGE" >> "$images"
           fi
@@ -161,11 +174,18 @@ jobs:
       # A slug, because `category` is what keeps the uploads apart: without a distinct one per
       # image, each matrix leg replaces the previous leg's results and only the last image
       # survives in the Security tab.
+      #
+      # The repository only, with the digest and then the tag stripped: a category is only ever
+      # re-scanned under the name it was uploaded with, so a tag in the slug would leave every
+      # bumped image's findings open forever under a name nothing reaches again. The `[^:/]*`
+      # keeps a `host:port` registry from being mistaken for a tag.
       - name: Derive an upload category
         id: category
         env:
           IMAGE: ${{ matrix.image }}
-        run: echo "slug=$(printf '%s' "$IMAGE" | tr -c '[:alnum:]' '-')" >> "$GITHUB_OUTPUT"
+        run: |
+          repository=$(printf '%s' "${IMAGE%%@*}" | sed 's|:[^:/]*$||')
+          echo "slug=$(printf '%s' "$repository" | tr -c '[:alnum:]' '-')" >> "$GITHUB_OUTPUT"
 
       - uses: github/codeql-action/upload-sarif@v4
         with:

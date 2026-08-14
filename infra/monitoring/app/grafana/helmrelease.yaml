@@ -108,6 +108,10 @@ spec:
     # `tpl`, which re-parses a literal Grafana template like `{{ $labels.x }}` as a Helm action.
     # The sidecar copies the files in verbatim, so they stay readable.
     sidecar:
+      # Chart 10.5.15 is the newest release and still defaults this to 2.5.0, which carries two
+      # critical openssl CVEs. 2.10.1 scans clean.
+      image:
+        tag: "2.10.1"
       resources:
         requests:
           cpu: 10m

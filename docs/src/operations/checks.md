@@ -118,9 +118,15 @@ Actions.
 
 `.github/workflows/trivy.yml` renders the manifests, collects every image reference, and scans
 each one. It renders twice: `kustomize build` for what this repository writes, then
-`helm template` per `HelmRelease` for what the charts bring with them. Findings land in this
-repository's Security tab under Code scanning, one entry per image, and a pull request gets a
-comment linking to its own results.
+`helm template` per `HelmRelease` for what the charts bring with them, and it adds Flux's own
+controllers, whose tags `flux/cluster.yaml` does not name directly. Findings land in this
+repository's Security tab under Code scanning, one entry per image repository, and a pull request
+gets a comment linking to its own results.
+
+The entry is keyed on the repository rather than on the full reference so that it follows an image
+across a tag bump: the next scan of that repository supersedes the previous one and closes what
+the bump fixed. Keyed on the tag, the old findings would stay open under a name nothing scans
+again.
 
 Rendering rather than diffing is deliberate. A diff shows the one image a commit renamed, and the
 question is what the cluster would then be running. Rendering is also the only view that reaches
