@@ -60,6 +60,8 @@ glance-config: glance-config\n(no dependsOn) { class: config }
 
 nodes: nodes { class: boundary }
 actual: nodes/kenaz.k8s/actual { class: boundary }
+open-webui: nodes/kenaz.k8s/open-webui { class: boundary }
+searxng: nodes/kenaz.k8s/searxng { class: boundary }
 
 namespaces -> cert-manager
 namespaces -> infisical-operator
@@ -73,6 +75,8 @@ infisical-operator-config -> backup
 infisical-operator-config -> monitoring
 infisical-operator-config -> auth
 infisical-operator-config -> actual
+infisical-operator-config -> open-webui
+infisical-operator-config -> searxng
 
 cert-manager-config -> traefik-internal
 cert-manager-config -> auth
@@ -97,6 +101,10 @@ traefik-internal -> copyparty
 storage -> copyparty
 auth -> copyparty
 
+traefik-internal -> open-webui
+traefik-internal -> searxng
+auth -> searxng
+
 storage -> actual
 backup -> backup-config
 
@@ -105,6 +113,8 @@ substitutions -> traefik-edge { class: presence }
 substitutions -> monitoring { class: presence }
 substitutions -> backup { class: presence }
 substitutions -> actual { class: presence }
+substitutions -> open-webui { class: presence }
+substitutions -> searxng { class: presence }
 substitutions -> infra-policies { class: presence }
 substitutions -> glance { class: presence }
 substitutions -> gatus { class: presence }
@@ -122,6 +132,8 @@ auth -> infra-policies { class: bulk }
 
 infra-policies -> nodes
 infra-policies -> actual
+infra-policies -> open-webui
+infra-policies -> searxng
 infra-policies -> glance
 infra-policies -> gatus
 infra-policies -> copyparty

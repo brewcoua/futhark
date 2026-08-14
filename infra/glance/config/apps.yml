@@ -36,6 +36,8 @@
             - netbirdio/netbird
             - actualbudget/actual
             - 9001/copyparty
+            - open-webui/open-webui
+            - searxng/searxng
             - glanceapp/glance
             - TwiN/gatus
 

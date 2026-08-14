@@ -20,8 +20,9 @@ no new client here. See
 
 Plus the two fleet-wide groups in `groups.tf`, `administrators` and `users`. Every client sets
 `allowed_user_groups` to both, so who may log in anywhere is one list rather than one per app, and
-an app that maps roles reads the same `groups` claim. Grafana is the case that does: it maps
-`administrators` to Admin and `users` to Viewer, and refuses anyone in neither.
+an app that maps roles reads the same `groups` claim. Two apps do. Grafana maps `administrators`
+to Admin and `users` to Viewer, and refuses anyone in neither. Open WebUI does the same through
+`OAUTH_ROLES_CLAIM: groups`, `OAUTH_ADMIN_ROLES` and `OAUTH_ALLOWED_ROLES`.
 
 Group membership is not managed here. A Pocket ID user is created by enrolling a passkey, so the
 account exists before Tofu could reference it. Assign people under Settings, Groups in the admin

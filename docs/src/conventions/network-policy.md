@@ -101,8 +101,9 @@ from, and either can change without dragging the other with it.
 
 The templates above cover the two directions that recur: monitoring scraping everything, and an
 ingress reaching one namespace. A pod in one namespace calling a pod in another is neither, and
-Glance is the only such caller today. It reaches into two namespaces, and each admits it with its
-own file.
+two callers do it today. Each namespace they reach admits them with its own file.
+
+Glance reaches into two namespaces.
 
 `infra/policies/namespaces/monitoring/netpol-allow-from-glance.yaml` admits Glance to vmsingle on
 8428 and to vlsingle on 9428, because most widgets on Glance's cluster and network pages are an API
@@ -110,9 +111,15 @@ query against one of them, and Glance is an ordinary pod that no mesh `ipBlock` 
 `infra/policies/namespaces/gatus/netpol-allow-from-glance.yaml` does the same for the Gatus API on
 8080, which is where the apps page gets service health.
 
-Both are files in their own overlay rather than a template in `_templates/`: each names one
-namespace, and a second caller should get its own file rather than a selector wide enough to hide
-who reads what.
+Open WebUI is the second caller.
+`infra/policies/namespaces/searxng/netpol-allow-from-open-webui.yaml` admits it to SearXNG on 80,
+which is where its web search runs its queries. It could have gone through
+`search.$SUB_INTERNAL.$DOMAIN` instead, but that host sits behind `auth-sso` and a pod carries no
+session cookie.
+
+Each is a file in its own overlay rather than a template in `_templates/`: each names one
+namespace, and a further caller should get its own file rather than a selector wide enough to
+hide who reads what.
 
 The alternative was to point Glance at `metrics.$SUB_INTERNAL.$DOMAIN`, which needs no policy at
 all since the request then arrives from traefik-internal. That routes every widget out to the mesh

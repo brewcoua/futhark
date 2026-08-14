@@ -44,6 +44,46 @@ resource "infisical_secret" "actual_openid_client_id" {
   folder_path  = "/nodes/kenaz/actual"
 }
 
+# open-webui — nodes/kenaz.k8s/open-webui. Confidential client, same as actual. The callback path
+# is Open WebUI's default OPENID_REDIRECT_URI, so the app leaves that variable unset and this is
+# the only place the URL is written down.
+resource "pocketid_client" "open_webui" {
+  name          = "Open WebUI"
+  callback_urls = ["https://chat.${var.sub_internal}.${var.domain}/oauth/oidc/callback"]
+  is_public     = false
+  pkce_enabled  = true
+  # Open WebUI maps these onto its own admin and user roles through OAUTH_ADMIN_ROLES and
+  # OAUTH_ALLOWED_ROLES, so the two have to name the same groups.
+  allowed_user_groups = [
+    pocketid_group.administrators.id,
+    pocketid_group.users.id,
+  ]
+}
+
+# /nodes/kenaz/open-webui in the prod environment, the path
+# nodes/kenaz.k8s/open-webui/app/infisicalsecret.yaml reads. That folder also holds two
+# hand-seeded keys, WEBUI_SECRET_KEY and OLLAMA_API_CONFIGS; the sync is folder-wide, so all four
+# land in the open-webui-secrets Secret the Deployment pulls in via envFrom.
+resource "infisical_secret" "open_webui_oauth_client_secret" {
+  name         = "OAUTH_CLIENT_SECRET"
+  value        = pocketid_client.open_webui.client_secret
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/nodes/kenaz/open-webui"
+}
+
+# Not secret, but not knowable ahead of the apply either, for the same reason as actual's.
+resource "infisical_secret" "open_webui_oauth_client_id" {
+  name         = "OAUTH_CLIENT_ID"
+  value        = pocketid_client.open_webui.id
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/nodes/kenaz/open-webui"
+}
+
+# searxng gets no client of its own: it speaks no OIDC and is gated by the shared auth-sso
+# oauth2-proxy below.
+
 # grafana — infra/monitoring. The callback path is not a choice: Grafana always uses
 # <root_url>/login/<provider>, and the provider here is generic_oauth.
 resource "pocketid_client" "grafana" {

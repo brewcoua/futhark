@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# Open WebUI's web search queries this instance's JSON API over the cluster network rather than
+# through its ingress host, so no mesh ipBlock covers it. Same reasoning as the two
+# netpol-allow-from-glance.yaml files: one file per consumer, so who reads what stays written
+# down.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-open-webui
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: open-webui
+      ports:
+        - port: 80

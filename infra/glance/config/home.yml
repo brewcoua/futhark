@@ -85,6 +85,12 @@
                 - title: Actual Budget
                   url: https://actual.${SUB_INTERNAL}.${DOMAIN}
                   icon: sh:actual-budget
+                - title: Open WebUI
+                  url: https://chat.${SUB_INTERNAL}.${DOMAIN}
+                  icon: sh:open-webui
+                - title: SearXNG
+                  url: https://search.${SUB_INTERNAL}.${DOMAIN}
+                  icon: sh:searxng
             - title: Personal
               links:
                 - title: Proton Mail

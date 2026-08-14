@@ -113,6 +113,31 @@ endpoints:
       - "[RESPONSE_TIME] < 2000"
       - "[CERTIFICATE_EXPIRATION] > 240h"
 
+  # Behind auth-sso as well, so the same 302 assertion as Glance applies.
+  - name: SearXNG
+    group: Apps
+    url: https://search.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 302"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  # Open WebUI is its own OIDC client rather than an auth-sso tenant, so the unauthenticated
+  # request reaches the app and its login page renders 200.
+  - name: Open WebUI
+    group: Apps
+    url: https://chat.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
   - name: Actual
     group: Apps
     url: https://actual.${SUB_INTERNAL}.${DOMAIN}

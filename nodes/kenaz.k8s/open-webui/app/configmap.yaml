@@ -1,0 +1,59 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: open-webui-config
+  namespace: open-webui
+data:
+  # Most of Open WebUI's settings are ConfigVars: read from the database once seeded, with the
+  # environment ignored thereafter. False inverts that, so this file is what runs after every
+  # restart and the commit stays the record. The cost is that admin-UI edits apply to the running
+  # session only.
+  ENABLE_PERSISTENT_CONFIG: "False"
+  WEBUI_URL: https://chat.${SUB_INTERNAL}.${DOMAIN}
+  WEBUI_NAME: futhark
+  ENABLE_VERSION_UPDATE_CHECK: "False"
+  # The image defaults HOME to /root, which readOnlyRootFilesystem makes unwritable. Point it at
+  # the PVC so anything homedir-bound lands there instead of crashing the pod.
+  HOME: /app/backend/data
+
+  # Ollama Cloud is the only model backend; there is no in-cluster Ollama.
+  # OLLAMA_BASE_URLS takes precedence over OLLAMA_BASE_URL and is what OLLAMA_API_CONFIGS keys
+  # itself against, by index. That config object carries the API key, so it is a credential and
+  # lives in Infisical rather than here.
+  ENABLE_OLLAMA_API: "True"
+  OLLAMA_BASE_URLS: https://ollama.com
+  ENABLE_OPENAI_API: "False"
+
+  # Login is Pocket ID and nothing else. OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET are deliberately
+  # absent: Pocket ID mints both, so they arrive through open-webui-secrets. See
+  # tofu/oidc/clients.tf.
+  ENABLE_LOGIN_FORM: "False"
+  ENABLE_SIGNUP: "False"
+  ENABLE_OAUTH_SIGNUP: "True"
+  OAUTH_PROVIDER_NAME: Pocket ID
+  # Pocket ID's own public endpoint (infra/auth, edge-exposed). ${DOMAIN} rather than a
+  # `replacements` block because the domain sits mid-string, ahead of a path. See
+  # infra/substitutions/ks.yaml. OPENID_REDIRECT_URI is left unset: its default,
+  # <WEBUI_URL>/oauth/oidc/callback, is the URL registered on the client.
+  OPENID_PROVIDER_URL: https://auth.${DOMAIN}/.well-known/openid-configuration
+  OAUTH_SCOPES: openid email profile groups
+  # The client sets pkce_enabled = true, so the challenge is not optional.
+  OAUTH_CODE_CHALLENGE_METHOD: S256
+  # Pocket ID puts the two fleet-wide groups from tofu/oidc/groups.tf in the `groups` claim;
+  # Open WebUI's default roles claim is `roles`, which Pocket ID never sends.
+  ENABLE_OAUTH_ROLE_MANAGEMENT: "True"
+  OAUTH_ROLES_CLAIM: groups
+  OAUTH_ALLOWED_ROLES: administrators,users
+  OAUTH_ADMIN_ROLES: administrators
+
+  # Web search against the SearXNG in the sibling namespace, reached by Service rather than by
+  # its ingress host, which is why searxng's policy overlay opens a hole for this namespace.
+  # <query> is a placeholder Open WebUI substitutes, not a Flux variable.
+  ENABLE_WEB_SEARCH: "True"
+  WEB_SEARCH_ENGINE: searxng
+  SEARXNG_QUERY_URL: http://searxng.searxng.svc.cluster.local/search?q=<query>
+  WEB_SEARCH_RESULT_COUNT: "5"
+  # Results go straight into the model's context instead of through the vector store. No RAG was
+  # asked for, and this keeps a search off the embedding path at query time.
+  BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL: "True"

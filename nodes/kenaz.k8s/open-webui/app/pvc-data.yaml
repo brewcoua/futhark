@@ -1,0 +1,19 @@
+---
+# webui.db (SQLite), uploads, and the cached sentence-transformers model. local-path is
+# node-local hostPath storage, which avoids the locking issues a network filesystem can cause for
+# SQLite. Node-local means this disk dying takes the data with it, so the volume opts into the
+# nightly backup. See docs/src/operations/recovery.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-data
+  namespace: open-webui
+  annotations:
+    k8up.io/backup: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

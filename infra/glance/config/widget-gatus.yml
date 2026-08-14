@@ -34,6 +34,10 @@
     Actual-url: https://actual.${SUB_INTERNAL}.${DOMAIN}
     Copyparty: sh:copyparty
     Copyparty-url: https://files.${SUB_INTERNAL}.${DOMAIN}
+    Open WebUI: sh:open-webui
+    Open WebUI-url: https://chat.${SUB_INTERNAL}.${DOMAIN}
+    SearXNG: sh:searxng
+    SearXNG-url: https://search.${SUB_INTERNAL}.${DOMAIN}
   template: |
     {{/* Required config options */}}
     {{ $baseURL := .Options.StringOr "base-url" "" }}

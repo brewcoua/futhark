@@ -1,0 +1,28 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+#
+# SearXNG has no login of its own, so auth-sso is what gates it. Open WebUI is unaffected: it
+# calls the Service in-cluster and never traverses this router.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: searxng
+  namespace: searxng
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: searxng-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: search.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: searxng
+                port:
+                  number: 80

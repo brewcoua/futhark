@@ -1,0 +1,83 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  namespace: searxng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: searxng
+  template:
+    metadata:
+      labels:
+        app: searxng
+    spec:
+      # Service "searxng" -> kubelet injects SEARXNG_PORT=tcp://<ip>:80, which collides with
+      # SearXNG's own SEARXNG_* settings prefix, where SEARXNG_PORT is the port to listen on.
+      # The entrypoint unsets a non-numeric SEARXNG_PORT defensively; this removes the reason.
+      enableServiceLinks: false
+      # The image's own user. Nothing here runs as root, so the entrypoint's chown branch is
+      # unreachable. It logs one "not owned by searxng:searxng" warning about the ConfigMap
+      # mount and carries on. FORCE_OWNERSHIP says that is intended rather than overlooked.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 977
+        runAsGroup: 977
+        fsGroup: 977
+      containers:
+        - name: searxng
+          image: docker.io/searxng/searxng:2026.8.14-094c33d40@sha256:892cf809341915a4b7710d3c9045005b4c377d51335a089b6d4da0b28750788d
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: FORCE_OWNERSHIP
+              value: "false"
+          envFrom:
+            - secretRef:
+                name: searxng-secrets
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: settings
+              mountPath: /etc/searxng
+            # Favicon cache. Disposable, so an emptyDir rather than a PVC, which is also why
+            # this app appears in no k8up Schedule.
+            - name: cache
+              mountPath: /var/cache/searxng
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: settings
+          configMap:
+            name: searxng-settings
+        - name: cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

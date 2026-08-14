@@ -19,6 +19,14 @@ metadata:
   namespace: actual
 spec: {}
 ---
+# searxng is deliberately absent: its only volume is a disposable favicon cache on an emptyDir.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: open-webui
+spec: {}
+---
 apiVersion: k8up.io/v1
 kind: Schedule
 metadata:

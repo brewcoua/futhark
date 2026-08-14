@@ -127,3 +127,24 @@ metadata:
   labels:
     futk.eu/tier: node
     futk.eu/node: kenaz
+---
+# The chat UI at chat.$SUB_INTERNAL.$DOMAIN, talking to Ollama Cloud. Node tier rather than
+# infra: it is a tenant workload with its own data, and nothing else in the cluster reads it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-webui
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz
+---
+# The search engine at search.$SUB_INTERNAL.$DOMAIN. Its own namespace rather than a second
+# workload in open-webui: it is a search engine the operator uses directly, and open-webui
+# happens to be one more client of it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: searxng
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz

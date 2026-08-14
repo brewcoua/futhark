@@ -33,3 +33,5 @@ spec:
     scopedNamespaces:
       - infisical-node-kenaz
       - actual
+      - open-webui
+      - searxng
