@@ -22,16 +22,25 @@ spec:
         runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
-        # No fsGroup, unlike every other workload here. It makes the kubelet walk and chown the
-        # volume, and two of these volumes are the entire contents of a remote object store.
-        # It is not needed either: rclone publishes its mounts world-writable (file-perms 0666,
-        # dir-perms 0777), and local-path creates its directory 0777.
+        # Not optional on the two rclone volumes. csi-driver-rclone advertises VOLUME_MOUNT_GROUP,
+        # so the kubelet passes this down as the mount's group instead of walking and chowning the
+        # volume, and the driver turns it into rclone's --uid/--gid. Without it the FUSE mount
+        # belongs to the mounting process alone and every access from uid 1000 is EACCES, which
+        # copyparty reports as `cannot access /w/...: FileExistsError(17)`.
+        fsGroup: 1000
       containers:
         - name: copyparty
           image: ghcr.io/9001/copyparty-ac:1.20.20@sha256:174925f4aa4da8ce2241f5ea3ba63d026844d76cafe4a5d6e284a0306fb202ed
           ports:
             - name: http
               containerPort: 3923
+          env:
+            # The image sets this to /cfg, which is the read-only ConfigMap. copyparty falls back
+            # to /tmp when it cannot write there, decides its own state is untrusted, and disables
+            # both sessions and idp-store as a safeguard. Its own `% /cfg` include is hardcoded in
+            # /z/initcfg, so moving this does not stop the config being read.
+            - name: XDG_CONFIG_HOME
+              value: /hist/xdg
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
