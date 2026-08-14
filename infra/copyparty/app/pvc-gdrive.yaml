@@ -1,0 +1,15 @@
+---
+# Bound to pv-gdrive.yaml. See pvc-storagebox.yaml for why storageClassName is empty.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: copyparty-gdrive
+  namespace: copyparty
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: copyparty-gdrive
+  resources:
+    requests:
+      storage: 1Ti

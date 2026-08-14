@@ -1,0 +1,16 @@
+---
+# Bound to pv-storagebox.yaml by that PV's claimRef. `storageClassName: ""` is required, not
+# cosmetic: an unset value would let the cluster's default class provision a new volume instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: copyparty-storagebox
+  namespace: copyparty
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: copyparty-storagebox
+  resources:
+    requests:
+      storage: 1Ti

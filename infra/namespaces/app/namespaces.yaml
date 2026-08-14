@@ -94,6 +94,15 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
+# The file manager at files.$SUB_INTERNAL.$DOMAIN. Infra tier: it mounts the two rclone remotes
+# at their root, so it fronts cluster storage rather than any one node's data.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: copyparty
+  labels:
+    futk.eu/tier: infra
+---
 # The ingress controllers get their own namespaces instead of kube-system — a reserved namespace
 # for cluster system components, not a place for a workload's HelmRelease to land.
 apiVersion: v1

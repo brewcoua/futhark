@@ -303,3 +303,11 @@ workload. That is what `-o wide` is for.
 
 Both classes are `reclaimPolicy: Retain`, so deleting the PVC leaves the directory on the remote.
 Remove it with `rclone purge` if you do not want the smoke test's leftovers.
+
+## Reading the remotes afterwards
+
+Once both classes work, `files.$SUB_INTERNAL.$DOMAIN` browses each remote at its root, decrypted,
+in a browser. That is the faster check on any later day: a directory listing there exercises the
+credentials, the crypt passwords and the mount in one page load. It is also a full read-write view
+of everything on the Storage Box, so read
+[Copyparty](../gitops/infra.md#copyparty) before using it.

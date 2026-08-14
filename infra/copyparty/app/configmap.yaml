@@ -1,0 +1,47 @@
+---
+# Mounted at /cfg, which the image loads every *.conf from. Indentation is two spaces per level
+# and significant, and an inline comment needs two spaces before the `#`.
+#
+# copyparty speaks no OIDC. It reads the identity out of the headers the shared oauth2-proxy
+# already produces, which infra/auth/app/middleware-sso.yaml forwards. That makes this the first
+# app in the cluster to consume those headers rather than merely be gated by them, so the
+# `X-Auth-Request-Groups` entry in that Middleware exists for this file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: copyparty-config
+  namespace: copyparty
+data:
+  copyparty.conf: |
+    [global]
+      p: 3923
+      no-robots
+
+      # The two headers oauth2-proxy sets under OAUTH2_PROXY_SET_XAUTHREQUEST. Lowercase because
+      # copyparty matches header names in lowercase.
+      idp-h-usr: x-auth-request-preferred-username
+      idp-h-grp: x-auth-request-groups
+
+      # copyparty refuses the headers above unless the connection came from a trusted proxy.
+      # traefik-internal runs hostNetwork, so requests arrive from a node address on the pod
+      # network, which is private. Without this every request is anonymous.
+      xff-src: lan
+
+      # Index and thumbnails go on the local-path PVC, not into a .hist directory at the top of
+      # each remote.
+      hist: /hist/
+
+      # Deliberately no e2dsa or e2ts. Both walk every file, and a media-tag scan reads every
+      # byte back down through the crypt remote.
+
+    [/storagebox]
+      /w/storagebox
+      accs:
+        rwmd: @administrators
+        r: @users
+
+    [/gdrive]
+      /w/gdrive
+      accs:
+        rwmd: @administrators
+        r: @users

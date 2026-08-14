@@ -19,8 +19,12 @@ spec:
   forwardAuth:
     address: http://oauth2-proxy.auth.svc.cluster.local:4180/
     trustForwardHeader: true
-    # Only meaningful for a backend that reads them; harmless for one that does not.
+    # Only meaningful for a backend that reads them; harmless for one that does not. Traefik
+    # drops each of these from the incoming request before setting it from the auth response, so
+    # listing a header here is also what stops a client from forging it. infra/copyparty is the
+    # one backend that reads them today, and the groups entry is there for its access control.
     authResponseHeaders:
       - X-Auth-Request-User
       - X-Auth-Request-Email
       - X-Auth-Request-Preferred-Username
+      - X-Auth-Request-Groups

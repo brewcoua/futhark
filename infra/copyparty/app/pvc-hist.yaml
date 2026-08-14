@@ -1,0 +1,21 @@
+---
+# copyparty's own SQLite index and thumbnail cache, redirected here by the `hist` setting in
+# configmap.yaml. local-path for the same reason as actual-server-files: SQLite over a network
+# filesystem is the one thing the rclone classes must not hold.
+#
+# No k8up.io/backup annotation. Everything in here is derived from the remotes and rebuilt on
+# demand.
+#
+# This is also what pins the pod to a node. The rclone mounts follow it wherever it lands.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: copyparty-hist
+  namespace: copyparty
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

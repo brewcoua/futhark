@@ -1,0 +1,23 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: copyparty
+spec:
+  path: ./infra/copyparty/app
+  dependsOn:
+    - name: infra-policies
+    - name: traefik-internal
+    # app/pv-*.yaml name the csi-rclone driver and the Secret it reads its config from, both of
+    # which infra/storage owns. No InfisicalStaticSecret here: copyparty holds no credential.
+    - name: storage
+    # app/ingress.yaml references auth-sso@kubernetescrd, and unlike the other consumers of that
+    # middleware, copyparty reads the headers it sets rather than only being gated by it. Coming
+    # up first would mean an app nobody can log into and no volume anyone can open.
+    - name: auth
+    - name: substitutions
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values

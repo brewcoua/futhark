@@ -1,0 +1,91 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: copyparty
+  namespace: copyparty
+spec:
+  replicas: 1
+  # The index in /hist is SQLite on a ReadWriteOnce volume: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: copyparty
+  template:
+    metadata:
+      labels:
+        app: copyparty
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # No fsGroup, unlike every other workload here. It makes the kubelet walk and chown the
+        # volume, and two of these volumes are the entire contents of a remote object store.
+        # It is not needed either: rclone publishes its mounts world-writable (file-perms 0666,
+        # dir-perms 0777), and local-path creates its directory 0777.
+      containers:
+        - name: copyparty
+          image: ghcr.io/9001/copyparty-ac:1.20.20@sha256:174925f4aa4da8ce2241f5ea3ba63d026844d76cafe4a5d6e284a0306fb202ed
+          ports:
+            - name: http
+              containerPort: 3923
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: config
+              mountPath: /cfg
+              readOnly: true
+            - name: storagebox
+              mountPath: /w/storagebox
+            - name: gdrive
+              mountPath: /w/gdrive
+            - name: hist
+              mountPath: /hist
+            # The image's WORKDIR, which copyparty writes to when a setting does not name a path
+            # of its own. Nothing in it needs to survive a restart.
+            - name: state
+              mountPath: /state
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: copyparty-config
+        - name: storagebox
+          persistentVolumeClaim:
+            claimName: copyparty-storagebox
+        - name: gdrive
+          persistentVolumeClaim:
+            claimName: copyparty-gdrive
+        - name: hist
+          persistentVolumeClaim:
+            claimName: copyparty-hist
+        - name: state
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

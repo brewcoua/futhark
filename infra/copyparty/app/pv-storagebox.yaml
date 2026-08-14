@@ -1,0 +1,42 @@
+---
+# The Storage Box crypt remote, mounted at its ROOT rather than at the per-PVC
+# namespace/name subdirectory infra/storage's StorageClass hands out. That is the whole point of
+# copyparty: every other app's remote directory is visible, and writable, from one place.
+# `remotePath: ""` is what selects the root.
+#
+# Static rather than dynamic, because a StorageClass cannot express a fixed path — its
+# `remotePath` is a per-PVC template. `storageClassName: ""` keeps every provisioner off it, and
+# `claimRef` pre-binds it so no other PVC can take it first.
+#
+# `capacity` is a required field the driver does not enforce; the Storage Box's real size is the
+# limit.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: copyparty-storagebox
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: copyparty
+    name: copyparty-storagebox
+  # Same tuning as infra/storage/app/storageclass-storagebox.yaml, for the same reason: the box
+  # caps concurrent connections at 10, cluster-wide.
+  mountOptions:
+    - vfs-cache-mode=writes
+    - dir-cache-time=1h
+    - checkers=2
+    - transfers=4
+  csi:
+    driver: rclone.csi.veloxpack.io
+    volumeHandle: copyparty-storagebox
+    volumeAttributes:
+      remote: "storagebox-crypt"
+      remotePath: ""
+    nodePublishSecretRef:
+      name: storagebox-secret
+      namespace: csi-rclone

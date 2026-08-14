@@ -1,0 +1,30 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+#
+# auth-sso is not optional decoration on this one. It is where copyparty's identity comes from:
+# the Middleware strips any client-supplied X-Auth-Request-* header and replaces it with what
+# oauth2-proxy returned, and copyparty trusts those headers. Remove it and every visitor is
+# anonymous with no volume access at all.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: copyparty
+  namespace: copyparty
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: copyparty-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: files.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: copyparty
+                port:
+                  number: 80

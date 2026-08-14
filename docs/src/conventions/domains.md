@@ -119,9 +119,15 @@ annotations:
 
 That is a Traefik `forwardAuth` pointing at the oauth2-proxy in `infra/auth`, which is registered
 with Pocket ID as one shared client. `infra/glance` is the reference implementation. The gate is
-binary: anyone in `administrators` or `users` gets in, and the app behind it sees no roles. The
-session cookie is scoped to `.$SUB_INTERNAL.$DOMAIN`, so one login covers every host that opts
-in. See [Cluster infrastructure](../gitops/infra.md#auth).
+binary: anyone in `administrators` or `users` gets in. The session cookie is scoped to
+`.$SUB_INTERNAL.$DOMAIN`, so one login covers every host that opts in. See
+[Cluster infrastructure](../gitops/infra.md#auth).
+
+An app behind that middleware can still tell who the reader is, without becoming an OIDC client
+itself, by reading the `X-Auth-Request-*` headers the middleware forwards. `infra/copyparty` is
+the reference implementation: it maps the `groups` header onto per-volume permissions. This is
+weaker than the first option, because the app is trusting a header rather than a signed token, and
+it only holds while the app is unreachable except through the middleware.
 
 **Neither.** Mesh membership only, which is a deliberate choice for a host whose readers are
 already trusted with the mesh.

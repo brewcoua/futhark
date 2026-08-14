@@ -1,0 +1,43 @@
+---
+# The Drive crypt remote at its root, same construction as pv-storagebox.yaml.
+#
+# It shows only what the cluster itself wrote. The rclone client is scoped to `drive.file`, so
+# Google hides every file the cluster did not create, and anything created outside it would not
+# be crypt-encrypted anyway. Expect this volume to be empty until something in the cluster starts
+# using gdrive-crypt.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: copyparty-gdrive
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    namespace: copyparty
+    name: copyparty-gdrive
+  # Same tuning as infra/storage/app/storageclass-gdrive.yaml: Drive has no connection cap, so
+  # this is paced against API quota instead.
+  mountOptions:
+    - vfs-cache-mode=full
+    - vfs-cache-max-size=2G
+    - vfs-cache-max-age=1h
+    - dir-cache-time=24h
+    - drive-use-trash=false
+    - drive-chunk-size=64M
+    - drive-pacer-min-sleep=10ms
+    - drive-pacer-burst=200
+    - checkers=8
+    - transfers=4
+  csi:
+    driver: rclone.csi.veloxpack.io
+    volumeHandle: copyparty-gdrive
+    volumeAttributes:
+      remote: "gdrive-crypt"
+      remotePath: ""
+    nodePublishSecretRef:
+      name: storagebox-secret
+      namespace: csi-rclone

@@ -13,6 +13,7 @@ resources:
   - namespaces/glance
   - namespaces/gatus
   - namespaces/csi-rclone
+  - namespaces/copyparty
   - namespaces/k8up
   - namespaces/ingress-internal
   - namespaces/ingress-edge

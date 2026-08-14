@@ -21,6 +21,7 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                              |
 | `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                      |
 | `glance`             | The dashboard at `home.$SUB_INTERNAL.$DOMAIN`. Two Kustomizations, one of which must not be substituted. See below                                               |
+| `copyparty`          | The file manager at `files.$SUB_INTERNAL.$DOMAIN`, mounted at the root of both rclone remotes. See below                                                         |
 | `gatus`              | Every healthcheck in the cluster, and the status page at `status.$SUB_INTERNAL.$DOMAIN`. See below                                                               |
 | `coredns`            | Not a controller: a stub zone that makes the internal subdomain resolve from inside the cluster, which is what every check above depends on                      |
 
@@ -103,9 +104,15 @@ changes what the reader sees:
   That surfaces as a 403 on the protected host reading `Login Failed: The upstream identity
 provider returned an error`, not as a startup failure, so it appears only on the first login.
 
-The gate is binary. `OAUTH2_PROXY_ALLOWED_GROUPS` admits `administrators` and `users`, and the app
-behind the middleware learns nothing about which one the reader is in. An app that needs roles has
-to speak OIDC itself.
+The gate itself is binary: `OAUTH2_PROXY_ALLOWED_GROUPS` admits `administrators` and `users`, and
+which of the two the reader is in changes nothing about whether the request gets through.
+
+The identity is still available to a backend that wants it. `OAUTH2_PROXY_SET_XAUTHREQUEST` is on,
+so oauth2-proxy returns `X-Auth-Request-User`, `-Email`, `-Preferred-Username` and `-Groups`, and
+`app/middleware-sso.yaml` forwards all four. Traefik strips each of those headers from the incoming
+request before writing the auth response's value, which is what stops a client from forging one.
+`infra/copyparty` is the only backend reading them today. An app that needs roles enforced by the
+proxy rather than by itself still has to speak OIDC directly.
 
 Three secrets at `/infra/auth` feed it. `SSO_OIDC_CLIENT_ID` and `SSO_OIDC_CLIENT_SECRET` are
 minted by `tofu/oidc` (see [oidc](../tofu/oidc.md)). `SSO_COOKIE_SECRET` is seeded by hand, once:
@@ -353,6 +360,45 @@ Pocket ID; a 200 there would mean the login had stopped being enforced.
 This is why `infra/coredns` exists and why `gatus` `dependsOn` it. Without the stub zone, none of
 those hostnames resolve from inside the cluster and every check fails at DNS. See
 [Who resolves the internal subdomain](../conventions/domains.md#who-resolves-the-internal-subdomain).
+
+## Copyparty
+
+The file manager at `files.$SUB_INTERNAL.$DOMAIN`, and the only way to read what is on the two
+rclone remotes without an rclone config on your own machine. Both are crypt-wrapped, so the bytes
+are meaningless anywhere else.
+
+It mounts each remote **at its root**, not at the per-PVC subdirectory
+`infra/storage`'s StorageClasses hand out. A StorageClass cannot express a fixed path, since its
+`remotePath` is a template over the claim's namespace and name, so `app/pv-storagebox.yaml` and
+`app/pv-gdrive.yaml` are static `PersistentVolume`s naming the same driver and the same
+`csi-rclone/storagebox-secret`, with `remotePath: ""`. Each sets `storageClassName: ""` and a
+`claimRef`, which is what binds it to its claim and keeps a provisioner out.
+
+**Understand the blast radius before logging in.** At the crypt root, every other app's remote
+directory is visible and writable, including `actual/actual-user-files`. Those directories are
+`reclaimPolicy: Retain` but not in K8up's backup set, because the Storage Box snapshots itself.
+The Drive volume is narrower by accident of its credential: the OAuth client is scoped to
+`drive.file`, so Google hides every file the cluster did not create, and nothing in the cluster
+writes there yet.
+
+Copyparty speaks no OIDC. It reads the identity out of the headers `auth-sso@kubernetescrd`
+forwards, which is what `idp-h-usr` and `idp-h-grp` in `app/configmap.yaml` name, and maps the two
+fleet-wide Pocket ID groups onto volume permissions: `administrators` may write and delete,
+`users` may read. Two settings make that safe rather than decorative. `xff-src: lan` tells
+copyparty which source addresses may assert those headers at all, and Traefik drops any
+client-supplied copy before setting its own. Remove `auth-sso` from the Ingress and every visitor
+is anonymous with no access to either volume.
+
+Its SQLite index and thumbnail cache sit on a `local-path` PVC, redirected there by `hist`. That
+is the same rule as `actual-server-files`: SQLite does not belong on a network filesystem. It also
+pins the pod to a node, which the rclone mounts follow. Nothing enables `e2dsa` or `e2ts` — both
+walk every file, and the media scan reads every byte back down through the remote.
+
+The config is a plain `ConfigMap` the process reads once at startup, so an edit needs a restart:
+
+```bash
+kubectl -n copyparty rollout restart deploy/copyparty
+```
 
 ## Infisical operator
 

@@ -93,6 +93,10 @@ coredns -> gatus
 traefik-internal -> gatus
 auth -> gatus
 
+traefik-internal -> copyparty
+storage -> copyparty
+auth -> copyparty
+
 storage -> actual
 backup -> backup-config
 
@@ -104,6 +108,7 @@ substitutions -> actual { class: presence }
 substitutions -> infra-policies { class: presence }
 substitutions -> glance { class: presence }
 substitutions -> gatus { class: presence }
+substitutions -> copyparty { class: presence }
 substitutions -> coredns { class: presence }
 
 cert-manager -> infra-policies { class: bulk }
@@ -119,6 +124,7 @@ infra-policies -> nodes
 infra-policies -> actual
 infra-policies -> glance
 infra-policies -> gatus
+infra-policies -> copyparty
 ```
 
 Only those two name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
