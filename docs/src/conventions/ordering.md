@@ -65,6 +65,7 @@ searxng: nodes/kenaz.k8s/searxng { class: boundary }
 
 namespaces -> cert-manager
 namespaces -> infisical-operator
+namespaces -> trivy-operator
 
 infisical-operator -> infisical-operator-config
 cert-manager -> cert-manager-config
@@ -129,6 +130,7 @@ storage -> infra-policies { class: bulk }
 backup -> infra-policies { class: bulk }
 monitoring -> infra-policies { class: bulk }
 auth -> infra-policies { class: bulk }
+trivy-operator -> infra-policies { class: bulk }
 
 infra-policies -> nodes
 infra-policies -> actual
@@ -139,11 +141,12 @@ infra-policies -> gatus
 infra-policies -> copyparty
 ```
 
-Only those two name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
+Only those three name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
 
-They need nothing from the cluster but a namespace to land in. Their `config-ks.yaml` siblings
-are where the ordering actually bites, because those apply CRs the controller must already have
-registered CRDs for.
+They need nothing from the cluster but a namespace to land in. For the first two, the
+`config-ks.yaml` siblings are where the ordering actually bites, because those apply CRs the
+controller must already have registered CRDs for. `trivy-operator` has no such sibling: it reads
+no secret and no cluster value, so a namespace is genuinely all it waits for.
 
 Five edges are less obvious than they look:
 

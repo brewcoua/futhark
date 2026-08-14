@@ -21,6 +21,7 @@ resources:
   - backup/config-ks.yaml
   - monitoring/ks.yaml
   - monitoring/dashboards-ks.yaml
+  - trivy-operator/ks.yaml
   - gatus/ks.yaml
   - glance/ks.yaml
   - glance/config-ks.yaml

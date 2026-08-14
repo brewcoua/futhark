@@ -68,6 +68,25 @@ Two of those PRs deserve a closer read than the rest:
   chart, so a values key that no longer exists fails the PR, but a key that changed meaning does
   not.
 
+## Merging one out of schedule
+
+Renovate decides when an update is available. Trivy decides when one is urgent.
+
+A Slack alert for a fixable CRITICAL, or a finding in the Security tab, names an image that has a
+published fix. Both scanners run with `ignore-unfixed`, so nothing else reaches you. The
+corresponding pull request is already open on the [Dependency Dashboard][dash]. Merge that one
+rather than waiting for the next pass over the list.
+
+Chart-internal images have no pull request of their own. Bump the chart version instead, which is
+the only pin this repository holds for them, and confirm the new one carries the fix:
+
+```bash
+trivy image --severity HIGH,CRITICAL --ignore-unfixed docker.io/traefik:v3.7.9
+```
+
+[Vulnerability scanning](../operations/checks.md#vulnerability-scanning) covers what each scanner
+sees.
+
 ## Running it by hand
 
 ```bash

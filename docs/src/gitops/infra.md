@@ -7,23 +7,24 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 
 `infra/` holds one directory per component, each with its own Flux `Kustomization`.
 
-| Component            | What it is                                                                                                                                                       |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                                  |
-| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `cluster-values` Secret and `monitoring-sizing`                                           |
-| `auth`               | Pocket ID, the OIDC provider, plus the oauth2-proxy that fronts apps which cannot speak OIDC. See below                                                          |
-| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                         |
-| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. `hostNetwork: true`, bound to the ingress node's mesh address                                             |
-| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the ingress node's public address                                                                                  |
-| `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt over sftp) and `gdrive-crypt` (Google Drive, write-once media) |
-| `backup`             | K8up, and the nightly schedules that carry the `local-path` volumes to Backblaze B2 as restic snapshots. See [Backup and recovery](../operations/recovery.md)    |
-| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                               |
-| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                              |
-| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                      |
-| `glance`             | The dashboard at `home.$SUB_INTERNAL.$DOMAIN`. Two Kustomizations, one of which must not be substituted. See below                                               |
-| `copyparty`          | The file manager at `files.$SUB_INTERNAL.$DOMAIN`, mounted at the root of both rclone remotes. See below                                                         |
-| `gatus`              | Every healthcheck in the cluster, and the status page at `status.$SUB_INTERNAL.$DOMAIN`. See below                                                               |
-| `coredns`            | Not a controller: a stub zone that makes the internal subdomain resolve from inside the cluster, which is what every check above depends on                      |
+| Component            | What it is                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infisical-operator` | Runtime secrets. One namespace-scoped install per tier, plus the admission policy that confines each. See below                                                     |
+| `substitutions`      | Not a controller: every `postBuild.substituteFrom` source, meaning the `cluster-values` Secret and `monitoring-sizing`                                              |
+| `auth`               | Pocket ID, the OIDC provider, plus the oauth2-proxy that fronts apps which cannot speak OIDC. See below                                                             |
+| `cert-manager`       | Let's Encrypt certificates over DNS-01, through a Bunny DNS webhook. `config/` holds the `ClusterIssuer`                                                            |
+| `traefik-internal`   | Mesh-only ingress, serving the internal wildcard cert. `hostNetwork: true`, bound to the ingress node's mesh address                                                |
+| `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the ingress node's public address                                                                                     |
+| `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt over sftp) and `gdrive-crypt` (Google Drive, write-once media)    |
+| `backup`             | K8up, and the nightly schedules that carry the `local-path` volumes to Backblaze B2 as restic snapshots. See [Backup and recovery](../operations/recovery.md)       |
+| `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                                  |
+| `trivy-operator`     | Vulnerability, config-audit, RBAC and compliance scanning of what is actually running. See [Vulnerability scanning](../operations/checks.md#vulnerability-scanning) |
+| `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                                 |
+| `policies`           | Not a controller: the network policy, RBAC and rate-limit overlays every namespace composes                                                                         |
+| `glance`             | The dashboard at `home.$SUB_INTERNAL.$DOMAIN`. Two Kustomizations, one of which must not be substituted. See below                                                  |
+| `copyparty`          | The file manager at `files.$SUB_INTERNAL.$DOMAIN`, mounted at the root of both rclone remotes. See below                                                            |
+| `gatus`              | Every healthcheck in the cluster, and the status page at `status.$SUB_INTERNAL.$DOMAIN`. See below                                                                  |
+| `coredns`            | Not a controller: a stub zone that makes the internal subdomain resolve from inside the cluster, which is what every check above depends on                         |
 
 ## The two ingresses
 

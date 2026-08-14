@@ -144,6 +144,21 @@ config:
         - source_labels: [__meta_kubernetes_endpoint_port_name]
           action: keep
           regex: http
+    # The Trivy operator's own metrics: the per-image severity counts the Security alert rules
+    # read. The chart renders the Service as `trivy-operator` with its port named `metrics`; the
+    # built-in Trivy server next to it (`trivy-service`) exposes no metrics of its own.
+    - job_name: trivy-operator
+      kubernetes_sd_configs:
+        - role: endpoints
+          namespaces:
+            names: [trivy-system]
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_name]
+          action: keep
+          regex: trivy-operator
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: metrics
     # cert-manager's controller Service, created by the chart whenever prometheus.enabled is left
     # at its default of true and no podmonitor is asked for. The one series that matters here is
     # certmanager_certificate_expiration_timestamp_seconds: without it, the expiry of the internal

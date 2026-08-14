@@ -69,6 +69,16 @@ metadata:
   labels:
     futk.eu/tier: infra
 ---
+# The Trivy operator and the scan Jobs it creates, which run here rather than beside the workload
+# they scan (the chart's default). One namespace to hold both is what keeps the policy overlay to
+# a single directory.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trivy-system
+  labels:
+    futk.eu/tier: infra
+---
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -17,5 +17,6 @@ resources:
   - namespaces/csi-rclone
   - namespaces/copyparty
   - namespaces/k8up
+  - namespaces/trivy-system
   - namespaces/ingress-internal
   - namespaces/ingress-edge

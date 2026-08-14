@@ -65,7 +65,7 @@ nothing, which is why `validate.yml` runs a separate full-tree `gitleaks dir .`.
 
 ## CI
 
-Four workflows, all in `.github/workflows/`.
+Five workflows, all in `.github/workflows/`.
 
 **`validate.yml`** runs on every pull request and every push to `master`, with
 cancel-in-progress concurrency. Three jobs:
@@ -83,6 +83,10 @@ GitHub Pages only from `master`. It then asserts that every ` ```d2 ` fence in `
 rendered diagram. That check is not redundant: if `d2` or `mdbook-d2` is missing, mdbook leaves
 the fence as a code block and still exits 0, so the diagrams would silently stop shipping.
 
+**`trivy.yml`** scans container images for known vulnerabilities on every pull request touching
+`infra/`, `nodes/` or `flux/`, weekly on a cron, and on demand. It is described in
+[Vulnerability scanning](#vulnerability-scanning) below.
+
 **`renovate.yml`** runs Renovate at 03:00, on a change to its own config, and on demand. That is
 an hour before the mirror cron, so an automerged update reaches Codeberg the same night. What it
 covers and what it may merge is [Dependency updates](../conventions/updates.md).
@@ -93,7 +97,7 @@ host key, which is trust-on-first-use, because Codeberg publishes no authenticat
 GitHub's `api.github.com/meta`. The blast radius is this mirror push only, not the live Flux
 deploy-key channel.
 
-All four workflows check out with `persist-credentials: false`, and every tool they install is
+All five workflows check out with `persist-credentials: false`, and every tool they install is
 pinned in `mise.toml`, the same file `just ops deps` reads. A local `just docs build` therefore
 renders with the mdbook CI publishes, and pre-commit runs the kustomize CI installs. Neither side
 constructs a download URL: `validate.yml` and `docs.yml` run `jdx/mise-action`, `just ops deps`
@@ -105,6 +109,80 @@ only greps. `ansible-playbook --syntax-check` parses playbooks without templatin
 variables, so the `file` lookups in `group_vars/all/` are never evaluated and the missing
 `ansible/.generated/` files do not fail it. Keep it that way rather than putting a key into GitHub
 Actions.
+
+## Vulnerability scanning
+
+[Trivy](https://trivy.dev) runs in two places, answering two different questions.
+
+### What a commit would run
+
+`.github/workflows/trivy.yml` renders the manifests, collects every image reference, and scans
+each one. It renders twice: `kustomize build` for what this repository writes, then
+`helm template` per `HelmRelease` for what the charts bring with them. Findings land in this
+repository's Security tab under Code scanning, one entry per image, and a pull request gets a
+comment linking to its own results.
+
+Rendering rather than diffing is deliberate. A diff shows the one image a commit renamed, and the
+question is what the cluster would then be running. Rendering is also the only view that reaches
+the chart-internal images (Traefik, Grafana, cert-manager, K8up, VictoriaMetrics), which
+[Version pins](../conventions/layout.md#version-pins) does not digest-pin and no commit here ever
+names.
+
+The scan never fails the check. A HIGH in an upstream base image is not something a pull request
+against this repository can fix, and a check nobody can turn green is a check people learn to
+click past.
+
+To reproduce one image locally before opening a pull request:
+
+```bash
+trivy image --severity HIGH,CRITICAL --ignore-unfixed ghcr.io/open-webui/open-webui:v0.11.0
+```
+
+To scan an image the workflow does not discover, run it on demand:
+
+```bash
+gh workflow run trivy.yml -f image=docker.io/library/nginx:1.29
+```
+
+The run logs `discovered N images` before the matrix expands. A count that dropped without a
+manifest change means a `helm template` call started failing, which the same log records as a
+`::warning::` naming the file and chart.
+
+### What the cluster is running now
+
+`infra/trivy-operator` watches workloads and writes a report per image, plus config audits, RBAC
+assessments, node hardening checks and CIS/NSA compliance:
+
+```bash
+kubectl get vulnerabilityreports -A
+kubectl get clustercompliancereports
+```
+
+Expect nothing for the first few minutes after install, while the operator downloads its
+vulnerability database. `kubectl -n trivy-system get pods` shows the scan Jobs as they run, one at
+a time.
+
+This is not a duplicate of CI. A merged commit stops describing reality the moment a CVE is
+published against an image that has not changed, and the operator is the only thing here that
+notices.
+
+Three alerts reach Slack, from `infra/monitoring/app/grafana/alerting/security.yaml`: a fixable
+CRITICAL in any workload, a cluster-wide CRITICAL and HIGH count above its 24-hour floor, and a
+compliance spec failing more controls than its 7-day baseline. The last two are regression alarms
+rather than presence checks, because CIS fails controls on a single-node k3s that no change here
+will satisfy, and an alert that is always firing gets muted. The Glance cluster page carries the
+same counts as a widget.
+
+### What neither scanner covers
+
+Both run with `ignore-unfixed`, so a vulnerability with no published fix never reaches you. That
+is the intent: it leaves nothing to merge. It also means every finding that does arrive
+corresponds to a Renovate pull request worth
+[merging out of schedule](../conventions/updates.md#merging-one-out-of-schedule).
+
+Neither scanner reads this repository's own tree for misconfiguration. `gitleaks` and GitGuardian
+cover secrets, and the operator's config-audit scanner covers workload hardening from the cluster
+side, which is where the objects Helm generates are visible at all.
 
 ## Infisical tier isolation
 

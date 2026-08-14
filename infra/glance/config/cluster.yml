@@ -14,6 +14,7 @@
       widgets:
         - $include: widget-gitops.yml
         - $include: widget-pods.yml
+        - $include: widget-vulnerabilities.yml
 
     - size: small
       widgets:

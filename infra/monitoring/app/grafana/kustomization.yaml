@@ -22,6 +22,7 @@ configMapGenerator:
       - alerting/mesh.yaml
       - alerting/kubernetes.yaml
       - alerting/backup.yaml
+      - alerting/security.yaml
 # dashboards/ is deliberately not a resource here: it is reconciled by its own Flux
 # Kustomization, which runs no postBuild substitution. See dashboards/kustomization.yaml.
 generatorOptions:

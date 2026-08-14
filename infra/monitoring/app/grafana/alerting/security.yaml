@@ -1,0 +1,74 @@
+---
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: security
+    folder: System
+    # Reports are rewritten on a scan, not updated in place, so evaluating faster than the
+    # operator scans only samples the gaps between them.
+    interval: 5m
+    rules:
+      - uid: image-critical-vulnerabilities
+        title: Image has CRITICAL vulnerabilities
+        condition: A
+        # Not 0m: the operator deletes and recreates a VulnerabilityReport on every rescan, and
+        # the series disappears and returns across that window. A short `for` alerts on the
+        # rescan rather than on the finding.
+        for: 30m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 3600, to: 0 }
+            model:
+              refId: A
+              instant: true
+              # trivy.ignoreUnfixed is on, so everything counted here has a fixed version
+              # published, which means a Renovate PR worth merging out of schedule.
+              expr: sum by (namespace, resource_kind, resource_name) (trivy_image_vulnerabilities{severity="Critical"}) > 0
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.namespace }}/{{ $labels.resource_name }} has {{ $value }} fixable CRITICAL vulnerabilities"
+      - uid: vulnerabilities-increasing
+        title: Vulnerability count rising
+        condition: A
+        for: 30m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 86400, to: 0 }
+            model:
+              refId: A
+              instant: true
+              # The signal is "something got worse since yesterday", which the rule above cannot
+              # give: it fires once and then stays firing, so a second CVE landing in an already
+              # alerting image says nothing new.
+              #
+              # Compared against the 24h floor via a subquery rather than delta()/increase():
+              # this is a gauge that vanishes to nothing while a report is being regenerated, and
+              # those functions read the regeneration itself as a change.
+              expr: sum(trivy_image_vulnerabilities{severity=~"Critical|High"}) - min_over_time(sum(trivy_image_vulnerabilities{severity=~"Critical|High"})[24h:5m]) > 0
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "Cluster-wide CRITICAL+HIGH count is {{ $value }} above its 24h floor"
+      - uid: compliance-regressed
+        title: Cluster compliance regressed
+        condition: A
+        for: 30m
+        data:
+          - refId: A
+            datasourceUid: victoriametrics
+            relativeTimeRange: { from: 604800, to: 0 }
+            model:
+              refId: A
+              instant: true
+              # Not `> 0`. CIS and NSA both fail controls on a single-node k3s that no
+              # configuration change here will ever satisfy, so a presence check would fire
+              # forever and be muted within a week. The 7d floor makes this a regression alarm:
+              # it fires when a commit breaks a control that was passing.
+              expr: sum by (title) (trivy_cluster_compliance{status="Fail"}) - min_over_time(sum by (title) (trivy_cluster_compliance{status="Fail"})[7d:1h]) > 0
+        noDataState: OK
+        execErrState: Alerting
+        annotations:
+          summary: "{{ $labels.title }} has {{ $value }} more failing controls than its 7d baseline"

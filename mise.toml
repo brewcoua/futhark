@@ -16,6 +16,11 @@ d2 = "0.7.1"
 mdbook = "0.5.4"
 opentofu = "1.12.5"
 
+# Only .github/workflows/trivy.yml uses this, to pull image references out of rendered manifests.
+# Here rather than apt-get in the workflow so CI and an operator reproducing the scan by hand run
+# the same parser.
+yq = "4.53.3"
+
 # Tracks k8s_cluster_version in ansible/roles/k8s_cluster/defaults/main.yml.
 kubectl = "1.36.3"
 

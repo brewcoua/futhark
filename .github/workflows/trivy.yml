@@ -1,0 +1,193 @@
+---
+# What a commit would introduce, scanned before it reaches the cluster, with the findings
+# published to this repository's Security tab. The other half is infra/trivy-operator, which scans
+# what is actually running: a merged commit stops describing that the moment a CVE is published.
+#
+# This workflow reports, it does not block: a HIGH in an upstream base image is not something a
+# PR here can fix, and a red check nobody can turn green is a check people learn to ignore. The
+# gate is the Security tab plus the Slack alert the operator raises.
+name: trivy
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - "nodes/**"
+      - "flux/**"
+  # A merged commit is not re-rendered by anything, so without this a CVE published the day after
+  # a merge is invisible until the next PR touches that path.
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Extra image reference to scan alongside the discovered ones"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  security-events: write # upload-sarif
+  pull-requests: write # the summary comment
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Renders the manifests and reports every image reference they contain. Rendering rather than
+  # diffing: a diff shows the one line that changed, while the question here is what the cluster
+  # would be running, and most images in this repository are never named by a commit at all.
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      images: ${{ steps.collect.outputs.images }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      # kustomize, helm and yq at the versions mise.toml pins, as in validate.yml.
+      - uses: jdx/mise-action@v4.2.4
+
+      - name: Collect image references
+        id: collect
+        env:
+          # Through the environment rather than interpolated into the script: a `${{ }}` inside a
+          # run block is pasted in as text before the shell sees it.
+          EXTRA_IMAGE: ${{ inputs.image }}
+        run: |
+          set -euo pipefail
+          images=$(mktemp)
+
+          # Images written down in this repository. Every one of these directories is already
+          # proven to render by the kustomize-build hook in .pre-commit-config.yaml, so a failure
+          # here is a real one and should stop the job.
+          #
+          # HelmRelease documents are skipped: their .spec.values carry `image:` keys that are
+          # chart inputs (often maps of registry/repository/tag), not references. The images
+          # those charts actually render are the next step's job.
+          find infra nodes -name kustomization.yaml -printf '%h\n' | while read -r dir; do
+            kustomize build --enable-helm "$dir"
+            echo ---
+          done | yq -N '
+            select(.kind != "HelmRelease")
+            | .. | select(tag == "!!map") | select(has("image")) | .image
+            | select(tag == "!!str")
+          ' >> "$images"
+
+          # Images the charts bring with them: Traefik, Grafana, cert-manager, k8up,
+          # VictoriaMetrics. `kustomize build` never sees these: this repository installs charts
+          # through Flux HelmRelease CRs, not kustomize's own helmCharts field, so nothing renders
+          # them until the cluster does. They are also the images this repository does not
+          # digest-pin, which makes them the ones most worth scanning.
+          repos=$(mktemp)
+          grep -rl 'kind: HelmRepository' infra | xargs yq -N '
+            select(.kind == "HelmRepository") | .metadata.name + " " + .spec.url
+          ' > "$repos"
+
+          for file in $(grep -rl 'kind: HelmRelease' infra nodes); do
+            last=$(yq -N 'di' "$file" | tail -1)
+            for i in $(seq 0 "$last"); do
+              [ "$(yq -N "select(di == $i) | .kind" "$file")" = HelmRelease ] || continue
+
+              chart=$(yq -N "select(di == $i) | .spec.chart.spec.chart // \"\"" "$file")
+              version=$(yq -N "select(di == $i) | .spec.chart.spec.version // \"\"" "$file")
+              source=$(yq -N "select(di == $i) | .spec.chart.spec.sourceRef.name // \"\"" "$file")
+              url=$(awk -v n="$source" '$1 == n { print $2 }' "$repos")
+
+              if [ -z "$chart" ] || [ -z "$url" ]; then
+                echo "::warning::$file[$i]: no chart or no HelmRepository named '$source', skipped"
+                continue
+              fi
+
+              values=$(mktemp)
+              yq -N "select(di == $i) | .spec.values // {}" "$file" > "$values"
+
+              # An OCI registry is addressed as the chart itself; --repo only takes HTTP.
+              case "$url" in
+                oci://*) ref="$url/$chart"; repo=() ;;
+                *) ref="$chart"; repo=(--repo "$url") ;;
+              esac
+
+              # Best-effort on purpose. A release whose values reference a Flux variable or a
+              # valuesFrom ConfigMap can fail to template outside the cluster, and losing one
+              # chart's images is not a reason to report none of the others.
+              #
+              # Helm test hooks are dropped: they pull throwaway images (busybox, bats) that this
+              # cluster never runs, and floating tags among them would churn the findings.
+              if ! helm template release "$ref" "${repo[@]}" --version "$version" -f "$values" 2>/dev/null | yq -N '
+                select((.metadata.annotations."helm.sh/hook" // "") | test("test") | not)
+                | .. | select(tag == "!!map") | select(has("image")) | .image | select(tag == "!!str")
+              ' >> "$images"; then
+                echo "::warning::$file[$i]: helm template failed for $chart $version, skipped"
+              fi
+            done
+          done
+
+          if [ -n "${EXTRA_IMAGE:-}" ]; then
+            echo "$EXTRA_IMAGE" >> "$images"
+          fi
+
+          # Anything still holding an unsubstituted Flux variable never resolved to a real
+          # reference and would only fail the scan.
+          list=$(grep -Ev '(\$\{|^\s*$)' "$images" | sort -u | jq -R . | jq -sc .)
+          echo "$list" | jq -r '"discovered \(length) images"'
+          echo "images=$list" >> "$GITHUB_OUTPUT"
+
+  scan:
+    needs: discover
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      # One unscannable image (a private registry, a tag pulled from under us) must not hide the
+      # findings of every other.
+      fail-fast: false
+      matrix:
+        image: ${{ fromJSON(needs.discover.outputs.images) }}
+    steps:
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ matrix.image }}
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          scanners: vuln
+          # Matches infra/trivy-operator: a finding with no fixed version is not actionable from
+          # a pull request.
+          ignore-unfixed: true
+          # Reporting, not gating. See the header comment.
+          exit-code: "0"
+
+      # A slug, because `category` is what keeps the uploads apart: without a distinct one per
+      # image, each matrix leg replaces the previous leg's results and only the last image
+      # survives in the Security tab.
+      - name: Derive an upload category
+        id: category
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "slug=$(printf '%s' "$IMAGE" | tr -c '[:alnum:]' '-')" >> "$GITHUB_OUTPUT"
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-${{ steps.category.outputs.slug }}
+
+  comment:
+    needs: scan
+    if: github.event_name == 'pull_request' && always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # A fixed message-id so a re-run edits the existing comment instead of adding another.
+      - uses: mshick/add-pr-comment@v3
+        with:
+          message-id: trivy-scan
+          message: |
+            **Trivy** scanned the images these manifests render, including the ones the Helm
+            charts bring with them.
+
+            [Findings for this PR](https://github.com/${{ github.repository }}/security/code-scanning?query=pr%3A${{ github.event.pull_request.number }}+tool%3ATrivy+is%3Aopen)
+
+            Findings are informational, and this check does not block the merge. What is
+            already running in the cluster is scanned separately by `infra/trivy-operator`,
+            which alerts to Slack.

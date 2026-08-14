@@ -38,6 +38,7 @@ configMapGenerator:
       - widget-restarts.yml
       - widget-served-certs.yml
       - widget-volumes.yml
+      - widget-vulnerabilities.yml
       - widget-workloads.yml
       - widget-xkcd.yml
     options:

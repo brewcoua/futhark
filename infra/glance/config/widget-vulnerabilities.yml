@@ -1,0 +1,25 @@
+- type: custom-api
+  title: Vulnerabilities
+  cache: 15m
+  url: http://vmsingle-victoria-metrics-single-server.monitoring.svc.cluster.local:8428/api/v1/query
+  parameters:
+    # Two series per workload, one per severity, so the template can colour them apart. Only
+    # fixable findings are counted at all, because the operator runs with ignoreUnfixed.
+    query: topk(20, sum by (namespace, resource_name, severity) (trivy_image_vulnerabilities{severity=~"Critical|High"}) > 0)
+  template: |
+    {{ if eq (len (.JSON.Array "data.result")) 0 }}
+      <p class="color-positive">No fixable CRITICAL or HIGH vulnerabilities.</p>
+    {{ else }}
+      <ul class="list list-gap-10">
+        {{ range .JSON.Array "data.result" }}
+          <li class="flex justify-between items-center">
+            <span class="text-truncate">
+              <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.resource_name" }}
+            </span>
+            <span class="{{ if eq (.String "metric.severity") "Critical" }}color-negative{{ else }}color-subdue{{ end }}">
+              {{ .String "metric.severity" }} {{ printf "%.0f" (.Float "value.1") }}
+            </span>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}

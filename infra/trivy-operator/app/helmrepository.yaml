@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/source-controller/main/config/crd/bases/source.toolkit.fluxcd.io_helmrepositories.yaml
+# Aqua publish the same chart to an OCI registry as well. Plain HTTP repository here because that
+# is what every other component in this tree uses, and one source kind is one thing to reason
+# about.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: aqua
+  namespace: flux-system
+spec:
+  interval: 1h
+  url: https://aquasecurity.github.io/helm-charts/

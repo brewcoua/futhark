@@ -1,0 +1,125 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
+# What is inside the images this cluster runs, which nothing else here looks at: every image this
+# repository writes is digest-pinned and Renovate opens a PR when a tag moves, but neither answers
+# whether the thing running right now has a known CVE. The operator watches workloads and writes its findings as
+# CRs (`kubectl get vulnerabilityreports -A`) and as metrics vmagent scrapes.
+#
+# The other half of this lives in .github/workflows/trivy.yml, which scans the images a PR would
+# introduce and publishes to the GitHub Security tab. CI covers what is committed; this covers
+# what is running. See docs/src/operations/checks.md.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trivy-operator
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: trivy-operator
+  targetNamespace: trivy-system
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    # Helm never upgrades a chart's crds/ directory on its own, which would leave the report CRDs
+    # pinned at whatever version first installed them while the operator moves on.
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  chart:
+    spec:
+      chart: trivy-operator
+      version: "0.35.0" # chart 0.35.0 -> Trivy Operator 0.33.0
+      sourceRef:
+        kind: HelmRepository
+        name: aqua
+        namespace: flux-system
+  values:
+    operator:
+      # One shared Trivy server holding one copy of the vulnerability DB, instead of every scan
+      # Job downloading its own ~1GB. On a single node that is the difference between this being
+      # affordable and not. Sets trivy.mode to ClientServer and points it at the StatefulSet the
+      # chart adds, so neither is written below.
+      builtInTrivyServer: true
+
+      vulnerabilityScannerEnabled: true
+      # Workload hardening, from the other side of what `kustomize build` can see: it checks the
+      # objects as admitted, including the ones Helm charts generate and this repository never writes.
+      configAuditScannerEnabled: true
+      rbacAssessmentScannerEnabled: true
+      # Node/kubelet hardening. Runs a node-collector Job per node, not per workload, so its cost
+      # does not grow with the number of apps.
+      infraAssessmentScannerEnabled: true
+      clusterComplianceEnabled: true
+
+      # gitleaks (.pre-commit-config.yaml, plus the full-tree run in .github/workflows/validate.yml)
+      # and GitGuardian already own secret detection, and a secret baked into an upstream image is
+      # not something this cluster can act on anyway.
+      exposedSecretScannerEnabled: false
+      # Nothing consumes an SBOM here. It is pure report volume in etcd until something does.
+      sbomGenerationEnabled: false
+
+      # Without these, superseded ReplicaSets are scanned too: the images of every workload
+      # revision the cluster still remembers, none of which are running.
+      vulnerabilityScannerScanOnlyCurrentRevisions: true
+      configAuditScannerScanOnlyCurrentRevisions: true
+
+      # Chart default is 10, which pulls ten image trees at once. One node, one uplink.
+      scanJobsConcurrentLimit: 1
+      # Completed scan Jobs are garbage; without a TTL they accumulate until something prunes them.
+      scanJobTTL: 300s
+      # The 5m default is a cold image pull on a home uplink away from timing out.
+      scanJobTimeout: 20m
+
+      # What infra/monitoring/app/grafana/alerting/security.yaml reads.
+      metricsFindingsEnabled: true
+      # Deliberate: one series per CVE ID per image, against a single vmsingle. The alerts need
+      # counts by severity, not identities.
+      metricsVulnIdEnabled: false
+
+    # No prometheus-operator in this cluster. vmagent discovers this Service by name from
+    # infra/monitoring/app/metrics/scrape-configs.yaml, as it does for every other component here.
+    serviceMonitor:
+      enabled: false
+
+    trivy:
+      # A vulnerability with no fixed version is not actionable: there is no Renovate PR to merge
+      # and no image to move to, so it would keep the CRITICAL alert permanently firing.
+      ignoreUnfixed: true
+      # Dropped at the scanner rather than at query time, which is what keeps the reports (and
+      # therefore etcd) small. MEDIUM and below are noise at this scale.
+      severity: HIGH,CRITICAL
+
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+
+      # The built-in server enabled above. It holds the DB, so it is the one component here that
+      # wants real memory.
+      server:
+        replicas: 1
+        resources:
+          requests:
+            cpu: 50m
+            memory: 512Mi
+          limits:
+            memory: 768Mi
+
+    compliance:
+      # The chart's default adds k8s-pss-baseline-0.1 and k8s-pss-restricted-0.1, which re-derive
+      # what configAuditScanner already reports per workload. These two are the ones that say
+      # something about the cluster itself.
+      specs:
+        - k8s-cis-1.23
+        - k8s-nsa-1.0
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi

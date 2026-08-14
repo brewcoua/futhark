@@ -1,0 +1,13 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+# No ingress template: nothing here is reachable from outside, and the metrics Service is covered
+# by netpol-allow-from-monitoring. The scan Jobs pull image layers from ghcr.io, docker.io and
+# quay.io. That needs no rule, because the baseline denies ingress only and egress is open
+# everywhere (see _templates/netpol-default-deny).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: trivy-system
+resources:
+  - ../_templates/netpol-default-deny
+  - ../_templates/netpol-allow-same-namespace
+  - ../_templates/netpol-allow-from-monitoring

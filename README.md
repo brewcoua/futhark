@@ -3,6 +3,9 @@
 The code for my GitOps-driven homelab: Ansible provisions the hosts, Flux reconciles a k3s
 cluster from this repository, and OpenTofu manages what lives outside it.
 
+Every container image is scanned by [Trivy](https://trivy.dev): before a merge in CI, with the
+findings published to this repository's Security tab, and continuously in the cluster.
+
 **Documentation: <https://brewcoua.github.io/futhark/>** — source in [`docs/`](docs/).
 
 Everything an operator runs goes through [`just`](https://just.systems):
