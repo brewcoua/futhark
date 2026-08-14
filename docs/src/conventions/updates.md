@@ -81,7 +81,7 @@ Chart-internal images have no pull request of their own. Bump the chart version 
 the only pin this repository holds for them, and confirm the new one carries the fix:
 
 ```bash
-trivy image --severity HIGH,CRITICAL --ignore-unfixed docker.io/traefik:v3.7.9
+just sec scan docker.io/traefik:v3.7.9
 ```
 
 [Vulnerability scanning](../operations/checks.md#vulnerability-scanning) covers what each scanner

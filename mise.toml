@@ -16,6 +16,10 @@ d2 = "0.7.1"
 mdbook = "0.5.4"
 opentofu = "1.12.5"
 
+# `just sec scan` and the local reproductions in docs/src/operations/checks.md. CI does not use
+# this pin: .github/workflows/trivy.yml runs aquasecurity/trivy-action, which ships its own.
+trivy = "0.73.0"
+
 # Only .github/workflows/trivy.yml uses this, to pull image references out of rendered manifests.
 # Here rather than apt-get in the workflow so CI and an operator reproducing the scan by hand run
 # the same parser.

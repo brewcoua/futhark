@@ -135,7 +135,7 @@ click past.
 To reproduce one image locally before opening a pull request:
 
 ```bash
-trivy image --severity HIGH,CRITICAL --ignore-unfixed ghcr.io/open-webui/open-webui:v0.11.0
+just sec scan ghcr.io/open-webui/open-webui:v0.11.0
 ```
 
 To scan an image the workflow does not discover, run it on demand:
@@ -151,20 +151,36 @@ manifest change means a `helm template` call started failing, which the same log
 ### What the cluster is running now
 
 `infra/trivy-operator` watches workloads and writes a report per image, plus config audits, RBAC
-assessments, node hardening checks and CIS/NSA compliance:
+assessments, node hardening checks and CIS/NSA compliance. There is no web interface. The reports
+are Kubernetes objects, and `just sec` reads them:
 
 ```bash
-kubectl get vulnerabilityreports -A
-kubectl get clustercompliancereports
+just sec           # the recipes in this module
+just sec reports   # vulnerability counts per workload, worst first
+just sec compliance
 ```
 
-Expect nothing for the first few minutes after install, while the operator downloads its
-vulnerability database. `kubectl -n trivy-system get pods` shows the scan Jobs as they run, one at
-a time.
+Start at `just sec reports`, then open the row that stands out. The report name is
+`<kind>-<hash>`, which is why the recipe prints the workload name alongside it:
+
+```bash
+just sec show replicaset-open-webui-7d9c4f8b5 open-webui
+```
+
+Expect an empty list for the first few minutes after install, while the operator downloads its
+vulnerability database. `kubectl -n trivy-system get jobs` shows the scans as they run, one at a
+time.
 
 This is not a duplicate of CI. A merged commit stops describing reality the moment a CVE is
 published against an image that has not changed, and the operator is the only thing here that
 notices.
+
+To confirm a finding is gone after merging the bump, force the reports to be rebuilt rather than
+waiting for the operator's own interval:
+
+```bash
+just sec rescan open-webui
+```
 
 Three alerts reach Slack, from `infra/monitoring/app/grafana/alerting/security.yaml`: a fixable
 CRITICAL in any workload, a cluster-wide CRITICAL and HIGH count above its 24-hour floor, and a

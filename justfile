@@ -10,6 +10,8 @@ mod ks '.just/ks.just'
 mod fx '.just/flux.just'
 # K8up backups, restores and snapshots
 mod bak '.just/backup.just'
+# Trivy vulnerability, config-audit and compliance reports
+mod sec '.just/security.just'
 # The mdBook under docs/
 mod docs '.just/docs.just'
 
