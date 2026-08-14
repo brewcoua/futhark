@@ -16,6 +16,13 @@ data:
   # The image defaults HOME to /root, which readOnlyRootFilesystem makes unwritable. Point it at
   # the PVC so anything homedir-bound lands there instead of crashing the pod.
   HOME: /app/backend/data
+  # On import Open WebUI empties STATIC_DIR and re-copies /app/build/static into it, then mounts
+  # it at /static. Its default is inside the image, so on a read-only root every one of those
+  # copies fails: caught and logged, but fifteen ERROR lines per boot, which is what
+  # infra/glance/config/widget-log-errors.yml would then report forever. An emptyDir rather than
+  # the PVC because the directory is rebuilt from the image on every start, so it is derived
+  # rather than state, and backing it up would only preserve a stale copy.
+  STATIC_DIR: /app/static
 
   # Ollama Cloud is the only model backend; there is no in-cluster Ollama.
   # OLLAMA_BASE_URLS takes precedence over OLLAMA_BASE_URL and is what OLLAMA_API_CONFIGS keys

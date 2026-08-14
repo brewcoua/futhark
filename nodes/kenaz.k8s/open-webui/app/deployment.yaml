@@ -48,6 +48,9 @@ spec:
             # HF_HOME and SENTENCE_TRANSFORMERS_HOME at.
             - name: data
               mountPath: /app/backend/data
+            # STATIC_DIR points here. See configmap.yaml.
+            - name: static
+              mountPath: /app/static
             - name: tmp
               mountPath: /tmp
           # First boot downloads sentence-transformers/all-MiniLM-L6-v2 before serving, which is
@@ -80,5 +83,7 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: open-webui-data
+        - name: static
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
