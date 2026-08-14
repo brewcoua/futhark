@@ -16,6 +16,11 @@ data:
   # The image defaults HOME to /root, which readOnlyRootFilesystem makes unwritable. Point it at
   # the PVC so anything homedir-bound lands there instead of crashing the pod.
   HOME: /app/backend/data
+  # Function requirements are pip-installed at runtime; with site-packages read-only pip falls
+  # back to a user install under HOME. site.py only puts the user site directory on sys.path when
+  # it already exists at interpreter startup, so the first install of a package is unimportable
+  # until a restart. PYTHONPATH is added regardless of whether the directory exists.
+  PYTHONPATH: /app/backend/data/.local/lib/python3.11/site-packages
   # On import Open WebUI empties STATIC_DIR and re-copies /app/build/static into it, then mounts
   # it at /static. Its default is inside the image, so on a read-only root every one of those
   # copies fails: caught and logged, but fifteen ERROR lines per boot, which is what
