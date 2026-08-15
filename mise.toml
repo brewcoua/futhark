@@ -45,7 +45,7 @@ rclone = "1.75.0"
 "github:Backblaze/B2_Command_Line_Tool" = "4.7.1"
 
 # Not in mise's registry, so addressed at their release pages.
-"github:protonpass/pass-cli" = "2.2.6"
+"github:protonpass/pass-cli" = "2.3.2"
 
 # mdbook invokes this as a preprocessor and it shells out to `d2`; without both, every ```d2
 # fence renders as a code block.
