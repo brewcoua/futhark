@@ -85,15 +85,9 @@ ingress:
 certs:
     kubectl get certificate,certificaterequest -A
 
-# The whole point of a recipe here is the cleanup. auth-dir is a ReadWriteOnce volume the running
-# Deployment holds, so the login pod can only mount it once the Deployment has let go, and if the
-# flow is abandoned halfway something still has to put the replica back. The trap does that on
-# every exit path, including Ctrl-C.
-#
-# The image is read from the Deployment rather than written here, so the login can never run a
-# different build from the server, and Renovate keeps tracking the one pin in the manifest.
-#
-# Interactive: it opens a browser flow and holds the terminal until Ctrl-C. See
+# auth-dir is a ReadWriteOnce volume the running Deployment holds, so the login pod can only mount
+# it once the Deployment has let go. The trap is the reason this is a recipe: an abandoned flow
+# still owes a scale-up. Interactive, so it holds the terminal until Ctrl-C. See
 # docs/src/operations/cli-proxy-login.md.
 
 # Link a subscription account into cli-proxy-api (claude, codex, antigravity)
@@ -101,15 +95,17 @@ cli-proxy-login provider='claude':
     #!/usr/bin/env bash
     set -euo pipefail
     ns=cli-proxy-api
-    # Each provider's OAuth callback is a fixed port on localhost, chosen by the vendor rather
-    # than by us, which is what the port-forward below has to match.
+    # Each vendor fixes its own callback port, which the port-forward has to match.
     case '{{ provider }}' in
       claude)      port=54545 ;;
       codex)       port=1455  ;;
       antigravity) port=51121 ;;
       *) echo "unknown provider '{{ provider }}': use claude, codex or antigravity" >&2; exit 1 ;;
     esac
+    # Both read off the Deployment rather than written here. The image so the login never runs a
+    # different build from the server, the ConfigMap because its name carries a content hash.
     image=$(kubectl -n "$ns" get deploy/cli-proxy-api -o jsonpath='{.spec.template.spec.containers[0].image}')
+    cm=$(kubectl -n "$ns" get deploy/cli-proxy-api -o jsonpath='{.spec.template.spec.volumes[?(@.name=="config")].configMap.name}')
     cleanup() {
       echo
       echo "cleaning up: removing the login pod and restoring the replica"
@@ -120,8 +116,7 @@ cli-proxy-login provider='claude':
     trap cleanup EXIT
     kubectl -n "$ns" scale deployment/cli-proxy-api --replicas=0
     kubectl -n "$ns" rollout status deployment/cli-proxy-api --timeout=60s
-    # The ConfigMap comes along so the login writes to the same auth-dir the server reads. Without
-    # it the binary falls back to its default under root's home, which this uid cannot even stat.
+    # The ConfigMap comes along so the login writes to the same auth-dir the server reads.
     kubectl -n "$ns" run cli-proxy-login --image="$image" --restart=Never --overrides='{
       "spec": {
         "securityContext": {"runAsUser": 1000, "runAsGroup": 1000, "fsGroup": 1000},
@@ -138,7 +133,7 @@ cli-proxy-login provider='claude':
         }],
         "volumes": [
           {"name": "auth", "persistentVolumeClaim": {"claimName": "cli-proxy-api-auth"}},
-          {"name": "config", "configMap": {"name": "cli-proxy-api-config"}}
+          {"name": "config", "configMap": {"name": "'"$cm"'"}}
         ]
       }
     }'

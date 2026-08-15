@@ -2,13 +2,22 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: bifrost
 resources:
   - pvc-data.yaml
-  - configmap.yaml
   - infisicalsecret.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+
+# Generated, so the content hash lands in the name and an edit rolls the Deployment. A ConfigMap
+# manifest would not: the mount is a subPath, which the kubelet never refreshes, so the change
+# would reach nothing and say nothing. Kustomize rewrites the volume's configMap.name, so nothing
+# outside this overlay may spell it.
+configMapGenerator:
+  - name: bifrost-config
+    files:
+      - config.json
 
 components:
   - ../../../../config/infisical

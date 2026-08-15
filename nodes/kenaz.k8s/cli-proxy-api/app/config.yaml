@@ -1,0 +1,28 @@
+host: ""
+port: 8317
+
+# Not the default "~/.cli-proxy-api", for two reasons. The pod runs as uid 1000 with no
+# matching passwd entry, so ~ has nothing to expand against, and the path it expands to under
+# root's home is unreachable anyway: /root is mode 700, so uid 1000 cannot traverse into it
+# whatever the mounted volume's own ownership is. Startup fails with
+# `error checking auth directory /root/.cli-proxy-api: stat: permission denied`.
+#
+# /data is the PVC's mount point and is owned by the pod's fsGroup, so it needs no root at all.
+auth-dir: "/data"
+
+# Empty on purpose. Nothing outside the cluster can reach this Service, and the one namespace
+# that can is named by infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml.
+# A key here would be a second secret to seed and rotate for a hop that is already closed.
+api-keys: []
+
+# An empty secret-key returns 404 for every /v0/management route, so the Management API is off
+# rather than merely unauthenticated. disable-control-panel stops the panel asset download,
+# which would write into the read-only root filesystem.
+remote-management:
+  allow-remote: false
+  secret-key: ""
+  disable-control-panel: true
+
+# Logs go to stdout, where fluent-bit collects them into VictoriaLogs like every other pod's.
+logging-to-file: false
+debug: false

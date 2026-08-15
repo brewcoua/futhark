@@ -1,0 +1,104 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "encryption_key": "env.BIFROST_ENCRYPTION_KEY",
+
+  "client": {
+    "enable_logging": true,
+    "enforce_auth_on_inference": true
+  },
+
+  "providers": {
+    "ollama": {
+      "keys": [
+        {
+          "name": "ollama-cloud",
+          "value": "env.OLLAMA_API_KEY",
+          "models": ["*"],
+          "weight": 1.0,
+          "ollama_key_config": {
+            "url": "https://ollama.com"
+          }
+        }
+      ]
+    },
+    "cli-proxy": {
+      "keys": [
+        {
+          "name": "cli-proxy",
+          "value": "",
+          "models": ["*"],
+          "weight": 1.0
+        }
+      ],
+      "custom_provider_config": {
+        "base_provider_type": "anthropic"
+      },
+      "network_config": {
+        "base_url": "http://cli-proxy-api.cli-proxy-api.svc.cluster.local:8317"
+      }
+    }
+  },
+
+  "governance": {
+    "auth_config": {
+      "is_enabled": true,
+      "admin_username": "env.BIFROST_ADMIN_USERNAME",
+      "admin_password": "env.BIFROST_ADMIN_PASSWORD",
+      "disable_auth_on_inference": false
+    },
+    "virtual_keys": [
+      {
+        "id": "vk-open-webui",
+        "name": "open-webui",
+        "value": "env.VK_OPEN_WEBUI",
+        "is_active": true,
+        "provider_configs": [
+          {
+            "provider": "ollama",
+            "allowed_models": ["*"],
+            "key_ids": ["*"],
+            "weight": 1
+          },
+          {
+            "provider": "cli-proxy",
+            "allowed_models": ["*"],
+            "key_ids": ["*"],
+            "weight": 1
+          }
+        ]
+      },
+      {
+        "id": "vk-cli",
+        "name": "cli",
+        "value": "env.VK_CLI",
+        "is_active": true,
+        "provider_configs": [
+          {
+            "provider": "ollama",
+            "allowed_models": ["*"],
+            "key_ids": ["*"],
+            "weight": 1
+          },
+          {
+            "provider": "cli-proxy",
+            "allowed_models": ["*"],
+            "key_ids": ["*"],
+            "weight": 1
+          }
+        ]
+      }
+    ]
+  },
+
+  "config_store": {
+    "enabled": true,
+    "type": "sqlite",
+    "config": {
+      "path": "/app/data/config.db"
+    }
+  },
+  "logs_store": {
+    "enabled": false
+  },
+  "source_of_truth": "config.json"
+}

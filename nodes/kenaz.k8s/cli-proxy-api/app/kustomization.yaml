@@ -2,11 +2,18 @@
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+namespace: cli-proxy-api
 resources:
   - pvc-auth.yaml
-  - configmap.yaml
   - deployment.yaml
   - service.yaml
 
 # No `../../../../config/infisical` component, unlike every other node app: this one reads no
 # Infisical secret, so there is no InfisicalStaticSecret for the patch to target.
+
+# Generated, for the reason given in ../../bifrost/app/kustomization.yaml. The hashed name is why
+# `just ks cli-proxy-login` reads it off the Deployment rather than spelling it.
+configMapGenerator:
+  - name: cli-proxy-api-config
+    files:
+      - config.yaml
