@@ -15,3 +15,22 @@ spec:
     # is what this cluster treats as the readiness gate for any PVC-backed workload.
     - name: storage
     - name: infisical-operator-config
+  # Without these, `dependsOn: postgres-config` promises less than it looks like it does. These CRs
+  # carry a status of {applied, observedGeneration} and no conditions array, so kstatus cannot
+  # assess them and `wait: true` reports the Kustomization Ready the moment they are applied to the
+  # API server rather than when the instance manager has actually created the database. A tenant
+  # gated on that edge then starts against a database that does not exist yet, which is not a
+  # permission it can be granted its way out of: Prisma reacts by trying CREATE DATABASE, and a
+  # role that owns one database deliberately cannot.
+  #
+  # healthCheckExprs rather than healthChecks: the two are not alternatives. Flux ignores
+  # healthChecks entirely under `wait: true`, and evaluates these only under it.
+  healthCheckExprs:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Database
+      current: has(status.applied) && status.applied == true
+      failed: has(status.applied) && status.applied == false
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: DatabaseRole
+      current: has(status.applied) && status.applied == true
+      failed: has(status.applied) && status.applied == false

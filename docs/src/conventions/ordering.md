@@ -211,6 +211,14 @@ complements. `wait: true` health-checks **every** resource the Kustomization app
 that never runs. Getting it to run means `wait: false`, which checks only the resources you
 remembered to name.
 
+There is a third field, and it is the one that applies to custom resources: `healthCheckExprs`
+evaluates a CEL expression per kind, and unlike `healthChecks` it is evaluated **only** when
+`wait: true` is set. `postgres-config` is the one Kustomization that needs it. CloudNativePG's
+`Database` and `DatabaseRole` report `status.applied` and no `conditions` array, so kstatus treats
+them as healthy the moment they reach the API server, and a tenant gated on that edge starts
+against a database the instance manager has not created yet. Reach for it whenever a
+`config-ks.yaml` applies a CR whose controller reports progress somewhere other than `conditions`.
+
 The gap `healthChecks` would seem to close, "the HelmRelease is Ready but its pods are still
 starting", is closed further upstream. helm-controller's `install.disableWait` and
 `upgrade.disableWait` both default to `false`, so it polls the chart's workloads with kstatus and
