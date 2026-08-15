@@ -16,8 +16,10 @@ spec:
   # that already exists. Same reasoning as open-webui, by a different mechanism. No `storage` edge
   # either: its one PVC is local-path, which arrives with k3s rather than from that Kustomization.
   #
-  # The ingress host is spelled from the Secret. Nothing in config.json is, because every value it
-  # needs from outside the file arrives as an environment variable instead.
+  # The ingress host is spelled from the Secret, and so is client.allowed_origins in config.json,
+  # which pins CORS to that same host. Everything else config.json needs from outside the file
+  # arrives as an environment variable instead. config.json is strict JSON and cannot carry a
+  # comment, so the reasoning for that one-entry list lives in docs/src/gitops/nodes.md.
   postBuild:
     substituteFrom:
       - kind: Secret

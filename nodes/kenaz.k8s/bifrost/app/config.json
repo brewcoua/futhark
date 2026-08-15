@@ -4,7 +4,8 @@
 
   "client": {
     "enable_logging": true,
-    "enforce_auth_on_inference": true
+    "enforce_auth_on_inference": true,
+    "allowed_origins": ["https://llm.${SUB_INTERNAL}.${DOMAIN}"]
   },
 
   "providers": {

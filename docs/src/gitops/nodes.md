@@ -48,6 +48,14 @@ changes one ConfigMap instead of every app that would have called it. `open-webu
 Service, on its OpenAI-compatible surface, and `OLLAMA_API_CONFIGS` moved out of
 `/nodes/kenaz/open-webui` when it stopped calling Ollama Cloud directly.
 
+`client.allowed_origins` in its `config.json` lists one entry, its own ingress host. Bifrost defaults
+that to `*`, which would let any page the operator has open drive the dashboard and management API from
+the browser on the `governance.auth_config` session. Nothing else here looks at `Origin`: the netpols
+match namespaces and the Traefik middleware counts requests. One entry is enough because no other caller
+is a browser — `open-webui` and `gatus` call by Service and by health probe, CLI clients send no `Origin`,
+and `glance` loads the favicon as an image, which CORS does not gate. The cost is that the dashboard no
+longer answers a browser pointed at a `kubectl port-forward`.
+
 `cli-proxy-api` is the second provider behind it, turning subscription CLI logins into an API. It
 is the one app here with no `Ingress`, no host, and no Infisical path: its whole configuration is
 non-secret and ships in git, and the credentials it does hold are OAuth tokens on a PVC, seeded by
