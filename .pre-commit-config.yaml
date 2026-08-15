@@ -65,7 +65,10 @@ repos:
         exclude: ^\.sops\.yaml$
       - id: kustomize-build
         name: kustomize build
-        entry: bash -c 'for d in $(find flux infra nodes -name kustomization.yaml -exec dirname {} \;); do kustomize build --enable-helm "$d" > /dev/null || exit 1; done'
+        # --load-restrictor: kustomize-controller builds with load restrictions off, and one
+        # generator here reads a file above its own directory. Without the flag this hook rejects
+        # a tree Flux accepts.
+        entry: bash -c 'for d in $(find flux infra nodes -name kustomization.yaml -exec dirname {} \;); do kustomize build --enable-helm --load-restrictor LoadRestrictionsNone "$d" > /dev/null || exit 1; done'
         language: system
         files: ^(flux|infra|nodes)/.*\.ya?ml$
         pass_filenames: false

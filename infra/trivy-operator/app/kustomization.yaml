@@ -5,3 +5,16 @@ kind: Kustomization
 resources:
   - helmrepository.yaml
   - helmrelease.yaml
+configMapGenerator:
+  # The repository's ignore list, which CI and `just sec scan` read from the same path. Reading
+  # above this directory is what kustomize-controller allows and a bare `kustomize build` does
+  # not, so .pre-commit-config.yaml and .github/workflows/trivy.yml pass
+  # --load-restrictor LoadRestrictionsNone.
+  - name: trivy-ignorefile
+    namespace: flux-system
+    files:
+      - ../../../.trivyignore
+generatorOptions:
+  # The HelmRelease's valuesFrom names this ConfigMap, and a name suffix would break that
+  # reference on every edit to the file.
+  disableNameSuffixHash: true

@@ -5,21 +5,40 @@
   parameters:
     # Two series per workload, one per severity, so the template can colour them apart. Only
     # fixable findings are counted at all, because the operator runs with ignoreUnfixed.
-    query: topk(20, sum by (namespace, resource_name, severity) (trivy_image_vulnerabilities{severity=~"Critical|High"}) > 0)
+    #
+    # Critical is uncapped and High is not: a single-finding Critical loses a shared topk to every
+    # High above it, which is the one row this widget exists to show.
+    query: |
+      sum by (namespace, resource_name, severity) (trivy_image_vulnerabilities{severity="Critical"}) > 0
+        or
+      topk(15, sum by (namespace, resource_name, severity) (trivy_image_vulnerabilities{severity="High"}) > 0)
   template: |
     {{ if eq (len (.JSON.Array "data.result")) 0 }}
       <p class="color-positive">No fixable CRITICAL or HIGH vulnerabilities.</p>
     {{ else }}
+      {{/* Sorted once by count, then walked twice so Critical leads. A second sort by severity
+           would undo the first: glance's sort helpers are not stable. */}}
+      {{ $rows := sortByFloat "value.1" "desc" (.JSON.Array "data.result") }}
       <ul class="list list-gap-10">
-        {{ range .JSON.Array "data.result" }}
-          <li class="flex justify-between items-center">
-            <span class="text-truncate">
-              <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.resource_name" }}
-            </span>
-            <span class="{{ if eq (.String "metric.severity") "Critical" }}color-negative{{ else }}color-subdue{{ end }}">
-              {{ .String "metric.severity" }} {{ printf "%.0f" (.Float "value.1") }}
-            </span>
-          </li>
+        {{ range $rows }}
+          {{ if eq (.String "metric.severity") "Critical" }}
+            <li class="flex justify-between items-center">
+              <span class="text-truncate">
+                <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.resource_name" }}
+              </span>
+              <span class="color-negative">Critical {{ printf "%.0f" (.Float "value.1") }}</span>
+            </li>
+          {{ end }}
+        {{ end }}
+        {{ range $rows }}
+          {{ if eq (.String "metric.severity") "High" }}
+            <li class="flex justify-between items-center">
+              <span class="text-truncate">
+                <span class="color-subdue">{{ .String "metric.namespace" }}/</span>{{ .String "metric.resource_name" }}
+              </span>
+              <span class="color-subdue">High {{ printf "%.0f" (.Float "value.1") }}</span>
+            </li>
+          {{ end }}
         {{ end }}
       </ul>
     {{ end }}

@@ -21,12 +21,17 @@ spec:
   chart:
     spec:
       chart: grafana
-      version: "10.5.15" # chart 8.5.12 -> Grafana 11.3.0
+      version: "10.5.15"
       sourceRef:
         kind: HelmRepository
         name: grafana
         namespace: flux-system
   values:
+    # The chart's appVersion trails Grafana's releases by enough that its default image carries
+    # CVEs fixed upstream. Pinned here instead, in the repository+tag shape Renovate reads.
+    image:
+      repository: grafana/grafana
+      tag: "13.1.3"
     # Grafana's image is Alpine/musl: under ndots:5 it can't resolve Service DNS reliably.
     # Chart exposes dnsConfig, so fix via values instead of a postRenderer.
     dnsConfig:
@@ -108,9 +113,10 @@ spec:
     # `tpl`, which re-parses a literal Grafana template like `{{ $labels.x }}` as a Helm action.
     # The sidecar copies the files in verbatim, so they stay readable.
     sidecar:
-      # Chart 10.5.15 is the newest release and still defaults this to 2.5.0, which carries two
-      # critical openssl CVEs. 2.10.1 scans clean.
+      # The chart's default sidecar tag trails far enough to carry critical openssl CVEs. Pinned
+      # here instead, in the repository+tag shape Renovate reads. Registry stays the chart's quay.io.
       image:
+        repository: kiwigrid/k8s-sidecar
         tag: "2.10.1"
       resources:
         requests:

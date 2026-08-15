@@ -32,7 +32,8 @@ compliance:
 
 # Scan an image the way CI would, before committing the pin that introduces it
 scan image:
-    trivy image --severity HIGH,CRITICAL --ignore-unfixed {{ image }}
+    trivy image --severity HIGH,CRITICAL --ignore-unfixed \
+      --ignorefile {{ justfile_directory() }}/.trivyignore {{ image }}
 
 # Drop a namespace's reports so the operator rebuilds them now, rather than on its own interval
 rescan ns:

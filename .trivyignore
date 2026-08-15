@@ -1,0 +1,17 @@
+# Read by the trivy-operator (infra/trivy-operator/app/kustomization.yaml turns this file into the
+# ConfigMap its HelmRelease reads), by .github/workflows/trivy.yml and by `just sec scan`. An entry
+# belongs here only when the scanner cannot decide the finding, not when the finding is
+# inconvenient.
+#
+# coredns builds its own module as a pseudo-version (v0.0.0-<date>-<commit>), which Trivy cannot
+# compare against an advisory's fixed version, so every coredns advisory matches whatever runs.
+# Each of these names a fix older than the installed 1.14.x, and k3s bundles the image.
+CVE-2023-28452
+CVE-2025-47950
+CVE-2026-26017
+CVE-2026-26018
+CVE-2026-32934
+CVE-2026-32936
+CVE-2026-33190
+CVE-2026-33489
+CVE-2026-35579

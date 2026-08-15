@@ -67,7 +67,7 @@ jobs:
           # chart inputs (often maps of registry/repository/tag), not references. The images
           # those charts actually render are the next step's job.
           find infra nodes -name kustomization.yaml -printf '%h\n' | while read -r dir; do
-            kustomize build --enable-helm "$dir"
+            kustomize build --enable-helm --load-restrictor LoadRestrictionsNone "$dir"
             echo ---
           done | yq -N '
             select(.kind != "HelmRelease")
@@ -158,9 +158,16 @@ jobs:
       matrix:
         image: ${{ fromJSON(needs.discover.outputs.images) }}
     steps:
+      # Only for the ignore file below.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
       - uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ matrix.image }}
+          # The operator reads the same file, so a suppression holds on both sides.
+          trivyignores: .trivyignore
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH

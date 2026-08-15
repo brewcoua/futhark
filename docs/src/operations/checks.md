@@ -195,6 +195,25 @@ rather than presence checks, because CIS fails controls on a single-node k3s tha
 will satisfy, and an alert that is always firing gets muted. The Glance cluster page carries the
 same counts as a widget.
 
+### Suppressing a finding
+
+`.trivyignore` at the repository root is the only place a suppression is written. All three
+scanners read that one file: `.github/workflows/trivy.yml` passes it to the action, `just sec scan`
+passes it to the CLI, and `infra/trivy-operator/app/kustomization.yaml` turns it into the ConfigMap
+the operator's HelmRelease loads through `valuesFrom`.
+
+An entry belongs there only when the scanner cannot decide the finding, such as an advisory it
+cannot match against the installed version. A finding that is merely inconvenient does not qualify:
+suppress it and the alerts in `infra/monitoring/app/grafana/alerting/security.yaml` go quiet
+without anything being fixed. Give every entry a comment saying which image it covers and why the
+scanner is wrong, because nothing else records it.
+
+Write one ID per line. The chart's own `trivy.ignoreFile` list syntax is not used, and should not
+be: it renders each ID as a YAML list item, which the scanner then reads as the literal `-`.
+
+An edit reaches the cluster on the next Flux reconcile, but existing reports are not rebuilt for
+it. Run `just sec rescan <namespace>` to see the effect.
+
 ### What neither scanner covers
 
 Both run with `ignore-unfixed`, so a vulnerability with no published fix never reaches you. That
