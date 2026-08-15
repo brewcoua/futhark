@@ -6,8 +6,8 @@ new component belongs in it.
 Two Kustomizations `dependsOn` nothing: `namespaces`, which is every `Namespace` CR and no
 controller, and `substitutions`, which is every `postBuild.substituteFrom` source and no
 controller either. A substitution target has to exist before any consumer reconciles, so it cannot
-wait on anything. The two controllers that need nothing else from the cluster,
-`infisical-operator` and `cert-manager`, sit directly behind `namespaces`.
+wait on anything. The controllers that need nothing else from the cluster,
+`infisical-operator`, `cert-manager` and `postgres`, sit directly behind `namespaces`.
 
 The real graph, as declared in each `ks.yaml`. Green marks the boundary: the two roots and the two
 sinks. Purple dashed marks a `config-ks.yaml`. Blue is the ordering spine, the chain that actually
@@ -56,6 +56,7 @@ substitutions: substitutions\n(no dependsOn) { class: boundary }
 infisical-operator-config: infisical-operator-config { class: config }
 cert-manager-config: cert-manager-config { class: config }
 backup-config: backup-config { class: config }
+postgres-config: postgres-config { class: config }
 glance-config: glance-config\n(no dependsOn) { class: config }
 
 nodes: nodes { class: boundary }
@@ -64,13 +65,16 @@ open-webui: nodes/kenaz.k8s/open-webui { class: boundary }
 searxng: nodes/kenaz.k8s/searxng { class: boundary }
 bifrost: nodes/kenaz.k8s/bifrost { class: boundary }
 cli-proxy-api: nodes/kenaz.k8s/cli-proxy-api { class: boundary }
+linkwarden: nodes/kenaz.k8s/linkwarden { class: boundary }
 
 namespaces -> cert-manager
 namespaces -> infisical-operator
 namespaces -> trivy-operator
+namespaces -> postgres
 
 infisical-operator -> infisical-operator-config
 cert-manager -> cert-manager-config
+postgres -> postgres-config
 
 infisical-operator-config -> cert-manager-config
 infisical-operator-config -> storage
@@ -81,6 +85,10 @@ infisical-operator-config -> actual
 infisical-operator-config -> open-webui
 infisical-operator-config -> searxng
 infisical-operator-config -> bifrost
+infisical-operator-config -> linkwarden
+infisical-operator-config -> postgres-config
+storage -> postgres-config
+postgres-config -> linkwarden
 
 cert-manager-config -> traefik-internal
 cert-manager-config -> auth
@@ -108,9 +116,11 @@ auth -> copyparty
 traefik-internal -> open-webui
 traefik-internal -> searxng
 traefik-internal -> bifrost
+traefik-internal -> linkwarden
 auth -> searxng
 
 storage -> actual
+storage -> linkwarden
 backup -> backup-config
 
 substitutions -> traefik-internal { class: presence }
@@ -121,6 +131,7 @@ substitutions -> actual { class: presence }
 substitutions -> open-webui { class: presence }
 substitutions -> searxng { class: presence }
 substitutions -> bifrost { class: presence }
+substitutions -> linkwarden { class: presence }
 substitutions -> infra-policies { class: presence }
 substitutions -> glance { class: presence }
 substitutions -> gatus { class: presence }
@@ -136,21 +147,23 @@ backup -> infra-policies { class: bulk }
 monitoring -> infra-policies { class: bulk }
 auth -> infra-policies { class: bulk }
 trivy-operator -> infra-policies { class: bulk }
+postgres -> infra-policies { class: bulk }
 
 infra-policies -> nodes
 infra-policies -> actual
 infra-policies -> open-webui
 infra-policies -> searxng
 infra-policies -> bifrost
+infra-policies -> linkwarden
 infra-policies -> cli-proxy-api
 infra-policies -> glance
 infra-policies -> gatus
 infra-policies -> copyparty
 ```
 
-Only those three name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
+Only those four name `namespaces` in their `dependsOn`. Everything else reaches it transitively.
 
-They need nothing from the cluster but a namespace to land in. For the first two, the
+They need nothing from the cluster but a namespace to land in. For three of them the
 `config-ks.yaml` siblings are where the ordering actually bites, because those apply CRs the
 controller must already have registered CRDs for. `trivy-operator` has no such sibling: it reads
 no secret and no cluster value, so a namespace is genuinely all it waits for.

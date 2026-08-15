@@ -93,6 +93,9 @@
                 - title: Bifrost
                   url: https://llm.${SUB_INTERNAL}.${DOMAIN}
                   icon: https://llm.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
+                - title: Linkwarden
+                  url: https://links.${SUB_INTERNAL}.${DOMAIN}
+                  icon: sh:linkwarden
                 - title: SearXNG
                   url: https://search.${SUB_INTERNAL}.${DOMAIN}
                   icon: sh:searxng

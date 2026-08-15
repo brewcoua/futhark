@@ -1,0 +1,21 @@
+---
+# Page archives, previews and uploads. The bookmarks themselves are rows in the shared PostgreSQL
+# and are not here, so a restore of this app needs this volume and the postgres dump together.
+# See docs/src/operations/recovery.md.
+#
+# local-path is node-local hostPath storage, so this disk dying takes the archives with it, which
+# is what the annotation below is for.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: linkwarden-data
+  namespace: linkwarden
+  annotations:
+    k8up.io/backup: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi

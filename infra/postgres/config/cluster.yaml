@@ -1,0 +1,59 @@
+---
+# The one PostgreSQL instance. Every service that needs a database gets a Database and a
+# DatabaseRole beside this file rather than a Postgres of its own.
+#
+# instances: 1, not 2. local-path is node-local hostPath storage, so a replica means a second
+# volume on ogma and every tenant's database following the edge node's uptime. The cost is
+# honest: a restart or an upgrade of this Cluster is an outage for every tenant at once, and the
+# only thing standing between a lost disk and lost data is the nightly dump below. See
+# docs/src/operations/recovery.md.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: postgres
+spec:
+  instances: 1
+  # standard rather than minimal: the minimal variant strips the client tools, and pg_dumpall is
+  # what the backup annotation below runs inside this container.
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.1-standard-trixie@sha256:ec0c0d60f9462b49f4c6f2403fd680ac43a063fc793f5d570a21a3cea8e627b5
+  # No password for the postgres superuser anywhere in the cluster or in Infisical. Nothing needs
+  # one: every tenant authenticates as its own role, and the dump below runs inside the pod over
+  # the local socket, where peer authentication already identifies it as postgres.
+  enableSuperuserAccess: false
+  primaryUpdateStrategy: unsupervised
+
+  # Pinned to kenaz, the node whose disk local-path hands out. Without this the scheduler is free
+  # to place the pod on ogma on any restart, where the volume does not exist.
+  affinity:
+    nodeSelector:
+      kubernetes.io/hostname: kenaz
+
+  # What K8up backs up here is a logical dump taken at backup time, not the data directory: the
+  # operator execs this command in the running pod and streams its stdout into restic, so nothing
+  # is ever copied out from under a live writer. The PVC itself carries no k8up.io/backup
+  # annotation and must not gain one.
+  #
+  # inheritedMetadata rather than an annotation on a pod template, which a Cluster does not have.
+  # It also lands on the PVC and the Services, where it means nothing and does nothing.
+  #
+  # --clean --if-exists so the dump restores over an existing database without hand-editing it.
+  # If this Cluster ever grows past one instance, move the dump to a K8up PreBackupPod aimed at
+  # the -rw Service: the annotation applies to every pod that inherits it, which would dump once
+  # per replica.
+  inheritedMetadata:
+    annotations:
+      k8up.io/backupcommand: /bin/sh -c "pg_dumpall --clean --if-exists -U postgres"
+      k8up.io/backupcommand-container: postgres
+      k8up.io/file-extension: .sql
+
+  storage:
+    size: 20Gi
+    storageClass: local-path
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      memory: 1Gi

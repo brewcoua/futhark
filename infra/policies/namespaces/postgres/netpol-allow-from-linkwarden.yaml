@@ -1,0 +1,22 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# One file per tenant, the same convention as infra/policies/namespaces/bifrost, so which
+# namespace holds a database here stays written down rather than inferred from a Database CR.
+# The network hole and the Database/DatabaseRole pair in infra/postgres/config are added
+# together; either one alone is a tenant that cannot connect or a connection with nothing behind
+# it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-linkwarden
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkwarden
+      ports:
+        - port: 5432

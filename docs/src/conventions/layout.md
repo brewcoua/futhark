@@ -81,6 +81,9 @@ Keeping this many exact pins current by hand is not the intent. Renovate opens t
    `scopedNamespaces` in `infra/infisical-operator/app/`. The operator has no RBAC there
    otherwise.
 6. Add the new overlay directory to `infra/policies/kustomization.yaml`.
+7. If the app needs a database, it gets one on the shared PostgreSQL rather than one of its own.
+   That is four more files and a `dependsOn: postgres-config`, all listed in
+   [Giving a service a database](../gitops/infra.md#giving-a-service-a-database).
 
 An app's own configuration, whether an env list or a settings file, ships through
 `configMapGenerator` rather than a `ConfigMap` manifest. The generated name carries a content

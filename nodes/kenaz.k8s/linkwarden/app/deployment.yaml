@@ -1,0 +1,98 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkwarden
+  namespace: linkwarden
+spec:
+  replicas: 1
+  # The rows are in the shared PostgreSQL and would tolerate a second pod, but the archive volume
+  # is ReadWriteOnce on node-local storage and would not.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: linkwarden
+  template:
+    metadata:
+      labels:
+        app: linkwarden
+    spec:
+      # The image ships UID 0 by default, so the identity is imposed here rather than inherited.
+      # Everything under /data is world-readable and the browser lives at /ms-playwright, which
+      # the image puts outside root's home for exactly this reason.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: linkwarden
+          image: ghcr.io/linkwarden/linkwarden:v2.16.0@sha256:d805877fb707d160b809027c302f84cfba11a248d7fdc12de90b4791f98e6b55
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: linkwarden-config
+            - secretRef:
+                name: linkwarden-secrets
+          # Not readOnlyRootFilesystem, unlike its neighbours: this image archives pages with a
+          # bundled Chromium and the Rust `monolith` binary, and their write paths are not
+          # enumerated upstream. Same call as infra/auth/app/deployment.yaml. Tighten it only
+          # after an archive has been proven to still work.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            # STORAGE_FOLDER. The application itself is the rest of /data, which is why this
+            # mounts one level in rather than over it.
+            - name: data
+              mountPath: /data/data
+            # next start writes optimized images here, and /data belongs to root.
+            - name: next-cache
+              mountPath: /data/apps/web/.next/cache
+            # Chromium reads and writes shared memory through /dev/shm and crashes on the 64Mi
+            # default when a page is heavy enough.
+            - name: dshm
+              mountPath: /dev/shm
+          # The container runs `prisma migrate deploy` before it serves anything, so the first
+          # boot after an upgrade is a migration the liveness probe must not interrupt.
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          # A Next.js server, a worker and a headless browser in one container. The limit has to
+          # cover an archive running while the UI serves.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              cpu: 1500m
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: linkwarden-data
+        - name: next-cache
+          emptyDir: {}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi

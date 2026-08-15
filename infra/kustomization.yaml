@@ -16,6 +16,8 @@ resources:
   - traefik-internal/ks.yaml
   - traefik-edge/ks.yaml
   - storage/ks.yaml
+  - postgres/ks.yaml
+  - postgres/config-ks.yaml
   - copyparty/ks.yaml
   - backup/ks.yaml
   - backup/config-ks.yaml

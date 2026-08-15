@@ -41,3 +41,4 @@ spec:
       - monitoring
       - auth
       - glance
+      - postgres

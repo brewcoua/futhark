@@ -16,11 +16,12 @@ node or the whole cluster.
 
 ## What is backed up, and what is not
 
-Four tiers, decided by where a volume already lives rather than by how important it is.
+Five tiers, decided by where the data already lives rather than by how important it is.
 
 | Data                  | Where it lives                          | Durability                      |
 | --------------------- | --------------------------------------- | ------------------------------- |
 | SQLite and app state  | `local-path`, node-local hostPath       | K8up to Backblaze B2, nightly   |
+| PostgreSQL rows       | `local-path`, in the `postgres` cluster | `pg_dumpall` to the same bucket |
 | Attachments and blobs | `storagebox-crypt`, offsite over rclone | The Storage Box's own snapshots |
 | Bulk media            | `gdrive-crypt`, offsite over rclone     | **None.** See below             |
 | Everything else       | git and Infisical                       | Reconciled back by Flux         |
@@ -66,7 +67,30 @@ The omission is the tiering. VictoriaMetrics and VictoriaLogs sit unannotated in
 does have a `Schedule`: both already expire their own data, and metrics are not worth the egress.
 
 Currently annotated: Actual's budget SQLite, Pocket ID's users and passkeys, Grafana's
-`grafana.db`.
+`grafana.db`, Linkwarden's page archives.
+
+### A third switch, for PostgreSQL
+
+The shared PostgreSQL is the one workload whose data volume is deliberately left unannotated.
+restic copying a running data directory produces a snapshot that looks fine and fails at restore
+time, so what gets backed up there is a dump taken at backup time instead:
+
+```yaml
+inheritedMetadata:
+  annotations:
+    k8up.io/backupcommand: /bin/sh -c "pg_dumpall --clean --if-exists -U postgres"
+    k8up.io/backupcommand-container: postgres
+    k8up.io/file-extension: .sql
+```
+
+K8up execs that command inside the running pod and streams its stdout into restic as a single
+`.sql` object. Nothing is written to disk first, so the dump is never stale, and every tenant
+database is in it. `inheritedMetadata` is how a CloudNativePG `Cluster` puts annotations on its
+pods, since it has no pod template of its own.
+
+The recovery point is the last nightly run. Point-in-time recovery would mean continuous WAL
+archiving through CloudNativePG's own barman-cloud plugin, which is a second backup system with
+its own bucket and retention. Not adopted.
 
 ### Excluding paths inside a volume
 
@@ -99,7 +123,7 @@ The nightly job copies `pocket-id.db` and Actual's budget databases as files, al
 `-wal` and `-shm` sit next to them. That is a crash-consistent copy, not a quiesced one: restoring
 it is equivalent to recovering from a power cut, which SQLite handles, but it is not the same as a
 dump. `k8up.io/backupcommand` would take a real `sqlite3 .backup` instead, and needs `sqlite3` to
-exist in each image. Not adopted yet.
+exist in each image. Not adopted for these, though it is what the `postgres` namespace uses.
 
 ## Encryption
 
@@ -199,6 +223,50 @@ Resume it by hand:
 just fx reconcile <kustomization>
 ```
 
+## Restore the PostgreSQL dump
+
+**Unverified.** These recipes have not been run against a real snapshot yet. Run them once as a
+drill and correct this section from what actually happens, before relying on them in an incident.
+
+`just bak restore postgres` is the wrong tool here and will not help: it restores `local-path`
+PVCs, and this namespace's data is a `.sql` object rather than a volume snapshot.
+
+A `Restore` CR is not an option here, and this is the one place K8up's two halves are not
+symmetric. Its own documentation: "You can't restore from backups that were done from `stdin`
+(`PreBackupPod` or backup command annotation). In those cases, use the manual restore option
+described below using the `restic dump` or `restic mount` commands." So the dump comes back
+through restic, which is why `restic` is pinned in `mise.toml`.
+
+Write it to a local file. This touches no database and no cluster state, so it is safe at any
+time, and it is also how the drill is done:
+
+```bash
+just bak pg-dump                        # newest .sql snapshot
+just bak pg-dump <id>                   # a specific one, from just bak snapshots
+just bak pg-dump <id> ./somewhere.sql   # somewhere other than .tmp/
+```
+
+The B2 key, the restic password, the bucket and the endpoint are read back off the cluster rather
+than out of Infisical by hand, so there is one procedure rather than two. Read the head of the
+file to see the roles and databases it would recreate.
+
+**Then the destructive half.** `pg_dumpall --clean` drops and recreates every database and role in
+the dump, so anything written since the snapshot is gone:
+
+```bash
+just bak pg-restore
+just bak pg-restore <id>
+```
+
+It fetches through `pg-dump` to a file rather than a pipe, so what was applied is still on disk
+afterwards. It prints what it will replace and makes you type the namespace back first, then
+suspends the tenants' Flux Kustomizations, scales them to zero, replays into the primary over its
+local socket, and resumes Flux. Which namespaces count as tenants is read from the `postgres`
+policy overlay: whatever is allowed to reach port 5432, minus the operator.
+
+Verify: each tenant shows its own data rather than an empty install, and `just fx failing` is
+empty.
+
 ## Restore by hand, with restic
 
 Worth knowing because it does not depend on the cluster being up. Take `B2_KEY_ID`,
@@ -265,17 +333,18 @@ restic repository password.
 
 ## Where the pieces are
 
-| Piece                                 | Path                                                |
-| ------------------------------------- | --------------------------------------------------- |
-| K8up release and credentials          | `infra/backup/app/`                                 |
-| Which namespaces are in scope         | `infra/backup/config/schedules.yaml`                |
-| Check, prune and the retention policy | `infra/backup/config/schedule-maintenance.yaml`     |
-| Which volumes, and what to exclude    | The `k8up.io/*` annotations on each PVC             |
-| Which bucket, which region            | `config/sops/cluster.sops.yaml`                     |
-| The bucket itself, and the B2 key     | `tofu/b2`, see [b2](../tofu/b2.md)                  |
-| The B2 key and the restic password    | Infisical, `/infra/k8up`                            |
-| Restore and inspection tasks          | `.just/backup.just`                                 |
-| Failure alerts                        | `infra/monitoring/app/grafana/alerting/backup.yaml` |
+| Piece                                 | Path                                                                                    |
+| ------------------------------------- | --------------------------------------------------------------------------------------- |
+| K8up release and credentials          | `infra/backup/app/`                                                                     |
+| Which namespaces are in scope         | `infra/backup/config/schedules.yaml`                                                    |
+| Check, prune and the retention policy | `infra/backup/config/schedule-maintenance.yaml`                                         |
+| Which volumes, and what to exclude    | The `k8up.io/*` annotations on each PVC                                                 |
+| Which bucket, which region            | `config/sops/cluster.sops.yaml`                                                         |
+| The bucket itself, and the B2 key     | `tofu/b2`, see [b2](../tofu/b2.md)                                                      |
+| The B2 key and the restic password    | Infisical, `/infra/k8up`                                                                |
+| Restore and inspection tasks          | `.just/backup.just`                                                                     |
+| The PostgreSQL instance and tenants   | `infra/postgres/`, see [Cluster infrastructure](../gitops/infra.md#the-shared-database) |
+| Failure alerts                        | `infra/monitoring/app/grafana/alerting/backup.yaml`                                     |
 
 The alerts are what makes the rest trustworthy. One fires on any failed K8up job, backup, check or
 prune alike. One fires when a namespace has had no successful backup in 26 hours, which is the

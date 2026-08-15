@@ -38,6 +38,8 @@
             - 9001/copyparty
             - open-webui/open-webui
             - searxng/searxng
+            - linkwarden/linkwarden
+            - cloudnative-pg/cloudnative-pg
             # maximhq/bifrost is deliberately absent. It is a monorepo that tags each plugin
             # separately, so the newest release is almost never the gateway this cluster runs.
             # Renovate still watches the image; this widget would only add noise.

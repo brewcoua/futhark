@@ -591,6 +591,28 @@ The generic loop for any per-app runtime secret, such as Grafana's `ADMIN_PASSWO
 
 5. Verify the app works, then revoke the old value at the provider.
 
+### A PostgreSQL role password
+
+The one value in the tree filed in two Infisical folders, because the admission policy confines
+the `postgres` namespace to `/infra` and a node app to `/nodes/<hostname>`, so neither can read
+the other's. Changing one of the two leaves the app unable to log in.
+
+1. Generate a replacement from letters and digits only. It is interpolated into a `DATABASE_URL`,
+   and anything needing percent-encoding produces a connection string that parses wrong.
+2. Set it at **both** paths: `<APP>_POSTGRES_PASSWORD` in `/infra/postgres`, and
+   `POSTGRES_PASSWORD` in the app's own folder.
+3. Within a refresh interval, CloudNativePG picks the new password up from the reloaded
+   basic-auth Secret and applies it to the role. The app's own Secret is rewritten on the same
+   interval.
+4. Restart the consumer, which read its `DATABASE_URL` at startup:
+
+   ```bash
+   just ks restart <namespace> <deployment>
+   ```
+
+5. Verify the app still reads its own data. There is nothing to revoke: the old password stops
+   working the moment the role is altered.
+
 Which paths exist and who reads them is in [Cold bootstrap](setup.md#2-infisical). The
 authoritative list is the tree:
 

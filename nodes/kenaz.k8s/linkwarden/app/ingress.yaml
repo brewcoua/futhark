@@ -1,0 +1,26 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: linkwarden
+  namespace: linkwarden
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # No auth-sso: this app speaks OIDC and has its own Pocket ID client.
+    traefik.ingress.kubernetes.io/router.middlewares: linkwarden-ratelimit@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: links.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: linkwarden
+                port:
+                  number: 80

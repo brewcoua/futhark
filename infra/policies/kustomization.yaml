@@ -9,10 +9,13 @@ resources:
   - namespaces/actual
   - namespaces/bifrost
   - namespaces/cli-proxy-api
+  - namespaces/linkwarden
   - namespaces/open-webui
   - namespaces/searxng
   - namespaces/auth
   - namespaces/cert-manager
+  - namespaces/cnpg-system
+  - namespaces/postgres
   - namespaces/monitoring
   - namespaces/glance
   - namespaces/gatus

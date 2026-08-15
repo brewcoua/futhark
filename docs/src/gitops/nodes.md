@@ -24,21 +24,27 @@ and Pocket ID, all under `infra/` and all pinned with a `nodeSelector`.
 ## `kenaz.k8s`
 
 `kenaz` runs the k3s server, so it is both controller and worker, plus Flux and most of `infra/`.
-The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. It runs five apps,
+The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. It runs six apps,
 each in `nodes/kenaz.k8s/<app>/{ks.yaml,app/}` and each reading `/nodes/kenaz/<app>`:
 
 | App             | Host                           | Reads from Infisical                                                                                                      |
 | --------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `actual`        | `actual.$SUB_INTERNAL.$DOMAIN` | `ACTUAL_OPENID_CLIENT_ID`, `ACTUAL_OPENID_CLIENT_SECRET`                                                                  |
 | `open-webui`    | `chat.$SUB_INTERNAL.$DOMAIN`   | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`                                           |
+| `linkwarden`    | `links.$SUB_INTERNAL.$DOMAIN`  | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                            |
 | `searxng`       | `search.$SUB_INTERNAL.$DOMAIN` | `SEARXNG_SECRET`                                                                                                          |
 | `bifrost`       | `llm.$SUB_INTERNAL.$DOMAIN`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`, `VK_OPEN_WEBUI`, `VK_CLI` |
 | `cli-proxy-api` | none                           | nothing                                                                                                                   |
 
-`actual` and `open-webui` are OIDC clients of Pocket ID, so `tofu/oidc` writes their client ID
-and secret. `searxng` speaks no OIDC and is gated by the `auth-sso` middleware instead, so its
-one key is seeded by hand. So is every key `bifrost` reads, and `open-webui`'s other two:
-`WEBUI_SECRET_KEY` signs its JWTs, and `OPENAI_API_KEYS` is the virtual key `bifrost` issues it.
+`actual`, `open-webui` and `linkwarden` are OIDC clients of Pocket ID, so `tofu/oidc` writes their
+client ID and secret. `searxng` speaks no OIDC and is gated by the `auth-sso` middleware instead,
+so its one key is seeded by hand. So is every key `bifrost` reads, `open-webui`'s other two, and
+`linkwarden`'s: `WEBUI_SECRET_KEY` signs Open WebUI's JWTs, `NEXTAUTH_SECRET` signs Linkwarden's,
+and `OPENAI_API_KEYS` is the virtual key `bifrost` issues Open WebUI.
+
+`linkwarden` is the only app here that keeps its data outside its own namespace. Its bookmarks are
+rows in the shared PostgreSQL under `infra/postgres`, and only the page archives are on its PVC.
+See [The shared database](infra.md#the-shared-database).
 
 ### The model gateway
 

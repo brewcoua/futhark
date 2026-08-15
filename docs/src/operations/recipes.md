@@ -122,6 +122,8 @@ so you do not need it in your environment. Re-converging the cluster is `just an
 | `bak logs <job> <ns>` | A job's log, including restic's summary of what it copied     |
 | `bak now <ns>`        | Back up a namespace immediately                               |
 | `bak restore <ns>`    | **Wipes** the namespace's `local-path` PVCs and restores them |
+| `bak pg-dump [<id>]`  | Write the PostgreSQL dump to a local file. Reads only         |
+| `bak pg-restore`      | **Overwrites** every database in the instance from that dump  |
 
 A snapshot carries no size, so a run that copied nothing looks like one that worked. `bak logs` is
 where the file and byte counts are.
@@ -131,6 +133,12 @@ and requires you to type the namespace back before it proceeds. Only `local-path
 wiped, so the rclone-backed classes are never touched. It is deliberately not reachable from any
 other recipe, and restores the newest snapshot of each volume. [Backup and recovery](recovery.md)
 covers what it does behind that prompt, and why a hand-written `Restore` is not equivalent.
+
+`bak restore postgres` does nothing useful: that namespace's data is a `pg_dumpall` object rather
+than a volume snapshot, and K8up cannot restore anything it took from stdin. The two `pg-*`
+recipes are its equivalent, going through `restic dump` and split so the reading half is safe to
+run on its own. `bak pg-restore` prompts the same way, then suspends the tenants' Flux
+Kustomizations, scales them to zero, replays the dump, and resumes them.
 
 ## `tf`, the cloud plane
 

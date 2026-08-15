@@ -1,0 +1,42 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/helm-controller/main/config/crd/bases/helm.toolkit.fluxcd.io_helmreleases.yaml
+# The CloudNativePG operator. It owns no data of its own: the instance, its databases and its
+# roles are CRs in infra/postgres/config, which is a separate Kustomization so it can wait for
+# the CRDs this release installs.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudnative-pg
+  namespace: flux-system
+spec:
+  interval: 1h
+  releaseName: cloudnative-pg
+  targetNamespace: cnpg-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  # No crds: block, unlike infra/backup's. This chart ships its CRDs as ordinary templates under
+  # templates/crds/ rather than in the chart's crds/ directory, so Helm upgrades them along with
+  # everything else and Flux's crds policy would apply to nothing.
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: "0.29.0" # chart 0.29.0 -> CloudNativePG 1.30.0
+      sourceRef:
+        kind: HelmRepository
+        name: cloudnative-pg
+        namespace: flux-system
+  values:
+    # The chart defaults monitoring.podMonitorEnabled and grafanaDashboard.create to false, which
+    # is what this cluster wants: metrics are scraped through
+    # infra/monitoring/app/metrics/scrape-configs.yaml, and there is no Prometheus operator to
+    # read a PodMonitor. Neither is restated here.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 128Mi
+      limits:
+        memory: 256Mi

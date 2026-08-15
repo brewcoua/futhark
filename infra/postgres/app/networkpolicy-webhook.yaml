@@ -1,0 +1,21 @@
+---
+# Same exception as infra/cert-manager/app/networkpolicy-webhook.yaml, for the same reason: the
+# k3s kube-apiserver is a host process, so no selector can match it, and the default-deny
+# baseline would block its admission calls into this operator's webhook. Every Cluster, Database
+# and DatabaseRole apply goes through that webhook, so without this the whole config
+# Kustomization fails at admission. Scoped to the operator pod and its port rather than the
+# namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apiserver-webhook
+  namespace: cnpg-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9443

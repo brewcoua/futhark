@@ -28,9 +28,13 @@ yq = "4.53.3"
 # Tracks k8s_cluster_version in ansible/roles/k8s_cluster/defaults/main.yml.
 kubectl = "1.36.3"
 
-# Pinned to match the Flux distribution in flux/cluster.yaml. K8up needs no CLI of its own —
-# .just/backup.just drives it entirely through its CRs.
+# Pinned to match the Flux distribution in flux/cluster.yaml. K8up needs no CLI of its own:
+# .just/backup.just drives it entirely through its CRs, except for the PostgreSQL dump. K8up
+# cannot restore a snapshot it took from stdin and sends you to restic for exactly that case, so
+# `just bak pg-dump` runs it directly. It is also what docs/src/operations/recovery.md's
+# cluster-independent restore path already assumed an operator had.
 flux2 = "2.9.4"
+restic = "0.19.1"
 
 # Also the `rev:` of the gitleaks hook in .pre-commit-config.yaml.
 gitleaks = "8.30.1"

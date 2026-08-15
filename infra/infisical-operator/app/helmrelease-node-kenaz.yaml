@@ -36,3 +36,4 @@ spec:
       - bifrost
       - open-webui
       - searxng
+      - linkwarden

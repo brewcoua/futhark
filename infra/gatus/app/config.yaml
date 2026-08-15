@@ -138,6 +138,21 @@ endpoints:
       - "[RESPONSE_TIME] < 2000"
       - "[CERTIFICATE_EXPIRATION] > 240h"
 
+  # Unauthenticated requests are redirected to the login page rather than served it, so this
+  # asserts the redirect instead of a 200. Reaching that far still proves the pod answered, and
+  # the pod cannot start without its database.
+  - name: Linkwarden
+    group: Apps
+    url: https://links.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] < 400"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
   # /health is outside the inference paths, so it answers without a virtual key. It pings the
   # config store before replying and returns 503 if that fails, so the body assertion covers the
   # SQLite volume as well as the process.

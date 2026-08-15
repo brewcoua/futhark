@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cluster.yaml
+  - infisicalsecret.yaml
+  - database-linkwarden.yaml
+
+# Stamps the Infisical project/environment onto infisicalsecret.yaml. See config/infisical.
+components:
+  - ../../../config/infisical

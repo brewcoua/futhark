@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+# Split from ks.yaml: the Cluster, Database and DatabaseRole here need the CloudNativePG CRDs and
+# its admission webhook to already exist, which their own Kustomization cannot guarantee for
+# itself. Same shape as infra/cert-manager/config-ks.yaml.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: postgres-config
+spec:
+  path: ./infra/postgres/config
+  dependsOn:
+    - name: postgres
+    # The Cluster's volume comes from local-path, which k3s ships, but the storage Kustomization
+    # is what this cluster treats as the readiness gate for any PVC-backed workload.
+    - name: storage
+    - name: infisical-operator-config

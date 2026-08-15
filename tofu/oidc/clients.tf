@@ -81,6 +81,41 @@ resource "infisical_secret" "open_webui_oauth_client_id" {
   folder_path  = "/nodes/kenaz/open-webui"
 }
 
+# linkwarden, in nodes/kenaz.k8s/linkwarden. Confidential client, same as actual. The callback path
+# is fixed by NextAuth: it is <NEXTAUTH_URL>/callback/<provider>, and the generic OIDC provider is
+# named `oidc`.
+resource "pocketid_client" "linkwarden" {
+  name          = "Linkwarden"
+  callback_urls = ["https://links.${var.sub_internal}.${var.domain}/api/v1/auth/callback/oidc"]
+  is_public     = false
+  pkce_enabled  = true
+  # Linkwarden has no role model to map onto, so both groups get the same access.
+  allowed_user_groups = [
+    pocketid_group.administrators.id,
+    pocketid_group.users.id,
+  ]
+}
+
+# /nodes/kenaz/linkwarden in the prod environment, the path
+# nodes/kenaz.k8s/linkwarden/app/infisicalsecret.yaml reads. That folder also holds two
+# hand-seeded keys, NEXTAUTH_SECRET and POSTGRES_PASSWORD.
+resource "infisical_secret" "linkwarden_oidc_client_secret" {
+  name         = "OIDC_CLIENT_SECRET"
+  value        = pocketid_client.linkwarden.client_secret
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/nodes/kenaz/linkwarden"
+}
+
+# Not secret, but not knowable ahead of the apply either, for the same reason as actual's.
+resource "infisical_secret" "linkwarden_oidc_client_id" {
+  name         = "OIDC_CLIENT_ID"
+  value        = pocketid_client.linkwarden.id
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/nodes/kenaz/linkwarden"
+}
+
 # searxng gets no client of its own: it speaks no OIDC and is gated by the shared auth-sso
 # oauth2-proxy below.
 

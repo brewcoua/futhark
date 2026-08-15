@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: linkwarden
+spec:
+  path: ./nodes/kenaz.k8s/linkwarden/app
+  dependsOn:
+    - name: infra-policies
+    - name: traefik-internal
+    - name: infisical-operator-config
+    - name: storage
+    - name: substitutions
+    # The database and the role this app connects as. Without the wait, the first pod runs
+    # `prisma migrate deploy` against a role that does not exist yet and crashloops until it
+    # does.
+    - name: postgres-config
+  # The internal hostname (ingress host, NEXTAUTH_URL) and the edge one (Pocket ID's discovery
+  # URL) are both spelled from the same Secret.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values

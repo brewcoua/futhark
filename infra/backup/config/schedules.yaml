@@ -6,6 +6,11 @@
 # declared next to the PVC itself. So adding an app means one entry here and one annotation
 # there, and nothing else.
 #
+# The postgres entry below works the other way round: it backs up the output of a command rather
+# than a volume, through k8up.io/backupcommand on the pod. Its PVC carries no annotation and must
+# not gain one, because copying a live data directory with restic produces a snapshot that only
+# fails at restore time.
+#
 # Central rather than in each app's own directory on purpose. A Schedule needs the k8up.io CRDs,
 # so an app shipping its own would need dependsOn: backup on its Kustomization — which would stop
 # Pocket ID reconciling whenever the backup stack is unhealthy. The half that genuinely varies
@@ -37,6 +42,16 @@ metadata:
   namespace: cli-proxy-api
 spec: {}
 ---
+# The page archives, previews and uploads under STORAGE_FOLDER. The bookmarks themselves are rows
+# in the shared PostgreSQL and are covered by the postgres entry below, so a full restore of this
+# app needs both.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: linkwarden
+spec: {}
+---
 # searxng is deliberately absent: its only volume is a disposable favicon cache on an emptyDir.
 apiVersion: k8up.io/v1
 kind: Schedule
@@ -50,6 +65,15 @@ kind: Schedule
 metadata:
   name: backup
   namespace: auth
+spec: {}
+---
+# Every tenant's rows, as one pg_dumpall taken at backup time. The command and the reasoning are
+# in infra/postgres/config/cluster.yaml. Restoring it is in docs/src/operations/recovery.md.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: postgres
 spec: {}
 ---
 apiVersion: k8up.io/v1

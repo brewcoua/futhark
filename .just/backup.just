@@ -35,6 +35,118 @@ now ns:
       successfulJobsHistoryLimit: 1
     EOF
 
+# restic directly, not a k8up Restore CR. K8up cannot restore what it took from stdin: "You can't
+# restore from backups that were done from stdin (PreBackupPod or backup command annotation)",
+# and this namespace's snapshot is exactly that. Its own documentation sends you to `restic dump`.
+#
+# Credentials come out of the cluster rather than out of Infisical by hand, so there is one
+# procedure rather than two. `just bak restore postgres` is not it and never will be: that recipe
+# restores local-path PVCs.
+#
+# Write the PostgreSQL dump to a local file. Reads only, so this is how a restore gets rehearsed
+pg-dump id="" out="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    snap="{{ id }}"
+    path=""
+    if [ -n "$snap" ]; then
+      path=$(kubectl -n postgres get snapshots.k8up.io -o \
+        "jsonpath={range .items[?(@.spec.id=='$snap')]}{.spec.paths[0]}{end}")
+    else
+      read -r snap path < <(kubectl -n postgres get snapshots.k8up.io \
+        -o 'jsonpath={range .items[*]}{.spec.date}{"\t"}{.spec.id}{"\t"}{.spec.paths[0]}{"\n"}{end}' \
+        | grep '\.sql$' | sort | tail -1 | cut -f2,3 | tr '\t' ' ')
+    fi
+    [ -n "$snap" ] && [ -n "$path" ] \
+      || { echo "no .sql snapshot in the postgres namespace (see: just bak snapshots)" >&2; exit 1; }
+
+    out="{{ out }}"
+    [ -n "$out" ] || out=".tmp/postgres-$(date +%Y%m%dT%H%M%S).sql"
+    mkdir -p "$(dirname "$out")"
+
+    # The same three values infra/backup/app/secret.yaml syncs for the operator, plus the bucket
+    # and endpoint it was rendered with. Read back off the cluster so this recipe cannot disagree
+    # with what actually wrote the snapshot.
+    creds=$(kubectl -n k8up get secret k8up-b2 -o json)
+    export RESTIC_PASSWORD=$(jq -r '.data.RESTIC_PASSWORD | @base64d' <<<"$creds")
+    export AWS_ACCESS_KEY_ID=$(jq -r '.data.B2_KEY_ID | @base64d' <<<"$creds")
+    export AWS_SECRET_ACCESS_KEY=$(jq -r '.data.B2_APPLICATION_KEY | @base64d' <<<"$creds")
+
+    env=$(kubectl -n k8up get deployment -o jsonpath='{.items[0].spec.template.spec.containers[0].env}')
+    bucket=$(jq -r '.[] | select(.name=="BACKUP_GLOBALS3BUCKET") | .value' <<<"$env")
+    endpoint=$(jq -r '.[] | select(.name=="BACKUP_GLOBALS3ENDPOINT") | .value' <<<"$env")
+    export RESTIC_REPOSITORY="s3:$endpoint/$bucket"
+
+    restic dump "$snap" "$path" > "$out"
+    echo
+    ls -lh "$out"
+    echo
+    echo "read it:    head -40 $out"
+    echo "replay it:  just bak pg-restore"
+
+# Gated on typing the namespace back rather than on [confirm], for the same reason as `restore`
+# below: pg_dumpall --clean drops and recreates every database and role in the dump, so anything
+# written since the snapshot is gone.
+#
+# Replay the dump into the live PostgreSQL, OVERWRITING every database in it
+pg-restore id="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Through the same recipe an operator would run by hand, and to a file rather than a pipe, so
+    # what was applied is still on disk afterwards if the replay goes wrong.
+    dump=".tmp/postgres-restore-$(date +%Y%m%dT%H%M%S).sql"
+    just bak pg-dump "{{ id }}" "$dump" > /dev/null
+
+    # The primary, by the role label CloudNativePG maintains. Replaying over the local socket is
+    # what makes this work at all: the cluster runs with enableSuperuserAccess: false, so there
+    # is no superuser password anywhere and peer authentication inside the pod is the only way
+    # in as postgres.
+    primary=$(kubectl -n postgres get pod -l cnpg.io/cluster=postgres,role=primary -o name | head -1)
+    [ -n "$primary" ] || { echo "no primary pod in the postgres cluster" >&2; exit 1; }
+
+    # Who the tenants are is not guessed and not listed here: it is the set of namespaces the
+    # policy overlay opens port 5432 to, which is the same declaration that lets them connect at
+    # all. A tenant that cannot reach the database cannot be writing to it.
+    tenants=$(kubectl -n postgres get networkpolicy \
+      -o 'jsonpath={range .items[*]}{range .spec.ingress[?(@.ports[0].port==5432)]}{range .from[*]}{.namespaceSelector.matchLabels.kubernetes\.io/metadata\.name}{"\n"}{end}{end}{end}' \
+      | grep -v '^cnpg-system$' | grep -v '^$' | sort -u)
+
+    # Flux scales them straight back up once the Kustomizations resume, so the replica counts are
+    # never written down anywhere. Same mechanism as `restore` below.
+    ks=""
+    for ns in $tenants; do
+      ks="$ks $(kubectl -n flux-system get kustomization \
+        -o 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{range .status.inventory.entries[*]}{.id}{" "}{end}{"\n"}{end}' \
+        | awk -v ns="$ns" 'index($0, "\t" ns "_") || index($0, " " ns "_") {print $1}')"
+    done
+
+    echo
+    echo "replaying $dump into $primary."
+    echo
+    echo "  every database and role below is DROPPED and recreated from the dump:"
+    kubectl -n postgres get database.postgresql.cnpg.io -o name | sed 's/^/    /'
+    echo
+    echo "  scaled to zero for the replay, then resumed:"
+    echo "$tenants" | sed 's/^/    ns\//'
+    echo
+    printf "type the namespace to confirm: "
+    read -r confirm
+    [ "$confirm" = "postgres" ] || { echo "aborted. the dump is still at $dump" >&2; exit 1; }
+
+    for k in $ks; do flux suspend kustomization "$k"; done
+    for ns in $tenants; do
+      kubectl -n "$ns" scale deployment,statefulset --all --replicas=0
+      kubectl -n "$ns" wait --for=delete pod --all --timeout=5m
+    done
+
+    kubectl -n postgres exec -i "$primary" -c postgres -- psql -U postgres < "$dump"
+
+    for k in $ks; do flux resume kustomization "$k"; done
+    echo
+    echo "replayed and resumed, from $dump. verify each tenant shows its own data, then: just fx failing"
+
 # Restore a namespace's local-path volumes from the repository, WIPING them first. The snapshot
 # defaults to the newest one for each volume; the rclone-backed classes are left alone.
 #

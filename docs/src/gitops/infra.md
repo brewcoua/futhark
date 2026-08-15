@@ -17,6 +17,7 @@ monitoring, and the per-tier Infisical operator. Layout rules are in
 | `traefik-edge`       | Public ingress. `hostNetwork: true`, bound to the ingress node's public address                                                                                     |
 | `storage`            | `csi-driver-rclone` and two zero-knowledge StorageClasses: `storagebox-crypt` (offsite box, crypt over sftp) and `gdrive-crypt` (Google Drive, write-once media)    |
 | `backup`             | K8up, and the nightly schedules that carry the `local-path` volumes to Backblaze B2 as restic snapshots. See [Backup and recovery](../operations/recovery.md)       |
+| `postgres`           | The CloudNativePG operator, and the one PostgreSQL instance every service with a database shares. `config/` holds the `Cluster` and its tenants. See below          |
 | `monitoring`         | VictoriaMetrics, VictoriaLogs, Grafana, exporters. One `app/` subdirectory per workload, see below                                                                  |
 | `trivy-operator`     | Vulnerability, config-audit, RBAC and compliance scanning of what is actually running. See [Vulnerability scanning](../operations/checks.md#vulnerability-scanning) |
 | `namespaces`         | Not a controller: every `Namespace` CR in the cluster, in one Kustomization that depends on nothing                                                                 |
@@ -400,6 +401,44 @@ The config is a plain `ConfigMap` the process reads once at startup, so an edit 
 ```bash
 kubectl -n copyparty rollout restart deploy/copyparty
 ```
+
+## The shared database
+
+One PostgreSQL instance serves every service that needs one, rather than each app bringing its
+own. `infra/postgres/app` installs the CloudNativePG operator into `cnpg-system`;
+`infra/postgres/config` holds the `Cluster` in `postgres`, and one pair of CRs per tenant.
+
+It runs `instances: 1`, pinned to `kenaz`. `local-path` is node-local storage, so a replica means
+a second volume on `ogma` and every tenant's database following the edge node's uptime. The cost
+is that restarting or upgrading this `Cluster` is a short outage for every tenant at once.
+
+There is no superuser password anywhere, in the cluster or in Infisical. `enableSuperuserAccess`
+is `false`, every tenant authenticates as its own role, and the two things that do need superuser
+rights, the nightly dump and its replay, run inside the pod over the local socket where peer
+authentication already identifies them.
+
+### Giving a service a database
+
+Four things, and all four are needed:
+
+1. A `DatabaseRole` and a `Database` in `infra/postgres/config/database-<app>.yaml`. The role owns
+   that database and nothing else, and holds no `createdb`, `createrole` or `superuser`, so a
+   leaked credential reaches one tenant's rows. Both carry a `retain` reclaim policy: removing the
+   manifest stops managing the object rather than dropping it.
+2. A target in `infra/postgres/config/infisicalsecret.yaml` producing a
+   `kubernetes.io/basic-auth` Secret whose `username` matches the role. Label it
+   `cnpg.io/reload: "true"` or a rotated password only lands at the next reconciliation.
+3. `infra/policies/namespaces/postgres/netpol-allow-from-<app>.yaml`, opening port 5432 to that
+   namespace. Without it the app resolves the Service and hangs. That file is also what
+   `just bak pg-restore` reads to decide whose workloads to scale down.
+4. The app's own `DATABASE_URL`, assembled in its `InfisicalStaticSecret` template from the
+   password. `nodes/kenaz.k8s/linkwarden/app/infisicalsecret.yaml` is the worked example.
+
+The password is filed twice, once in `/infra/postgres` and once in the app's own folder, and that
+is the admission policy working rather than an oversight: it confines the `postgres` namespace to
+`/infra` and a node app to `/nodes/<hostname>`, so neither can read the other's. Rotating means
+changing both. Generate it from letters and digits only, because it is interpolated into a URL and
+anything needing percent-encoding parses wrong.
 
 ## Infisical operator
 

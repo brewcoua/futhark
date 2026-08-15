@@ -1,0 +1,35 @@
+---
+# The role first: a Database cannot be created for an owner that does not exist yet. It owns its
+# own database and nothing else, and holds no createdb, createrole or superuser, so a leaked
+# credential reaches one tenant's rows rather than the instance.
+#
+# databaseRoleReclaimPolicy: retain, so deleting this manifest leaves the role in place. delete
+# would drop it the moment a rename or a mistaken prune removed the object, and a dropped owner
+# takes its database's accessibility with it.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: linkwarden
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: linkwarden
+  login: true
+  passwordSecret:
+    name: postgres-role-linkwarden
+  databaseRoleReclaimPolicy: retain
+---
+# Same reasoning for databaseReclaimPolicy: retain. Removing this file should stop managing the
+# database, not drop it.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: linkwarden
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: linkwarden
+  owner: linkwarden
+  databaseReclaimPolicy: retain
