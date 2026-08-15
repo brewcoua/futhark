@@ -1,7 +1,6 @@
-# Read by the trivy-operator (infra/trivy-operator/app/kustomization.yaml turns this file into the
-# ConfigMap its HelmRelease reads), by .github/workflows/trivy.yml and by `just sec scan`. An entry
-# belongs here only when the scanner cannot decide the finding, not when the finding is
-# inconvenient.
+# Read by the trivy-operator (infra/trivy-operator/app/kustomization.yaml copies this file into its
+# HelmRelease values), by .github/workflows/trivy.yml and by `just sec scan`. An entry belongs here
+# only when the scanner cannot decide the finding, not when the finding is inconvenient.
 #
 # coredns builds its own module as a pseudo-version (v0.0.0-<date>-<commit>), which Trivy cannot
 # compare against an advisory's fixed version, so every coredns advisory matches whatever runs.

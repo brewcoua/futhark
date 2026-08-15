@@ -10,11 +10,33 @@ configMapGenerator:
   # above this directory is what kustomize-controller allows and a bare `kustomize build` does
   # not, so .pre-commit-config.yaml and .github/workflows/trivy.yml pass
   # --load-restrictor LoadRestrictionsNone.
+  #
+  # Keyed without the leading dot: a replacement's fieldPath splits on dots, and `data..trivyignore`
+  # has no escape.
   - name: trivy-ignorefile
     namespace: flux-system
+    options:
+      # Carrier for the replacement below, not an object the cluster needs. This annotation is
+      # what keeps it out of the build output.
+      annotations:
+        config.kubernetes.io/local-config: "true"
     files:
-      - ../../../.trivyignore
+      - trivyignore=../../../.trivyignore
 generatorOptions:
-  # The HelmRelease's valuesFrom names this ConfigMap, and a name suffix would break that
-  # reference on every edit to the file.
   disableNameSuffixHash: true
+# Written into the HelmRelease itself rather than referenced with valuesFrom: Flux resolves a
+# valuesFrom key through Helm's --set parser, which reads the commas in the file's comments as
+# value separators and fails the release.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: trivy-ignorefile
+      fieldPath: data.trivyignore
+    targets:
+      - select:
+          kind: HelmRelease
+          name: trivy-operator
+        fieldPaths:
+          - spec.values.trivy.ignoreFile
+        options:
+          create: true

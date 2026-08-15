@@ -199,8 +199,10 @@ same counts as a widget.
 
 `.trivyignore` at the repository root is the only place a suppression is written. All three
 scanners read that one file: `.github/workflows/trivy.yml` passes it to the action, `just sec scan`
-passes it to the CLI, and `infra/trivy-operator/app/kustomization.yaml` turns it into the ConfigMap
-the operator's HelmRelease loads through `valuesFrom`.
+passes it to the CLI, and `infra/trivy-operator/app/kustomization.yaml` copies it into the
+operator's HelmRelease values as it builds. The copy is a kustomize replacement rather than a
+`valuesFrom` reference, because Flux resolves a `valuesFrom` key through Helm's `--set` parser,
+which reads a comma in a comment as a value separator and fails the release.
 
 An entry belongs there only when the scanner cannot decide the finding, such as an advisory it
 cannot match against the installed version. A finding that is merely inconvenient does not qualify:

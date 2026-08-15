@@ -35,16 +35,6 @@ spec:
         kind: HelmRepository
         name: aqua
         namespace: flux-system
-  # The repository's .trivyignore, as a ConfigMap from kustomization.yaml. The chart's
-  # documented list form (`ignoreFile: [CVE-1]`) renders through `toYaml`, so the scanner reads
-  # `- CVE-1` and parses the ID as `-`; a string keeps the file's own lines, which is also what
-  # lets each entry carry the comment explaining it. The same file is what CI and `just sec scan`
-  # read, so a suppression is written once.
-  valuesFrom:
-    - kind: ConfigMap
-      name: trivy-ignorefile
-      valuesKey: .trivyignore
-      targetPath: trivy.ignoreFile
   values:
     operator:
       # One shared Trivy server holding one copy of the vulnerability DB, instead of every scan
