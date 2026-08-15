@@ -37,6 +37,11 @@ spec:
               value: /config/config.yaml
             - name: TZ
               value: Europe/Amsterdam
+          # GATUS_DB_URL, which config.yaml reads back through Gatus's own os.ExpandEnv rather
+          # than having it baked into the generated ConfigMap.
+          envFrom:
+            - secretRef:
+                name: gatus-secrets
           volumeMounts:
             - name: config
               mountPath: /config

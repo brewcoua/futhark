@@ -6,6 +6,10 @@ resources:
   - cluster.yaml
   - infisicalsecret.yaml
   - database-linkwarden.yaml
+  - database-grafana.yaml
+  - database-gatus.yaml
+  - database-openwebui.yaml
+  - database-pocketid.yaml
 
 # Stamps the Infisical project/environment onto infisicalsecret.yaml. See config/infisical.
 components:

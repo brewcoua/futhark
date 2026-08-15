@@ -75,10 +75,9 @@ metadata:
   name: backup
   namespace: postgres
 spec: {}
----
-apiVersion: k8up.io/v1
-kind: Schedule
-metadata:
-  name: backup
-  namespace: monitoring
-spec: {}
+
+# monitoring is deliberately absent, alongside searxng. Grafana's PVC was the only annotated
+# volume in it, and Grafana's state moved into the Schedule above; what is left on that volume is
+# a plugin cache the chart reinstalls. VictoriaMetrics and VictoriaLogs never carried an
+# annotation. A Schedule over a namespace with nothing annotated backs up nothing and still
+# reports a run, which is worse than not having one.

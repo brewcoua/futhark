@@ -54,31 +54,23 @@ spec:
     # grafana creates on first boot, and the pod wedges in Init:Error on every restart after.
     initChownData:
       enabled: false
+    # No k8up annotation, unlike every other PVC in the tree. Grafana's own state moved to
+    # Postgres above, so all that is left here is the 255 MB plugins directory, most of it the
+    # VictoriaLogs datasource shipping a backend binary for every platform. Grafana reinstalls
+    # those from the `plugins` value below whenever they are missing, so the volume exists to
+    # save the download on restart and holds nothing worth copying to B2.
+    #
+    # VictoriaMetrics and VictoriaLogs carry no annotation either: both already expire their own
+    # data (${VM_RETENTION}/${VL_RETENTION}), and metrics worth B2 egress is not a trade this
+    # cluster makes. That leaves nothing annotated in this namespace, which is why
+    # infra/backup/config/schedules.yaml no longer has a monitoring entry.
+    # See docs/src/operations/recovery.md.
     persistence:
       enabled: true
       storageClassName: local-path
       size: ${GRAFANA_STORAGE}
-      # Opts grafana.db into the nightly backup. Dashboards and alert rules come from git now, so
-      # what is actually irreplaceable in there is the state Grafana owns itself: alert instance
-      # state, silences, annotations, and the user/org table.
-      # VictoriaMetrics and VictoriaLogs deliberately
-      # carry no equivalent: both already expire their own data
-      # (${VM_RETENTION}/${VL_RETENTION}), and metrics worth B2 egress is not a trade this
-      # cluster makes. See docs/src/operations/recovery.md.
-      annotations:
-        k8up.io/backup: "true"
-        # grafana.db is 1.3 MB of it; the plugins directory is 255 MB, most of that the
-        # VictoriaLogs datasource shipping a backend binary for every platform. Grafana
-        # reinstalls plugins from the `plugins` value below whenever they are missing, so
-        # copying them to B2 nightly buys nothing.
-        #
-        # K8up mounts each PVC at /data/<claim-name>, which is where the path comes from. The
-        # value is a JSON array; a malformed one makes K8up log "failed to parse restic backup
-        # args from the annotation" and skip this PVC entirely, so verify the snapshot after
-        # changing it.
-        k8up.io/backup-restic-args: '["--exclude=/data/grafana/plugins"]'
     # local-path is single-node hostPath; a rolling update can schedule the new pod before the
-    # old one releases the volume. Recreate avoids two grafana.db writers.
+    # old one releases the volume, and RWO means the new pod never mounts it.
     # `deploymentStrategy`, not `strategy`: the chart ignores the latter silently, and a rolling
     # update deadlocks — helm waits for a new pod that RollingUpdate won't let start.
     deploymentStrategy:
@@ -167,6 +159,24 @@ spec:
     # The local admin login stays enabled: Pocket ID is edge-exposed and Grafana is mesh-only, so
     # an outage there must not lock the operator out of the alerting UI.
     grafana.ini:
+      # The shared instance in infra/postgres rather than the embedded SQLite Grafana defaults to.
+      # The point is the backup: k8up copied grafana.db off a live PVC with nothing quiescing the
+      # writer, where the nightly pg_dumpall is consistent by construction.
+      #
+      # ssl_mode disable, matching every other tenant. CloudNativePG's pg_hba ends in
+      # `host all all all scram-sha-256`, which accepts a plaintext connection; verifying its TLS
+      # instead would mean copying the cluster CA into this namespace. The hop is pod-to-pod on
+      # one node behind a default-deny policy.
+      #
+      # GRAFANA_DB_PASSWORD arrives as environment through envFromSecret above, same route as the
+      # OIDC pair below, and is filed at /infra/monitoring by hand.
+      database:
+        type: postgres
+        host: postgres-rw.postgres.svc.cluster.local:5432
+        name: grafana
+        user: grafana
+        password: $__env{GRAFANA_DB_PASSWORD}
+        ssl_mode: disable
       server:
         # Grafana builds the OAuth redirect URI from this. Wrong here is an invalid_request at the
         # callback, with nothing in Grafana's own logs.

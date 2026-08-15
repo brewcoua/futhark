@@ -30,7 +30,7 @@ each in `nodes/kenaz.k8s/<app>/{ks.yaml,app/}` and each reading `/nodes/kenaz/<a
 | App             | Host                           | Reads from Infisical                                                                                                      |
 | --------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `actual`        | `actual.$SUB_INTERNAL.$DOMAIN` | `ACTUAL_OPENID_CLIENT_ID`, `ACTUAL_OPENID_CLIENT_SECRET`                                                                  |
-| `open-webui`    | `chat.$SUB_INTERNAL.$DOMAIN`   | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`                                           |
+| `open-webui`    | `chat.$SUB_INTERNAL.$DOMAIN`   | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`, `POSTGRES_PASSWORD`                      |
 | `linkwarden`    | `links.$SUB_INTERNAL.$DOMAIN`  | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                            |
 | `searxng`       | `search.$SUB_INTERNAL.$DOMAIN` | `SEARXNG_SECRET`                                                                                                          |
 | `bifrost`       | `llm.$SUB_INTERNAL.$DOMAIN`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`, `VK_OPEN_WEBUI`, `VK_CLI` |
@@ -42,8 +42,10 @@ so its one key is seeded by hand. So is every key `bifrost` reads, `open-webui`'
 `linkwarden`'s: `WEBUI_SECRET_KEY` signs Open WebUI's JWTs, `NEXTAUTH_SECRET` signs Linkwarden's,
 and `OPENAI_API_KEYS` is the virtual key `bifrost` issues Open WebUI.
 
-`linkwarden` is the only app here that keeps its data outside its own namespace. Its bookmarks are
-rows in the shared PostgreSQL under `infra/postgres`, and only the page archives are on its PVC.
+`linkwarden` and `open-webui` keep their data outside their own namespace, in the shared
+PostgreSQL under `infra/postgres`. What is left on each PVC is files rather than a database:
+Linkwarden's page archives, and Open WebUI's uploads, vector store and model cache. `actual` is
+the one that cannot follow them, because Actual Budget supports no backend but SQLite.
 See [The shared database](infra.md#the-shared-database).
 
 ### The model gateway

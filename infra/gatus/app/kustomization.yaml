@@ -7,7 +7,12 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - infisicalsecret.yaml
 configMapGenerator:
   - name: gatus-config
     files:
       - config.yaml
+
+# Stamps the Infisical project/environment onto infisicalsecret.yaml. See config/infisical.
+components:
+  - ../../../config/infisical

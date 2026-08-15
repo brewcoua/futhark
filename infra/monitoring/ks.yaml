@@ -10,6 +10,10 @@ spec:
     - name: traefik-internal
     - name: infisical-operator-config
     - name: substitutions
+    # Grafana's own state lives in the shared instance, so it cannot start before the Database
+    # and DatabaseRole exist. postgres-config gates on their status.applied, not merely on the
+    # CRs reaching the API server; see infra/postgres/config-ks.yaml.
+    - name: postgres-config
   # ${SUB_INTERNAL}/${DOMAIN}, committed SOPS-encrypted, alongside monitoring-sizing's retention
   # and volume knobs. ${MESH_IP} was read here too, for a static traefik-edge scrape target;
   # app/metrics/scrape-configs.yaml discovers that address from the API server instead.

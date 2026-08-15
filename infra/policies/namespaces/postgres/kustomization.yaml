@@ -11,3 +11,7 @@ resources:
   - ../_templates/netpol-allow-from-monitoring
   - netpol-allow-from-cnpg-system.yaml
   - netpol-allow-from-linkwarden.yaml
+  - netpol-allow-from-monitoring.yaml
+  - netpol-allow-from-gatus.yaml
+  - netpol-allow-from-open-webui.yaml
+  - netpol-allow-from-auth.yaml

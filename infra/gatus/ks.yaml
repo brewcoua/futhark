@@ -14,6 +14,9 @@ spec:
     - name: traefik-internal
     - name: auth
     - name: substitutions
+    # Results live in the shared instance now, so the Database and DatabaseRole have to exist
+    # before Gatus opens a connection. See app/config.yaml's storage block.
+    - name: postgres-config
   postBuild:
     substituteFrom:
       - kind: Secret

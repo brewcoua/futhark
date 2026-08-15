@@ -340,16 +340,23 @@ backup job itself, and there is no Pushgateway here. Ask the repository directly
 ## Gatus
 
 Every healthcheck in the cluster, and the status page at `status.$SUB_INTERNAL.$DOMAIN`, behind
-the same `auth-sso@kubernetescrd` as Glance. Plain manifests in `infra/gatus/app`, with
-`storage.type: memory`, so there is no PVC and no K8up `Schedule` entry.
+the same `auth-sso@kubernetescrd` as Glance. Plain manifests in `infra/gatus/app`,
+`storage.type: postgres` against the shared instance, so there is still no PVC and no K8up
+`Schedule` entry. It was `memory` until the migration and lost every result on restart.
 
 Add a check by adding an endpoint to `infra/gatus/app/config.yaml`. That file **is** substituted
-by Flux, unlike Glance's config, because Gatus writes none of its own placeholders in the syntax
-`postBuild` claims, so `${SUB_INTERNAL}` and `${DOMAIN}` in it are filled in.
+by Flux, unlike Glance's config, so `${SUB_INTERNAL}` and `${DOMAIN}` in it are filled in.
 
-The cost of that is a rule about the whole file, comments included: never write a dollar sign
-followed by an empty brace pair. envsubst reads every byte it is given, reads that as a variable
-with no name, and fails the Kustomization with
+Two expansions run over that one file, and the difference matters when you write a new value into
+it. Flux's `postBuild` goes first, over the generated ConfigMap; Gatus runs `os.ExpandEnv` over
+the same bytes when it loads them. A placeholder meant for Gatus has to survive the first pass, so
+double the dollar: `$${GATUS_DB_URL}` reaches the ConfigMap as `${GATUS_DB_URL}` and Gatus fills
+it from the environment. That is how the database password gets into `storage.path` without being
+committed.
+
+The cost is a rule about the whole file, comments included: never write a dollar sign followed by
+an empty brace pair. envsubst reads every byte it is given, reads that as a variable with no name,
+and fails the Kustomization with
 `envsubst error: variable substitution failed: unable to parse variable name`. The build stops
 there, so the symptom is the whole component going `False`, not one bad endpoint.
 
@@ -412,6 +419,22 @@ It runs `instances: 1`, pinned to `kenaz`. `local-path` is node-local storage, s
 a second volume on `ogma` and every tenant's database following the edge node's uptime. The cost
 is that restarting or upgrading this `Cluster` is a short outage for every tenant at once.
 
+Five tenants: Linkwarden, Grafana, Open WebUI, Pocket ID and Gatus. The first four were on SQLite
+on their own PVC, which k8up copied nightly while the process was writing to it, and that is why
+they moved: `infra/backup/config/schedules.yaml` already warned that copying a live data
+directory with restic produces a snapshot that fails at restore time, where a `pg_dumpall` is
+consistent by construction. Gatus is the exception and gained something instead of trading it. It
+was `storage.type: memory`, with no persistence at all, so it now keeps its history across a
+restart.
+
+Read the last of those five twice before changing anything about it. **Pocket ID is the cluster's
+identity provider, and it now depends on a single-instance database on the other node.** It runs
+on `ogma` and used to survive `kenaz` being down entirely; it no longer does, and while this
+`Cluster` is restarting nobody can log in to anything. Gatus is in the same position and is worse
+placed to be, since the status page is unavailable in exactly the outage it exists to report.
+Alerting does not run through Gatus, so a broken cluster still pages. Both were accepted
+knowingly, in exchange for a backup that restores.
+
 There is no superuser password anywhere, in the cluster or in Infisical. `enableSuperuserAccess`
 is `false`, every tenant authenticates as its own role, and the two things that do need superuser
 rights, the nightly dump and its replay, run inside the pod over the local socket where peer
@@ -424,21 +447,34 @@ Four things, and all four are needed:
 1. A `DatabaseRole` and a `Database` in `infra/postgres/config/database-<app>.yaml`. The role owns
    that database and nothing else, and holds no `createdb`, `createrole` or `superuser`, so a
    leaked credential reaches one tenant's rows. Both carry a `retain` reclaim policy: removing the
-   manifest stops managing the object rather than dropping it.
+   manifest stops managing the object rather than dropping it. Give the role and the database a
+   name with no hyphen in it, whatever the namespace is called: the name goes into `CREATE ROLE`
+   and into a connection URL, and a hyphen is legal in neither unquoted. `open-webui` is
+   `openwebui` here.
 2. A target in `infra/postgres/config/infisicalsecret.yaml` producing a
    `kubernetes.io/basic-auth` Secret whose `username` matches the role. Label it
    `cnpg.io/reload: "true"` or a rotated password only lands at the next reconciliation.
 3. `infra/policies/namespaces/postgres/netpol-allow-from-<app>.yaml`, opening port 5432 to that
    namespace. Without it the app resolves the Service and hangs. That file is also what
-   `just bak pg-restore` reads to decide whose workloads to scale down.
-4. The app's own `DATABASE_URL`, assembled in its `InfisicalStaticSecret` template from the
-   password. `nodes/kenaz.k8s/linkwarden/app/infisicalsecret.yaml` is the worked example.
+   `just bak pg-restore` reads to decide whose workloads to scale down, so write it even when the
+   traffic is already allowed by something broader. `monitoring` is the case that proves it: the
+   shared `allow-from-monitoring` template names no ports at all, so Grafana could always reach
+   5432, but without a file saying 5432 explicitly the restore would have left it writing through
+   a `pg_dumpall --clean` replay.
+4. The app's own connection string, assembled in its `InfisicalStaticSecret` template from the
+   password. `nodes/kenaz.k8s/linkwarden/app/infisicalsecret.yaml` is the worked example. What the
+   variable is called is the app's business: `DATABASE_URL` for Linkwarden and Open WebUI,
+   `DB_CONNECTION_STRING` for Pocket ID, `GATUS_DB_URL` for Gatus. Grafana is the exception and
+   needs no template, because `grafana.ini` spells the host, database and user in git and reads
+   only the password from the environment.
 
 The password is filed twice, once in `/infra/postgres` and once in the app's own folder, and that
-is the admission policy working rather than an oversight: it confines the `postgres` namespace to
-`/infra` and a node app to `/nodes/<hostname>`, so neither can read the other's. Rotating means
-changing both. Generate it from letters and digits only, because it is interpolated into a URL and
-anything needing percent-encoding parses wrong.
+is the admission policy working rather than an oversight: an `InfisicalStaticSecret` may only name
+a path inside its own namespace's tier, and no two of these namespaces share a folder even where
+both are infra tier. Rotating means changing both, and
+[Rotating a credential](../operations/rotation.md) has the per-tenant key names. Generate it from
+letters and digits only, because it is interpolated into a URL and anything needing
+percent-encoding parses wrong.
 
 ## Infisical operator
 

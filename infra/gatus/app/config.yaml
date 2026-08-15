@@ -2,10 +2,15 @@
 # probing anything itself (see infra/glance/config/widget-gatus.yml), so a check is written once
 # and shows up on both the status page and the dashboard.
 #
-# Unlike infra/glance, this file *is* expanded by Flux: Gatus spells none of its own placeholders
-# the way postBuild does, so postBuild is free to fill in the hostnames. See ../ks.yaml.
-# Write no bare dollar-brace pair anywhere in here, comments included: envsubst reads the whole
-# file and an empty variable name fails the build.
+# Unlike infra/glance, this file is expanded by Flux: postBuild fills in the hostnames. See
+# ../ks.yaml. Write no bare dollar-brace pair anywhere in here, comments included: envsubst reads
+# the whole file and an empty variable name fails the build.
+#
+# Gatus does spell its own placeholders the same way, because it runs os.ExpandEnv over these
+# bytes at load. Two expansions over one file, so a value meant for Gatus has to survive the
+# first: doubling the dollar is envsubst's escape, and postBuild writes a single dollar into the
+# generated ConfigMap for Gatus to expand from its environment. That is how the database password
+# reaches storage.path below without ever being committed here.
 #
 # Every endpoint is probed over its public name through traefik-internal, not over a cluster
 # Service, deliberately: that path also covers DNS, the mesh route, the router and the
@@ -19,9 +24,15 @@
 #   [RESPONSE_TIME]          1s for a health handler, 2s for the two endpoints that render a page
 #   [BODY]                   proves the process is serving, not merely listening
 storage:
-  # In memory, so no PVC and nothing for k8up. History is lost on restart; the long-term series
-  # live in VictoriaMetrics and the dashboards in Grafana.
-  type: memory
+  # The shared instance in infra/postgres. This was `type: memory`, which lost every result on
+  # restart; uptime percentages now survive one. Still no PVC and nothing for k8up: the nightly
+  # pg_dumpall covers it.
+  #
+  # The cost is an ordering edge. Gatus cannot start if Postgres is down, so the status page is
+  # unavailable in exactly the outage it would be most wanted for. Alerting does not run through
+  # here, so a down cluster still pages; see docs/src/gitops/infra.md.
+  type: postgres
+  path: "$${GATUS_DB_URL}"
 
 ui:
   title: futhark status

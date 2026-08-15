@@ -1,0 +1,30 @@
+---
+# Same shape and same reasoning as database-linkwarden.yaml, which carries the full comment.
+#
+# openwebui, not open-webui: the name is interpolated into a connection URL and into CREATE ROLE,
+# where a hyphen is only legal quoted. The namespace keeps its own spelling.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: openwebui
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: openwebui
+  login: true
+  passwordSecret:
+    name: postgres-role-openwebui
+  databaseRoleReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: openwebui
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: openwebui
+  owner: openwebui
+  databaseReclaimPolicy: retain

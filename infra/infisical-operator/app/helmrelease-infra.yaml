@@ -42,3 +42,4 @@ spec:
       - auth
       - glance
       - postgres
+      - gatus

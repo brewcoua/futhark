@@ -11,6 +11,9 @@ spec:
     - name: traefik-internal
     - name: infisical-operator-config
     - name: substitutions
+    # webui.db moved to the shared instance, so the Database and DatabaseRole have to exist
+    # before the app opens a connection. See app/infisicalsecret.yaml.
+    - name: postgres-config
   # No `auth` edge: Open WebUI is an OIDC client of Pocket ID directly rather than a consumer of
   # infra/auth's Middleware. No `storage` edge either: its one PVC is local-path, which arrives
   # with k3s rather than from that Kustomization.

@@ -41,6 +41,15 @@ spec:
           envFrom:
             - configMapRef:
                 name: pocketid-config
+          # A single secretKeyRef rather than envFrom on the same Secret: envFrom would also put
+          # POCKETID_ENCRYPTION_KEY in the environment, where Pocket ID reads it under a name the
+          # ENCRYPTION_KEY_FILE mount below already supplies.
+          env:
+            - name: DB_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: pocketid-secrets
+                  key: DB_CONNECTION_STRING
           volumeMounts:
             - name: data
               mountPath: /app/data

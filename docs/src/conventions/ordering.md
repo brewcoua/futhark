@@ -89,6 +89,10 @@ infisical-operator-config -> linkwarden
 infisical-operator-config -> postgres-config
 storage -> postgres-config
 postgres-config -> linkwarden
+postgres-config -> monitoring
+postgres-config -> gatus
+postgres-config -> auth
+postgres-config -> open-webui
 
 cert-manager-config -> traefik-internal
 cert-manager-config -> auth
@@ -168,7 +172,13 @@ They need nothing from the cluster but a namespace to land in. For three of them
 controller must already have registered CRDs for. `trivy-operator` has no such sibling: it reads
 no secret and no cluster value, so a namespace is genuinely all it waits for.
 
-Five edges are less obvious than they look:
+Six edges are less obvious than they look:
+
+- `auth` depends on `postgres-config`, and it is the most expensive edge in the tree. Pocket ID
+  runs on `ogma` and keeps its users, passkeys and OIDC clients in the shared instance, which is
+  a single `Cluster` pinned to `kenaz`. Every login in the cluster now waits on that node and on
+  that one pod. `gatus` carries the same edge for the same reason. Both are deliberate; the
+  trade they buy is in [Cluster infrastructure](../gitops/infra.md#the-shared-database).
 
 - `namespaces` is a root of its own rather than a file next to each component, because
   `infisical-operator` installs its chart with `scopedRBAC: true`. Helm emits a Role and
@@ -215,8 +225,8 @@ There is a third field, and it is the one that applies to custom resources: `hea
 evaluates a CEL expression per kind, and unlike `healthChecks` it is evaluated **only** when
 `wait: true` is set. `postgres-config` is the one Kustomization that needs it. CloudNativePG's
 `Database` and `DatabaseRole` report `status.applied` and no `conditions` array, so kstatus treats
-them as healthy the moment they reach the API server, and a tenant gated on that edge starts
-against a database the instance manager has not created yet. Reach for it whenever a
+them as healthy the moment they reach the API server, and any of the five tenants gated on that
+edge starts against a database the instance manager has not created yet. Reach for it whenever a
 `config-ks.yaml` applies a CR whose controller reports progress somewhere other than `conditions`.
 
 The gap `healthChecks` would seem to close, "the HelmRelease is Ready but its pods are still

@@ -1,0 +1,27 @@
+---
+# Same shape and same reasoning as database-linkwarden.yaml, which carries the full comment.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: grafana
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: grafana
+  login: true
+  passwordSecret:
+    name: postgres-role-grafana
+  databaseRoleReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: grafana
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: grafana
+  owner: grafana
+  databaseReclaimPolicy: retain

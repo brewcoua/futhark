@@ -1,0 +1,30 @@
+---
+# Same shape and same reasoning as database-linkwarden.yaml, which carries the full comment.
+#
+# This one is the cluster's identity provider. Losing it locks every other service out, so it is
+# the tenant whose restore matters most: see docs/src/operations/recovery.md.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: pocketid
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: pocketid
+  login: true
+  passwordSecret:
+    name: postgres-role-pocketid
+  databaseRoleReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: pocketid
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: pocketid
+  owner: pocketid
+  databaseReclaimPolicy: retain

@@ -593,18 +593,34 @@ The generic loop for any per-app runtime secret, such as Grafana's `ADMIN_PASSWO
 
 ### A PostgreSQL role password
 
-The one value in the tree filed in two Infisical folders, because the admission policy confines
-the `postgres` namespace to `/infra` and a node app to `/nodes/<hostname>`, so neither can read
-the other's. Changing one of the two leaves the app unable to log in.
+The only values in the tree filed in two Infisical folders each. `/infra/postgres` is where
+CloudNativePG reads the role's password; the app's own folder is where it is assembled into a
+connection string. An `InfisicalStaticSecret` may only name a path inside its namespace's own
+tier, and the two namespaces never share a folder even when both are infra tier, so neither can
+read the other's copy. Changing one of the two leaves the app unable to log in.
 
-1. Generate a replacement from letters and digits only. It is interpolated into a `DATABASE_URL`,
-   and anything needing percent-encoding produces a connection string that parses wrong.
-2. Set it at **both** paths: `<APP>_POSTGRES_PASSWORD` in `/infra/postgres`, and
-   `POSTGRES_PASSWORD` in the app's own folder.
+One row per tenant. The second column is the key in `/infra/postgres`; the third is the key in
+the app's own folder, and where it ends up:
+
+| Tenant     | `/infra/postgres`              | App folder and key                                              |
+| ---------- | ------------------------------ | --------------------------------------------------------------- |
+| Linkwarden | `LINKWARDEN_POSTGRES_PASSWORD` | `/nodes/kenaz/linkwarden`, `POSTGRES_PASSWORD` → `DATABASE_URL` |
+| Open WebUI | `OPENWEBUI_POSTGRES_PASSWORD`  | `/nodes/kenaz/open-webui`, `POSTGRES_PASSWORD` → `DATABASE_URL` |
+| Pocket ID  | `POCKETID_POSTGRES_PASSWORD`   | `/infra/auth`, `POSTGRES_PASSWORD` → `DB_CONNECTION_STRING`     |
+| Gatus      | `GATUS_POSTGRES_PASSWORD`      | `/infra/gatus`, `POSTGRES_PASSWORD` → `GATUS_DB_URL`            |
+| Grafana    | `GRAFANA_POSTGRES_PASSWORD`    | `/infra/monitoring`, `GRAFANA_DB_PASSWORD`, read directly       |
+
+Grafana is the one that does not assemble a URL: `grafana.ini` names the host, database and user
+in git and reads only the password from the environment.
+
+1. Generate a replacement from letters and digits only. Every one but Grafana's is interpolated
+   into a connection URL, and anything needing percent-encoding produces a string that parses
+   wrong.
+2. Set it at **both** paths from the row above.
 3. Within a refresh interval, CloudNativePG picks the new password up from the reloaded
    basic-auth Secret and applies it to the role. The app's own Secret is rewritten on the same
    interval.
-4. Restart the consumer, which read its `DATABASE_URL` at startup:
+4. Restart the consumer, which read its connection details at startup:
 
    ```bash
    just ks restart <namespace> <deployment>
@@ -612,6 +628,9 @@ the other's. Changing one of the two leaves the app unable to log in.
 
 5. Verify the app still reads its own data. There is nothing to revoke: the old password stops
    working the moment the role is altered.
+
+Rotating Pocket ID's is the one worth scheduling rather than doing casually. Its restart is a
+cluster-wide login outage for as long as the pod takes to come back.
 
 Which paths exist and who reads them is in [Cold bootstrap](setup.md#2-infisical). The
 authoritative list is the tree:

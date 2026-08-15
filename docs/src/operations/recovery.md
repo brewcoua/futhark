@@ -63,11 +63,14 @@ metadata:
 
 That annotation lives next to the PVC it names, because what to keep is a property of the app.
 It is why `nodes/kenaz.k8s/actual` annotates `actual-server-files` and not `actual-user-files`.
-The omission is the tiering. VictoriaMetrics and VictoriaLogs sit unannotated in a namespace that
-does have a `Schedule`: both already expire their own data, and metrics are not worth the egress.
+The omission is the tiering. VictoriaMetrics and VictoriaLogs already expire their own data, and
+metrics are not worth the egress, so neither is annotated. That left the `monitoring` namespace
+with nothing annotated at all once Grafana's state moved to PostgreSQL, which is why it no longer
+has a `Schedule` either.
 
-Currently annotated: Actual's budget SQLite, Pocket ID's users and passkeys, Grafana's
-`grafana.db`, Linkwarden's page archives.
+Currently annotated: Actual's budget SQLite, Linkwarden's page archives, Open WebUI's uploads and
+vector store, Pocket ID's uploaded images. The last two are the remainder after a migration: the
+databases behind them moved to PostgreSQL and what stays on the volume is files.
 
 ### A third switch, for PostgreSQL
 
@@ -94,14 +97,13 @@ its own bucket and retention. Not adopted.
 
 ### Excluding paths inside a volume
 
-A volume is rarely all state. Grafana's is 257 MB, of which `grafana.db` is 1.3 MB and the rest is
-a plugins directory Grafana reinstalls on its own. Pocket ID's is 68 MB, 62 MB of it MaxMind's
-GeoLite2 database, downloaded and refreshed by the app.
+A volume is rarely all state. Pocket ID's is 68 MB, 62 MB of it MaxMind's GeoLite2 database,
+which the app downloads and refreshes on its own.
 
 restic arguments pass through a second annotation on the same PVC:
 
 ```yaml
-k8up.io/backup-restic-args: '["--exclude=/data/grafana/plugins"]'
+k8up.io/backup-restic-args: '["--exclude=/data/pocketid-data/GeoLite2-City.mmdb"]'
 ```
 
 K8up mounts each PVC at `/data/<claim-name>`, which is where those paths come from. The value is
@@ -109,7 +111,9 @@ a JSON array. A malformed one does not fail the backup — K8up logs `failed to 
 args from the annotation` and **skips that PVC entirely**, so check the snapshot after changing
 it.
 
-Between them the two excludes take the nightly copy from about 340 MB to about 7 MB.
+The other way to shrink a volume is to stop keeping state on it. Grafana's was 257 MB, of which
+`grafana.db` was 1.3 MB and the rest a plugins directory the chart reinstalls; moving that 1.3 MB
+into PostgreSQL removed the volume from the backup set entirely rather than excluding most of it.
 
 ### What is not backed up at all
 

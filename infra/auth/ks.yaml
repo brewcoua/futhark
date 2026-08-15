@@ -17,6 +17,12 @@ spec:
     # Middleware CRD traefik-internal's release installs.
     - name: traefik-internal
     - name: substitutions
+    # Pocket ID's database moved to the shared instance. This is the heaviest edge in the tree:
+    # it makes every login in the cluster wait on a single-instance Postgres pinned to kenaz,
+    # where Pocket ID itself runs on ogma and used to survive kenaz being down. Taken knowingly,
+    # to trade that for a backup that is consistent rather than a live SQLite file copy.
+    # See docs/src/gitops/infra.md.
+    - name: postgres-config
   # ${DOMAIN} — the ingress host, the TLS SAN and Pocket ID's own APP_URL. ${SUB_INTERNAL} joins
   # it for oauth2-proxy's callback host and cookie domain.
   postBuild:

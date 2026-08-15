@@ -1,0 +1,27 @@
+---
+# Same shape and same reasoning as database-linkwarden.yaml, which carries the full comment.
+apiVersion: postgresql.cnpg.io/v1
+kind: DatabaseRole
+metadata:
+  name: gatus
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: gatus
+  login: true
+  passwordSecret:
+    name: postgres-role-gatus
+  databaseRoleReclaimPolicy: retain
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: gatus
+  namespace: postgres
+spec:
+  cluster:
+    name: postgres
+  name: gatus
+  owner: gatus
+  databaseReclaimPolicy: retain

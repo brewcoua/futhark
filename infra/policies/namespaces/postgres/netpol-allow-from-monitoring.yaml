@@ -1,0 +1,25 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# Redundant for connectivity, deliberately. The _templates/netpol-allow-from-monitoring this
+# overlay already includes names no ports at all, so monitoring can reach 5432 with or without
+# this file. What that template says is "monitoring scrapes everything"; what this one says is
+# "Grafana is a database tenant", and only the second belongs in the restore path. `just bak
+# pg-restore` builds the set of workloads it scales to zero from the policies opening 5432, so
+# without this Grafana would keep writing through a `pg_dumpall --clean` replay.
+#
+# Delete it if Grafana ever stops using the database, exactly like any other tenant's file.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-monitoring-postgres
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 5432
