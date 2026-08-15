@@ -24,7 +24,7 @@ agree until the first rotation.
 ## What it does not manage
 
 It never calls Bifrost. A virtual key's token is whatever
-`nodes/kenaz.k8s/bifrost/app/configmap.yaml` says it is, through an `env.` reference resolved at
+`nodes/kenaz.k8s/bifrost/app/config.json` says it is, through an `env.` reference resolved at
 startup, so there is no API to create it against. What the key may reach, meaning which providers
 and which models, is `governance.virtual_keys[].provider_configs` in that same ConfigMap, in git,
 next to the providers it names.

@@ -47,7 +47,7 @@ spec:
               type: RuntimeDefault
           volumeMounts:
             # auth-dir. The OAuth tokens, and the only writable path in the container. Outside
-            # /root deliberately: see configmap.yaml.
+            # /root deliberately: see config.yaml.
             - name: auth
               mountPath: /data
             # subPath so the ConfigMap lands as a file inside the image's working directory

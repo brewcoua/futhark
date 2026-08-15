@@ -48,7 +48,7 @@ spec:
             # HF_HOME and SENTENCE_TRANSFORMERS_HOME at.
             - name: data
               mountPath: /app/backend/data
-            # STATIC_DIR points here. See configmap.yaml.
+            # STATIC_DIR points here. See config.env.
             - name: static
               mountPath: /app/static
             - name: tmp

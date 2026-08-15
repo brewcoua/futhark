@@ -564,7 +564,7 @@ including the 401 window between the two restarts, is in [bifrost](../tofu/bifro
 
 `BIFROST_ENCRYPTION_KEY` is different again. It encrypts the provider keys stored in `config.db`,
 so replacing it makes every stored row unreadable and Bifrost starts from an empty config store.
-Almost everything in there is reapplied from `nodes/kenaz.k8s/bifrost/app/configmap.yaml` on the
+Almost everything in there is reapplied from `nodes/kenaz.k8s/bifrost/app/config.json` on the
 next start, because `source_of_truth` is `config.json`. What is genuinely lost is the per-virtual-key
 usage the store has accumulated. Rotate it by updating Infisical, deleting the PVC's contents, and
 restarting, in that order.

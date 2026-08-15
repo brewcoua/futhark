@@ -82,5 +82,12 @@ Keeping this many exact pins current by hand is not the intent. Renovate opens t
    otherwise.
 6. Add the new overlay directory to `infra/policies/kustomization.yaml`.
 
+An app's own configuration, whether an env list or a settings file, ships through
+`configMapGenerator` rather than a `ConfigMap` manifest. The generated name carries a content
+hash, so editing the file rolls the Deployment. A fixed name does not: the new values reach the
+cluster and the running pod keeps the ones it started with, silently, until something else
+restarts it. The generator also needs the overlay to set `namespace:`, because kustomize only
+rewrites a reference when both sides agree on one.
+
 Verify: `pre-commit run kustomize-build --all-files` passes, then after pushing,
 `just fx failing` is empty and the app's pods reach `Running`.

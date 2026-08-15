@@ -1,0 +1,19 @@
+---
+# server.secret_key is deliberately absent: it arrives as SEARXNG_SECRET from Infisical.
+use_default_settings: true
+general:
+  instance_name: "futhark search"
+server:
+  base_url: https://search.${SUB_INTERNAL}.${DOMAIN}/
+  # The limiter is SearXNG's bot protection and needs Valkey. This instance is mesh-only,
+  # behind auth-sso, and already behind the namespace's ratelimit Middleware, so the second
+  # workload would guard against nothing.
+  limiter: false
+  public_instance: false
+  image_proxy: true
+search:
+  autocomplete: duckduckgo
+  # json is what Open WebUI's searxng engine consumes; html is what a browser gets.
+  formats:
+    - html
+    - json

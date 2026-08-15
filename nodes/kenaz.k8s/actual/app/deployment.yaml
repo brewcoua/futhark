@@ -48,7 +48,7 @@ spec:
             # here, and `migrate` keeps its applied-migration state in a plain `.migrate` file
             # here too, not in the SQLite. On an ephemeral root every restart replays every
             # migration against an already-migrated DB and crashes. ACTUAL_SERVER_FILES pins
-            # account.sqlite to this same root — see configmap.yaml.
+            # account.sqlite to this same root, see config.env.
             - name: server-files
               mountPath: /data
             - name: user-files
