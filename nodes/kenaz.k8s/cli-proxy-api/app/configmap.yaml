@@ -14,10 +14,14 @@ data:
     host: ""
     port: 8317
 
-    # Absolute rather than the default "~/.cli-proxy-api". The pod runs as uid 1000 with no
-    # matching passwd entry, so ~ has nothing to expand against. Docker deployments that leave
-    # this unset fail to start.
-    auth-dir: "/root/.cli-proxy-api"
+    # Not the default "~/.cli-proxy-api", for two reasons. The pod runs as uid 1000 with no
+    # matching passwd entry, so ~ has nothing to expand against, and the path it expands to under
+    # root's home is unreachable anyway: /root is mode 700, so uid 1000 cannot traverse into it
+    # whatever the mounted volume's own ownership is. Startup fails with
+    # `error checking auth directory /root/.cli-proxy-api: stat: permission denied`.
+    #
+    # /data is the PVC's mount point and is owned by the pod's fsGroup, so it needs no root at all.
+    auth-dir: "/data"
 
     # Empty on purpose. Nothing outside the cluster can reach this Service, and the one namespace
     # that can is named by infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml.

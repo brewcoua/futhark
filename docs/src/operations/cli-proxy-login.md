@@ -25,71 +25,41 @@ added.
 
   Verify: the `cli-proxy-api` Kustomization reads Ready.
 
-## Why the pod is scaled down first
+## Why the Deployment is scaled down first
 
 `auth-dir` is a single-writer volume on a `ReadWriteOnce` PVC, and the running pod holds it. The
 login pod mounts the same claim, so the Deployment has to let go of it first. Scaling to 0 also
 takes `bifrost`'s `cli-proxy` provider offline for the duration; requests to `ollama` are
 unaffected.
 
+That is the reason this is a recipe rather than a list of commands. A flow abandoned halfway still
+has to put the replica back, so the cleanup runs from a trap on every exit path.
+
 ## Procedure
 
-1. Release the volume.
+```bash
+just ks cli-proxy-login claude
+```
 
-   ```bash
-   just ks kctl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=0
-   just ks kctl -n cli-proxy-api rollout status deployment/cli-proxy-api --timeout=60s
-   ```
+The provider argument is `claude`, `codex`, or `antigravity`, and defaults to `claude`. Each
+vendor fixes its own OAuth callback port, so the recipe forwards the right one per provider.
 
-   Verify: `just ks pods cli-proxy-api` reports no resources.
+The recipe scales the Deployment to 0, starts a login pod on the same volume with the app's
+ConfigMap mounted, forwards the callback port, and follows the pod's log. It reads the image from
+the Deployment, so the login always runs the build the server runs.
 
-2. Start a login pod on the same volume. Replace `--claude-login` with `--codex-login` or
-   `--antigravity-login` for those providers; each opens its callback on a different port, so
-   change the port in step 3 to match. The pod runs as root because the auth directory sits under
-   `/root`, and it is deleted at the end of this procedure.
+1. Wait for the authorization URL to appear in the log, then open it and sign in. The vendor
+   redirects to `http://localhost:<port>/...`, the forward carries it to the pod, and the pod
+   writes the token.
 
-   ```bash
-   just ks kctl -n cli-proxy-api run cli-proxy-login \
-     --image=docker.io/eceasy/cli-proxy-api:v7.2.132 \
-     --restart=Never \
-     --overrides='{"spec":{"containers":[{"name":"cli-proxy-login","image":"docker.io/eceasy/cli-proxy-api:v7.2.132","args":["/CLIProxyAPI/CLIProxyAPI","--claude-login"],"stdin":true,"tty":true,"volumeMounts":[{"name":"auth","mountPath":"/root/.cli-proxy-api"}]}],"volumes":[{"name":"auth","persistentVolumeClaim":{"claimName":"cli-proxy-api-auth"}}]}}'
-   ```
+2. Press Ctrl-C once the log reports the login succeeded. The recipe deletes the login pod, scales
+   the Deployment back to 1, and waits for the rollout.
 
-   Verify: `just ks pods cli-proxy-api` shows `cli-proxy-login` Running.
+Verify: one pod, Running and ready.
 
-3. Forward the callback port and complete the flow.
-
-   ```bash
-   just ks kctl -n cli-proxy-api port-forward pod/cli-proxy-login 54545:54545
-   ```
-
-   In a second terminal, read the authorization URL the pod printed and open it. This recipe
-   follows the log, so leave it running to watch the rest of the flow:
-
-   ```bash
-   just ks logs cli-proxy-api cli-proxy-login
-   ```
-
-   Sign in. The vendor redirects to `http://localhost:54545/...`, the forward carries it to the
-   pod, and the pod writes the token.
-
-   Verify: the log reports the login succeeded, and
-
-   ```bash
-   just ks kctl -n cli-proxy-api exec cli-proxy-login -- ls /root/.cli-proxy-api
-   ```
-
-   lists at least one file.
-
-4. Remove the login pod and bring the app back.
-
-   ```bash
-   just ks kctl -n cli-proxy-api delete pod cli-proxy-login
-   just ks kctl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=1
-   just ks kctl -n cli-proxy-api rollout status deployment/cli-proxy-api --timeout=120s
-   ```
-
-   Verify: `just ks pods cli-proxy-api` shows one pod, Running and ready.
+```bash
+just ks pods cli-proxy-api
+```
 
 ## Verify end to end
 
@@ -118,15 +88,18 @@ Success is a `content` array in the response rather than an `error` object.
 
 ## If the login fails partway
 
-Nothing is committed until the token file is written, so a failed attempt leaves no state to undo.
-Delete the pod and start again from step 2:
+Nothing is written until the token file is, so a failed attempt leaves no state to undo. Press
+Ctrl-C and run the recipe again.
+
+If the recipe was killed in a way that skipped its trap, `SIGKILL` rather than Ctrl-C, the login
+pod may still exist and the Deployment may still be at 0. Undo both by hand:
 
 ```bash
 just ks kctl -n cli-proxy-api delete pod cli-proxy-login --ignore-not-found
+just ks kctl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=1
 ```
 
-If the Deployment was left at 0 replicas, scale it back to 1. `bifrost` serves `ollama` either
-way, so nothing else in the cluster is waiting on this.
+`bifrost` serves `ollama` either way, so nothing else in the cluster is waiting on this.
 
 ## Recovery
 

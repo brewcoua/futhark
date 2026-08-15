@@ -85,6 +85,70 @@ ingress:
 certs:
     kubectl get certificate,certificaterequest -A
 
+# The whole point of a recipe here is the cleanup. auth-dir is a ReadWriteOnce volume the running
+# Deployment holds, so the login pod can only mount it once the Deployment has let go, and if the
+# flow is abandoned halfway something still has to put the replica back. The trap does that on
+# every exit path, including Ctrl-C.
+#
+# The image is read from the Deployment rather than written here, so the login can never run a
+# different build from the server, and Renovate keeps tracking the one pin in the manifest.
+#
+# Interactive: it opens a browser flow and holds the terminal until Ctrl-C. See
+# docs/src/operations/cli-proxy-login.md.
+
+# Link a subscription account into cli-proxy-api (claude, codex, antigravity)
+cli-proxy-login provider='claude':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ns=cli-proxy-api
+    # Each provider's OAuth callback is a fixed port on localhost, chosen by the vendor rather
+    # than by us, which is what the port-forward below has to match.
+    case '{{ provider }}' in
+      claude)      port=54545 ;;
+      codex)       port=1455  ;;
+      antigravity) port=51121 ;;
+      *) echo "unknown provider '{{ provider }}': use claude, codex or antigravity" >&2; exit 1 ;;
+    esac
+    image=$(kubectl -n "$ns" get deploy/cli-proxy-api -o jsonpath='{.spec.template.spec.containers[0].image}')
+    cleanup() {
+      echo
+      echo "cleaning up: removing the login pod and restoring the replica"
+      kubectl -n "$ns" delete pod cli-proxy-login --ignore-not-found --now >/dev/null
+      kubectl -n "$ns" scale deployment/cli-proxy-api --replicas=1 >/dev/null
+      kubectl -n "$ns" rollout status deployment/cli-proxy-api --timeout=120s
+    }
+    trap cleanup EXIT
+    kubectl -n "$ns" scale deployment/cli-proxy-api --replicas=0
+    kubectl -n "$ns" rollout status deployment/cli-proxy-api --timeout=60s
+    # The ConfigMap comes along so the login writes to the same auth-dir the server reads. Without
+    # it the binary falls back to its default under root's home, which this uid cannot even stat.
+    kubectl -n "$ns" run cli-proxy-login --image="$image" --restart=Never --overrides='{
+      "spec": {
+        "securityContext": {"runAsUser": 1000, "runAsGroup": 1000, "fsGroup": 1000},
+        "containers": [{
+          "name": "cli-proxy-login",
+          "image": "'"$image"'",
+          "args": ["/CLIProxyAPI/CLIProxyAPI", "--{{ provider }}-login"],
+          "stdin": true,
+          "tty": true,
+          "volumeMounts": [
+            {"name": "auth", "mountPath": "/data"},
+            {"name": "config", "mountPath": "/CLIProxyAPI/config.yaml", "subPath": "config.yaml"}
+          ]
+        }],
+        "volumes": [
+          {"name": "auth", "persistentVolumeClaim": {"claimName": "cli-proxy-api-auth"}},
+          {"name": "config", "configMap": {"name": "cli-proxy-api-config"}}
+        ]
+      }
+    }'
+    kubectl -n "$ns" wait --for=condition=Ready pod/cli-proxy-login --timeout=120s
+    kubectl -n "$ns" port-forward pod/cli-proxy-login "$port:$port" >/dev/null &
+    echo
+    echo "open the URL below, sign in, then press Ctrl-C once the log reports success"
+    echo
+    kubectl -n "$ns" logs -f cli-proxy-login
+
 # kubectl passthrough using the generated kubeconfig
 [positional-arguments]
 kctl *args:

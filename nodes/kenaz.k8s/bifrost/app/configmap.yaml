@@ -17,6 +17,12 @@ data:
   # are config store rows and file-only mode has no store. logs_store is off, so request and
   # response bodies never reach the disk and the volume holds nothing but config.db.
   #
+  # An enabled store must name its type and path. Bifrost defaults to SQLite in the app directory
+  # only when the whole config_store section is absent; present but bare fails startup with
+  # `unknown config store type: ""`. The path is relative to the app directory, so config.db lands
+  # on the PVC mounted at /app/data. A disabled store needs neither field, which is why logs_store
+  # below is a lone false.
+  #
   # Every "env." reference is resolved against the pod environment, which envFrom fills from
   # bifrost-secrets. No credential appears in this file. The cli-proxy key is the one empty value:
   # that upstream serves with an empty api-keys list, so there is nothing to present.
@@ -94,7 +100,11 @@ data:
       },
 
       "config_store": {
-        "enabled": true
+        "enabled": true,
+        "type": "sqlite",
+        "config": {
+          "path": "./config.db"
+        }
       },
       "logs_store": {
         "enabled": false

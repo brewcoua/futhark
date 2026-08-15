@@ -89,24 +89,25 @@ recipients there leaves the files themselves sealed to the old ones.
 
 ## `ks`, the cluster
 
-| Recipe                     | Does                                                                      |
-| -------------------------- | ------------------------------------------------------------------------- |
-| `ks status`                | One screen: nodes, unhealthy pods, Flux sync state                        |
-| `ks nodes`                 | `kubectl get nodes -o wide`                                               |
-| `ks pods [<ns>]`           | List pods                                                                 |
-| `ks failing`               | Only pods not Running with every container ready. Completed Jobs excluded |
-| `ks events [<ns>]`         | Recent events, oldest first                                               |
-| `ks warnings [<ns>]`       | Warning events only                                                       |
-| `ks logs <ns> <name>`      | Follow logs. `<name>` may be `deploy/x`, `job/x`, or a pod                |
-| `ks previous <ns> <pod>`   | A crashed pod's logs from before its last restart                         |
-| `ks describe <ns> <pod>`   | Describe a pod, with its events                                           |
-| `ks restart <ns> <deploy>` | Roll a Deployment and wait for it                                         |
-| `ks jobs [<ns>]`           | Jobs and CronJobs                                                         |
-| `ks jobs-clean [<ns>]`     | Delete finished Jobs. Running ones are left alone                         |
-| `ks top`                   | Real CPU/memory per node, and the 15 hungriest pods                       |
-| `ks ingress`               | Ingresses across all namespaces                                           |
-| `ks certs`                 | Certificates and pending CertificateRequests                              |
-| `ks kctl <args>`           | `kubectl` passthrough, using the generated kubeconfig                     |
+| Recipe                            | Does                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------- |
+| `ks status`                       | One screen: nodes, unhealthy pods, Flux sync state                              |
+| `ks nodes`                        | `kubectl get nodes -o wide`                                                     |
+| `ks pods [<ns>]`                  | List pods                                                                       |
+| `ks failing`                      | Only pods not Running with every container ready. Completed Jobs excluded       |
+| `ks events [<ns>]`                | Recent events, oldest first                                                     |
+| `ks warnings [<ns>]`              | Warning events only                                                             |
+| `ks logs <ns> <name>`             | Follow logs. `<name>` may be `deploy/x`, `job/x`, or a pod                      |
+| `ks previous <ns> <pod>`          | A crashed pod's logs from before its last restart                               |
+| `ks describe <ns> <pod>`          | Describe a pod, with its events                                                 |
+| `ks restart <ns> <deploy>`        | Roll a Deployment and wait for it                                               |
+| `ks jobs [<ns>]`                  | Jobs and CronJobs                                                               |
+| `ks jobs-clean [<ns>]`            | Delete finished Jobs. Running ones are left alone                               |
+| `ks top`                          | Real CPU/memory per node, and the 15 hungriest pods                             |
+| `ks ingress`                      | Ingresses across all namespaces                                                 |
+| `ks certs`                        | Certificates and pending CertificateRequests                                    |
+| `ks cli-proxy-login [<provider>]` | Link a subscription account into cli-proxy-api. Interactive, holds the terminal |
+| `ks kctl <args>`                  | `kubectl` passthrough, using the generated kubeconfig                           |
 
 Every `ks`, `fx` and `bak` recipe points `KUBECONFIG` at `ansible/.generated/kubeconfig` itself,
 so you do not need it in your environment. Re-converging the cluster is `just ans k8s`.

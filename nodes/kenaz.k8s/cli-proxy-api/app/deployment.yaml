@@ -46,9 +46,10 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           volumeMounts:
-            # auth-dir. The OAuth tokens, and the only writable path in the container.
+            # auth-dir. The OAuth tokens, and the only writable path in the container. Outside
+            # /root deliberately: see configmap.yaml.
             - name: auth
-              mountPath: /root/.cli-proxy-api
+              mountPath: /data
             # subPath so the ConfigMap lands as a file inside the image's working directory
             # instead of masking it.
             - name: config
