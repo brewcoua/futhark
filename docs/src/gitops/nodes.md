@@ -61,6 +61,12 @@ but `bifrost` drops a key with an empty value and then reports `no valid keys fo
 without ever calling it. `allow_private_network` on the same provider is the other half: `bifrost`
 refuses RFC 1918 destinations by default, which is every Service in the cluster.
 
+That provider's models are spelled out rather than left as `*`. A wildcard makes `bifrost` discover
+the catalog at startup and rewrite anything its Anthropic model list does not recognise, so the
+Gemini ids arrive scrambled and unusable. The list is the one thing here that goes stale: linking
+another account in `cli-proxy-api` adds models that stay invisible until they are added to
+`config.json` too.
+
 `open-webui` reaches `searxng` for web search, and both `open-webui` and `bifrost` reach their
 backends by Service rather than by an ingress host. Three files open those holes. See
 [Pod-to-pod across namespaces](../conventions/network-policy.md#pod-to-pod-across-namespaces).
