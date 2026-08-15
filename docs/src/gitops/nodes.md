@@ -55,6 +55,11 @@ the browser flow in [CLI proxy login](../operations/cli-proxy-login.md). `bifros
 an Anthropic-shaped custom provider, so a Claude request keeps its wire format the whole way
 rather than round-tripping through the OpenAI schema.
 
+That provider's key in `config.json` is the literal `unauthenticated`, which is not a credential
+and grants nothing. `cli-proxy-api` serves an empty `api-keys` list and ignores whatever arrives,
+but `bifrost` drops a key with an empty value and then reports `no valid keys found for provider`
+without ever calling it.
+
 `open-webui` reaches `searxng` for web search, and both `open-webui` and `bifrost` reach their
 backends by Service rather than by an ingress host. Three files open those holes. See
 [Pod-to-pod across namespaces](../conventions/network-policy.md#pod-to-pod-across-namespaces).
