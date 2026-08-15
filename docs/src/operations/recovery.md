@@ -229,8 +229,10 @@ just fx reconcile <kustomization>
 
 ## Restore the PostgreSQL dump
 
-**Unverified.** These recipes have not been run against a real snapshot yet. Run them once as a
-drill and correct this section from what actually happens, before relying on them in an incident.
+**Partly verified.** `just bak pg-dump` has been run against a real snapshot and produces the
+`.sql` file. The replay half of `just bak pg-restore` has not yet completed a drill: the first
+attempt stopped before reaching `psql`, on a wait that could never finish. Run it once and correct
+this section from what actually happens, before relying on it in an incident.
 
 `just bak restore postgres` is the wrong tool here and will not help: it restores `local-path`
 PVCs, and this namespace's data is a `.sql` object rather than a volume snapshot.
@@ -267,6 +269,23 @@ afterwards. It prints what it will replace and makes you type the namespace back
 suspends the tenants' Flux Kustomizations, scales them to zero, replays into the primary over its
 local socket, and resumes Flux. Which namespaces count as tenants is read from the `postgres`
 policy overlay: whatever is allowed to reach port 5432, minus the operator.
+
+The scale-down is per namespace, not per workload, because nothing declares which pods hold a
+database connection. `monitoring` is a tenant, so a replay also stops VictoriaMetrics and
+VictoriaLogs for its duration. Expect a gap in metrics and logs across the restore, including the
+metrics you would use to judge how it went. DaemonSets are left running throughout; they are
+never scaled by this and hold no connection.
+
+Resuming Flux is a shell trap rather than the last line, so an abort anywhere after the
+suspension still puts the tenants back. If the process is killed hard enough to skip the trap,
+`SIGKILL` or a closed terminal, the cluster is left suspended and at zero replicas. Recover with:
+
+```bash
+just fx get                                  # SUSPENDED column shows what is still held
+flux resume kustomization <name> [<name>…]
+```
+
+Flux restores every replica count from git, so nothing needs scaling back by hand.
 
 Verify: each tenant shows its own data rather than an empty install, and `just fx failing` is
 empty.

@@ -25,12 +25,17 @@ spec:
   #
   # healthCheckExprs rather than healthChecks: the two are not alternatives. Flux ignores
   # healthChecks entirely under `wait: true`, and evaluates these only under it.
+  #
+  # `current` only, deliberately. A `failed` expression on `status.applied == false` reads a
+  # controller mid-convergence as a terminal failure: CloudNativePG applies a Database before the
+  # DatabaseRole that owns it exists, reports applied: false once, then succeeds on its own
+  # retry. Flux saw the first report, gave up with "failed early due to stalled resources", and
+  # took every tenant down with it. Without `failed`, an object that never converges runs out the
+  # Kustomization's timeout instead, which is the honest outcome for a controller that retries.
   healthCheckExprs:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Database
       current: has(status.applied) && status.applied == true
-      failed: has(status.applied) && status.applied == false
     - apiVersion: postgresql.cnpg.io/v1
       kind: DatabaseRole
       current: has(status.applied) && status.applied == true
-      failed: has(status.applied) && status.applied == false

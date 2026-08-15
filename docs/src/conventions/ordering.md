@@ -229,6 +229,15 @@ them as healthy the moment they reach the API server, and any of the five tenant
 edge starts against a database the instance manager has not created yet. Reach for it whenever a
 `config-ks.yaml` applies a CR whose controller reports progress somewhere other than `conditions`.
 
+Write `current` and leave `failed` out, unless the controller has a state it genuinely never
+leaves. `failed` makes Flux give up the moment the expression matches, and a controller that
+retries passes through the failing state on its way to the working one. CloudNativePG applies a
+`Database` before the `DatabaseRole` that owns it exists, reports `applied: false` once, and
+succeeds on its own retry. With `failed` set on that, `postgres-config` stopped at
+`failed early due to stalled resources` and held every tenant behind it down. Without it, an
+object that truly never converges runs out the Kustomization's timeout instead, which is the
+same outcome an hour later and the correct one.
+
 The gap `healthChecks` would seem to close, "the HelmRelease is Ready but its pods are still
 starting", is closed further upstream. helm-controller's `install.disableWait` and
 `upgrade.disableWait` both default to `false`, so it polls the chart's workloads with kstatus and

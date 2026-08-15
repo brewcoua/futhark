@@ -135,15 +135,30 @@ pg-restore id="":
     read -r confirm
     [ "$confirm" = "postgres" ] || { echo "aborted. the dump is still at $dump" >&2; exit 1; }
 
+    # Resuming is a trap rather than a line at the end. Everything below can fail with the
+    # tenants already suspended and at zero replicas, and a failure has to degrade to "the
+    # restore did not happen" rather than to "the cluster is off". Flux puts every replica count
+    # back from git on resume.
+    resume() { for k in $ks; do flux resume kustomization "$k" > /dev/null || true; done; }
+    trap resume EXIT
+
     for k in $ks; do flux suspend kustomization "$k"; done
     for ns in $tenants; do
       kubectl -n "$ns" scale deployment,statefulset --all --replicas=0
-      kubectl -n "$ns" wait --for=delete pod --all --timeout=5m
+      # Not `pod --all`: the scale above does not touch a DaemonSet, so its pods stay Running
+      # and waiting on them spends the whole timeout before failing. monitoring runs two,
+      # node-exporter and fluent-bit, and neither holds a database connection.
+      pods=$(kubectl -n "$ns" get pod -o json \
+        | jq -r '.items[] | select((.metadata.ownerReferences // [])[0].kind != "DaemonSet") | .metadata.name')
+      if [ -n "$pods" ]; then
+        kubectl -n "$ns" wait --for=delete pod $pods --timeout=5m
+      fi
     done
 
     kubectl -n postgres exec -i "$primary" -c postgres -- psql -U postgres < "$dump"
 
-    for k in $ks; do flux resume kustomization "$k"; done
+    resume
+    trap - EXIT
     echo
     echo "replayed and resumed, from $dump. verify each tenant shows its own data, then: just fx failing"
 
