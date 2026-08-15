@@ -58,7 +58,8 @@ rather than round-tripping through the OpenAI schema.
 That provider's key in `config.json` is the literal `unauthenticated`, which is not a credential
 and grants nothing. `cli-proxy-api` serves an empty `api-keys` list and ignores whatever arrives,
 but `bifrost` drops a key with an empty value and then reports `no valid keys found for provider`
-without ever calling it.
+without ever calling it. `allow_private_network` on the same provider is the other half: `bifrost`
+refuses RFC 1918 destinations by default, which is every Service in the cluster.
 
 `open-webui` reaches `searxng` for web search, and both `open-webui` and `bifrost` reach their
 backends by Service rather than by an ingress host. Three files open those holes. See
