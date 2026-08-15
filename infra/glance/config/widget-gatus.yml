@@ -40,6 +40,8 @@
     Bifrost-url: https://llm.${SUB_INTERNAL}.${DOMAIN}
     SearXNG: sh:searxng
     SearXNG-url: https://search.${SUB_INTERNAL}.${DOMAIN}
+    Linkwarden: sh:linkwarden
+    Linkwarden-url: https://links.${SUB_INTERNAL}.${DOMAIN}
   template: |
     {{/* Required config options */}}
     {{ $baseURL := .Options.StringOr "base-url" "" }}
