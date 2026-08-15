@@ -162,7 +162,8 @@ allows:
   `accessTokenTrustedIps` alone for now. You set it at step 12, once the cluster has an egress
   address.
 - **`tofu-writer`**: write on the node folders the two writing modules target, and nothing else.
-  Today that is `/nodes/kenaz/actual`, `/nodes/kenaz/open-webui` and `/nodes/kenaz/bifrost`. See
+  Today that is `/nodes/kenaz/actual`, `/nodes/kenaz/open-webui`, `/nodes/kenaz/linkwarden` and
+  `/nodes/kenaz/bifrost`. See
   [oidc](../tofu/oidc.md) and [bifrost](../tofu/bifrost.md). Widen it as a module gains a folder,
   never to the whole project.
 - **`backup-reader`**: read on `/infra/k8up` and nothing else. The split is deliberate. Losing
@@ -174,16 +175,18 @@ Copy all three client ID and secret pairs into Proton Pass per the table above.
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
 
-| Folder                 | Secrets                                                                                           | Consumed by                                                                                                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `/infra/cert-manager`  | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                                                                                       |
-| `/infra/csi-rclone`    | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                                                                                               |
-| `/infra/monitoring`    | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`                                                                                    |
-| `/infra/auth`          | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`, `SSO_COOKIE_SECRET`                             | `infra/auth/app/*infisicalsecret.yaml`                                                                                        |
-| `/infra/glance`        | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`                                                   | `infra/glance/app/infisicalsecret.yaml`                                                                                       |
-| `/infra/k8up`          | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader`                                                                       |
-| `/nodes/kenaz/actual`  | none, leave empty                                                                                 | written by `just tf apply oidc`                                                                                               |
-| `/nodes/kenaz/bifrost` | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`    | `nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml`. The two `VK_*` keys in this folder are written by `just tf apply bifrost` |
+| Folder                    | Secrets                                                                                           | Consumed by                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/infra/cert-manager`     | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                                                                                       |
+| `/infra/csi-rclone`       | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                                                                                               |
+| `/infra/monitoring`       | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`                                                                                    |
+| `/infra/auth`             | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`, `SSO_COOKIE_SECRET`                             | `infra/auth/app/*infisicalsecret.yaml`                                                                                        |
+| `/infra/glance`           | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`                                                   | `infra/glance/app/infisicalsecret.yaml`                                                                                       |
+| `/infra/k8up`             | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader`                                                                       |
+| `/nodes/kenaz/actual`     | none, leave empty                                                                                 | written by `just tf apply oidc`                                                                                               |
+| `/infra/postgres`         | `LINKWARDEN_POSTGRES_PASSWORD`                                                                    | `infra/postgres/config/infisicalsecret.yaml`                                                                                  |
+| `/nodes/kenaz/linkwarden` | `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                                            | `nodes/kenaz.k8s/linkwarden/app/infisicalsecret.yaml`. The two `OIDC_*` keys are written by `just tf apply oidc`              |
+| `/nodes/kenaz/bifrost`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`    | `nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml`. The two `VK_*` keys in this folder are written by `just tf apply bifrost` |
 
 `B2_KEY_ID` and `B2_APPLICATION_KEY` are placeholders for now. `tofu/b2` mints that key at step 8.
 `RESTIC_PASSWORD` is yours to generate, from `openssl rand -base64 32`, and it must exist before
