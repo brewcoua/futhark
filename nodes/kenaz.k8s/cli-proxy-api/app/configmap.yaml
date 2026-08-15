@@ -1,0 +1,37 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cli-proxy-api-config
+  namespace: cli-proxy-api
+data:
+  # Mounted at /CLIProxyAPI/config.yaml, the path the binary reads from its working directory.
+  #
+  # Every value here is non-secret, which is the point: the credentials this app holds are the
+  # OAuth tokens under auth-dir, written by an interactive login rather than by config. That keeps
+  # the whole file in git. See docs/src/operations/cli-proxy-login.md.
+  config.yaml: |
+    host: ""
+    port: 8317
+
+    # Absolute rather than the default "~/.cli-proxy-api". The pod runs as uid 1000 with no
+    # matching passwd entry, so ~ has nothing to expand against. Docker deployments that leave
+    # this unset fail to start.
+    auth-dir: "/root/.cli-proxy-api"
+
+    # Empty on purpose. Nothing outside the cluster can reach this Service, and the one namespace
+    # that can is named by infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml.
+    # A key here would be a second secret to seed and rotate for a hop that is already closed.
+    api-keys: []
+
+    # An empty secret-key returns 404 for every /v0/management route, so the Management API is off
+    # rather than merely unauthenticated. disable-control-panel stops the panel asset download,
+    # which would write into the read-only root filesystem.
+    remote-management:
+      allow-remote: false
+      secret-key: ""
+      disable-control-panel: true
+
+    # Logs go to stdout, where fluent-bit collects them into VictoriaLogs like every other pod's.
+    logging-to-file: false
+    debug: false

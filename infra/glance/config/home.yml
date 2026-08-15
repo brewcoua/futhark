@@ -88,6 +88,11 @@
                 - title: Open WebUI
                   url: https://chat.${SUB_INTERNAL}.${DOMAIN}
                   icon: sh:open-webui
+                # selfh.st ships no Bifrost icon, so this points at the one the app serves itself,
+                # the same URL form the Personal group uses for sites with no sh: entry.
+                - title: Bifrost
+                  url: https://llm.${SUB_INTERNAL}.${DOMAIN}
+                  icon: https://llm.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
                 - title: SearXNG
                   url: https://search.${SUB_INTERNAL}.${DOMAIN}
                   icon: sh:searxng

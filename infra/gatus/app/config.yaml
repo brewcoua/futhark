@@ -138,6 +138,20 @@ endpoints:
       - "[RESPONSE_TIME] < 2000"
       - "[CERTIFICATE_EXPIRATION] > 240h"
 
+  # /health is outside the inference paths, so it answers without a virtual key. It pings the
+  # config store before replying and returns 503 if that fails, so the body assertion covers the
+  # SQLite volume as well as the process.
+  - name: Bifrost
+    group: Apps
+    url: https://llm.${SUB_INTERNAL}.${DOMAIN}/health
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 200"
+      - "[BODY].status == ok"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
   - name: Actual
     group: Apps
     url: https://actual.${SUB_INTERNAL}.${DOMAIN}

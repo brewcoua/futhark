@@ -51,3 +51,10 @@ tofu:
     INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: pass://<vault>/infisical-tofu-writer/client id
     INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: pass://<vault>/infisical-tofu-writer/client secret
     TF_VAR_infisical_project_id: 00000000-0000-0000-0000-000000000000
+  # The same tofu-writer identity and project as oidc. A second copy rather than a shared
+  # anchor: each module's section is exported on its own, and sops has no way to reference one
+  # section from another.
+  bifrost:
+    INFISICAL_UNIVERSAL_AUTH_CLIENT_ID: pass://<vault>/infisical-tofu-writer/client id
+    INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: pass://<vault>/infisical-tofu-writer/client secret
+    TF_VAR_infisical_project_id: 00000000-0000-0000-0000-000000000000

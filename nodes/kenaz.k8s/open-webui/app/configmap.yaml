@@ -29,13 +29,16 @@ data:
   # rather than state, and backing it up would only preserve a stale copy.
   STATIC_DIR: /app/static
 
-  # Ollama Cloud is the only model backend; there is no in-cluster Ollama.
-  # OLLAMA_BASE_URLS takes precedence over OLLAMA_BASE_URL and is what OLLAMA_API_CONFIGS keys
-  # itself against, by index. That config object carries the API key, so it is a credential and
-  # lives in Infisical rather than here.
-  ENABLE_OLLAMA_API: "True"
-  OLLAMA_BASE_URLS: https://ollama.com
-  ENABLE_OPENAI_API: "False"
+  # Bifrost is the only model backend, and every provider behind it is its concern rather than
+  # this app's. Reached by Service rather than by its ingress host, which is why bifrost's policy
+  # overlay opens a hole for this namespace. Bifrost's OpenAI-compatible surface is used rather
+  # than its Ollama one so that adding a non-Ollama provider there needs no change here.
+  #
+  # OPENAI_API_KEYS carries the virtual key bifrost issues this app, not a provider key: it is a
+  # credential, so it lives in Infisical. The Ollama Cloud key moved to /nodes/kenaz/bifrost.
+  ENABLE_OLLAMA_API: "False"
+  ENABLE_OPENAI_API: "True"
+  OPENAI_API_BASE_URLS: http://bifrost.bifrost.svc.cluster.local/v1
 
   # Login is Pocket ID and nothing else. OAUTH_CLIENT_ID and OAUTH_CLIENT_SECRET are deliberately
   # absent: Pocket ID mints both, so they arrive through open-webui-secrets. See

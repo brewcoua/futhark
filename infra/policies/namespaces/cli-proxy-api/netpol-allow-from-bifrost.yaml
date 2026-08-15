@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# The only way in. This app has no Ingress, so with the default deny in place this file is the
+# whole of its reachability: bifrost, over the cluster network, and nothing else. That is what
+# lets its config.yaml ship an empty api-keys list.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-bifrost
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: bifrost
+      ports:
+        - port: 8317

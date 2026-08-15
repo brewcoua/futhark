@@ -138,8 +138,30 @@ metadata:
     futk.eu/tier: node
     futk.eu/node: kenaz
 ---
-# The chat UI at chat.$SUB_INTERNAL.$DOMAIN, talking to Ollama Cloud. Node tier rather than
-# infra: it is a tenant workload with its own data, and nothing else in the cluster reads it.
+# The LLM gateway at llm.$SUB_INTERNAL.$DOMAIN. Every model request in the cluster goes through
+# it, so the provider credentials sit here rather than in each app that wants a model.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bifrost
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz
+---
+# The subscription-CLI proxy behind bifrost. Its own namespace rather than a second workload in
+# bifrost: it holds OAuth tokens for personal accounts, and keeping it separate means the only
+# thing that can reach it is one named namespace rather than every pod beside it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cli-proxy-api
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz
+---
+# The chat UI at chat.$SUB_INTERNAL.$DOMAIN, talking to Ollama Cloud through bifrost. Node tier
+# rather than infra: it is a tenant workload with its own data, and nothing else in the cluster
+# reads it.
 apiVersion: v1
 kind: Namespace
 metadata:

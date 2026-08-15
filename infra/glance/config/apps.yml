@@ -38,6 +38,10 @@
             - 9001/copyparty
             - open-webui/open-webui
             - searxng/searxng
+            # maximhq/bifrost is deliberately absent. It is a monorepo that tags each plugin
+            # separately, so the newest release is almost never the gateway this cluster runs.
+            # Renovate still watches the image; this widget would only add noise.
+            - router-for-me/CLIProxyAPI
             - glanceapp/glance
             - TwiN/gatus
 

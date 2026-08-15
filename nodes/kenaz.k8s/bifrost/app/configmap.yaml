@@ -1,0 +1,103 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bifrost-config
+  namespace: bifrost
+data:
+  # Mounted at /app/data/config.json, inside the app directory Bifrost reads at startup.
+  #
+  # source_of_truth is "config.json", so every section written here is reapplied on each restart
+  # and rows that exist only in the config store are pruned. That makes the commit the record, the
+  # same choice open-webui makes with ENABLE_PERSISTENT_CONFIG. The cost is the same too: an edit
+  # made in the dashboard lasts until the pod restarts. Because a present section prunes, omit a
+  # section rather than writing an empty array for something this file does not manage.
+  #
+  # config_store stays enabled rather than the file-only "enabled: false", because virtual keys
+  # are config store rows and file-only mode has no store. logs_store is off, so request and
+  # response bodies never reach the disk and the volume holds nothing but config.db.
+  #
+  # Every "env." reference is resolved against the pod environment, which envFrom fills from
+  # bifrost-secrets. No credential appears in this file. The cli-proxy key is the one empty value:
+  # that upstream serves with an empty api-keys list, so there is nothing to present.
+  config.json: |
+    {
+      "$schema": "https://www.getbifrost.ai/schema",
+      "encryption_key": "env.BIFROST_ENCRYPTION_KEY",
+
+      "client": {
+        "enable_logging": true,
+        "enforce_auth_on_inference": true
+      },
+
+      "providers": {
+        "ollama": {
+          "keys": [
+            {
+              "name": "ollama-cloud",
+              "value": "env.OLLAMA_API_KEY",
+              "models": ["*"],
+              "weight": 1.0,
+              "ollama_key_config": {
+                "url": "https://ollama.com"
+              }
+            }
+          ]
+        },
+        "cli-proxy": {
+          "keys": [
+            {
+              "name": "cli-proxy",
+              "value": "",
+              "models": ["*"],
+              "weight": 1.0
+            }
+          ],
+          "custom_provider_config": {
+            "base_provider_type": "anthropic"
+          },
+          "network_config": {
+            "base_url": "http://cli-proxy-api.cli-proxy-api.svc.cluster.local:8317"
+          }
+        }
+      },
+
+      "governance": {
+        "auth_config": {
+          "is_enabled": true,
+          "admin_username": "env.BIFROST_ADMIN_USERNAME",
+          "admin_password": "env.BIFROST_ADMIN_PASSWORD",
+          "disable_auth_on_inference": false
+        },
+        "virtual_keys": [
+          {
+            "id": "vk-open-webui",
+            "name": "open-webui",
+            "value": "env.VK_OPEN_WEBUI",
+            "is_active": true,
+            "provider_configs": [
+              { "provider": "ollama", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 },
+              { "provider": "cli-proxy", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 }
+            ]
+          },
+          {
+            "id": "vk-cli",
+            "name": "cli",
+            "value": "env.VK_CLI",
+            "is_active": true,
+            "provider_configs": [
+              { "provider": "ollama", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 },
+              { "provider": "cli-proxy", "allowed_models": ["*"], "key_ids": ["*"], "weight": 1 }
+            ]
+          }
+        ]
+      },
+
+      "config_store": {
+        "enabled": true
+      },
+      "logs_store": {
+        "enabled": false
+      },
+      "source_of_truth": "config.json"
+    }

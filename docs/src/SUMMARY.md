@@ -8,6 +8,7 @@
 - [The rclone remotes](operations/rclone.md)
 - [Backup and recovery](operations/recovery.md)
 - [Credential rotation](operations/rotation.md)
+- [CLI proxy login](operations/cli-proxy-login.md)
 - [Recipe reference](operations/recipes.md)
 - [Checks and CI](operations/checks.md)
 - [Troubleshooting](operations/troubleshooting.md)
@@ -43,3 +44,4 @@
 - [oidc](tofu/oidc.md)
 - [netbird](tofu/netbird.md)
 - [b2](tofu/b2.md)
+- [bifrost](tofu/bifrost.md)

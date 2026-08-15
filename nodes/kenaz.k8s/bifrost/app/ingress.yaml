@@ -1,0 +1,30 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+#
+# No auth-sso, unlike copyparty and searxng, and for the same reason as open-webui by a different
+# mechanism: governance.auth_config gates the dashboard and /api, and every inference path already
+# demands a virtual key. The middleware would put a second login in front of both, and no CLI
+# client can complete an SSO redirect.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bifrost
+  namespace: bifrost
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: bifrost-ratelimit@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: llm.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bifrost
+                port:
+                  number: 80

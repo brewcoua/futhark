@@ -101,7 +101,8 @@ from, and either can change without dragging the other with it.
 
 The templates above cover the two directions that recur: monitoring scraping everything, and an
 ingress reaching one namespace. A pod in one namespace calling a pod in another is neither, and
-two callers do it today. Each namespace they reach admits them with its own file.
+three callers do it today. Each namespace they reach admits them with its own file. Every one of
+these files names the port the pod listens on, not the port its `Service` publishes.
 
 Glance reaches into two namespaces.
 
@@ -111,11 +112,20 @@ query against one of them, and Glance is an ordinary pod that no mesh `ipBlock` 
 `infra/policies/namespaces/gatus/netpol-allow-from-glance.yaml` does the same for the Gatus API on
 8080, which is where the apps page gets service health.
 
-Open WebUI is the second caller.
-`infra/policies/namespaces/searxng/netpol-allow-from-open-webui.yaml` admits it to SearXNG on 80,
-which is where its web search runs its queries. It could have gone through
+Open WebUI is the second caller, and reaches into two namespaces.
+
+`infra/policies/namespaces/searxng/netpol-allow-from-open-webui.yaml` admits it to SearXNG on
+8080, which is where its web search runs its queries. It could have gone through
 `search.$SUB_INTERNAL.$DOMAIN` instead, but that host sits behind `auth-sso` and a pod carries no
-session cookie.
+session cookie. `infra/policies/namespaces/bifrost/netpol-allow-from-open-webui.yaml` admits it to
+Bifrost on 8080, which is its only model backend.
+
+Bifrost is the third caller.
+`infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml` admits it to
+cli-proxy-api on 8317. That file matters more than the others: cli-proxy-api has no `Ingress` and
+composes no `netpol-allow-from-ingress-internal`, so with the default deny in place this one hole
+is the whole of its reachability. That is what lets its `config.yaml` ship an empty `api-keys`
+list instead of carrying a credential of its own.
 
 Each is a file in its own overlay rather than a template in `_templates/`: each names one
 namespace, and a further caller should get its own file rather than a selector wide enough to

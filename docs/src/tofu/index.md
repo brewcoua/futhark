@@ -15,11 +15,12 @@ an operation against Pocket ID's own API that no Kustomization can express.
 **Read-only against the secret stores.** Never let a module write to one. Anything a module
 _mints_ becomes a `sensitive` output, filed by hand.
 
-_Exception: [`oidc`](oidc.md)._ It mints OIDC client secrets in Pocket ID, and the whole point
-of the module is removing that hand-paste step for this one round trip, so it writes those
-secrets straight to Infisical. It authenticates as a machine identity scoped to write one folder,
-`/nodes/<hostname>/<app>`, and is deliberately not the read-only identity the cluster uses. Every
-other module stays read-only.
+_Exception: [`oidc`](oidc.md) and [`bifrost`](bifrost.md)._ Both write to Infisical, under a
+machine identity scoped to `/nodes/<hostname>/<app>` and deliberately not the read-only identity
+the cluster uses. `oidc` mints OIDC client secrets in Pocket ID, and the whole point of the module
+is removing that hand-paste step for this one round trip. `bifrost` mints nothing anywhere: it
+generates the gateway's virtual keys locally, and exists because each one has to arrive at two
+Infisical folders with the same value. Every other module stays read-only.
 
 **Provider tokens are never committed, in any form.** A module's `tofu.<module>` section of
 `config/sops/ops.sops.yaml` holds two kinds of entry, and neither is a value. Identifying values that
@@ -121,11 +122,12 @@ that touches `.terraform.lock.hcl` fails pre-commit's own "did this hook modify 
 | [`oidc`](oidc.md)       | Pocket ID OIDC clients, writing the minted secret into Infisical                          |
 | [`netbird`](netbird.md) | Mesh access policy, account settings, and the internal DNS zone                           |
 | [`b2`](b2.md)           | The Backblaze B2 bucket the restic repository lives in, and the application key K8up uses |
+| [`bifrost`](bifrost.md) | The LLM gateway's virtual keys, written into Infisical for both sides of each one         |
 
-What each touches. Every arrow into a secret store is a read except the one marked in red, which
-is the whole read-only rule and its single exception: `oidc` writes under a separate identity,
-scoped to `/nodes/<host>/<app>`. Amber marks a third party this repository calls but does not
-own, including the state bucket, which was created by hand.
+What each touches. Every arrow into a secret store is a read except the ones marked in red, which
+are the whole read-only rule and its two exceptions: `oidc` and `bifrost` write under a separate
+identity, scoped to `/nodes/<host>/<app>`. Amber marks a third party this repository calls but does
+not own, including the state bucket, which was created by hand.
 
 ```d2
 direction: down
@@ -154,6 +156,7 @@ modules: "tofu/" {
   oidc
   netbird
   b2
+  bifrost
 }
 
 pass -> modules: provider tokens\n(pass-cli run)
@@ -172,4 +175,5 @@ b2-api: Backblaze B2 API { class: external }
 b2-state: "B2 state bucket\n(created by hand, unmanaged)" { class: external }
 
 modules.oidc -> infisical: WRITES the minted secret { class: danger }
+modules.bifrost -> infisical: WRITES the virtual keys { class: danger }
 ```

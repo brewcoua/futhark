@@ -27,8 +27,9 @@ provider "pocketid" {}
 #
 # The universal auth block reads INFISICAL_UNIVERSAL_AUTH_CLIENT_ID and
 # INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET, resolved from Proton Pass by `pass-cli run`. This is
-# the `tofu-writer` machine identity — write on /nodes/kenaz/actual only, deliberately not the
-# read-only identity the cluster uses.
+# the `tofu-writer` machine identity, scoped to the node folders the writing modules target and
+# deliberately not the read-only identity the cluster uses. tofu/bifrost authenticates as the same
+# identity. See docs/src/operations/setup.md.
 provider "infisical" {
   host = "https://eu.infisical.com"
   # Attribute assignment, not a block — the provider models auth as a nested object type, so

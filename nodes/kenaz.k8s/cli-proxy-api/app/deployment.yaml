@@ -1,0 +1,88 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cli-proxy-api
+  namespace: cli-proxy-api
+spec:
+  replicas: 1
+  # The auth-dir is a single-writer volume: the process rewrites a token file in place whenever a
+  # provider's access token is refreshed. Never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cli-proxy-api
+  template:
+    metadata:
+      labels:
+        app: cli-proxy-api
+    spec:
+      # The image ships UID 0 by default, so the identity is imposed here rather than inherited.
+      # Everything written at runtime is under the PVC, which fsGroup covers.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: cli-proxy-api
+          # Docker Hub only: upstream's release workflow pushes nowhere else, so there is no GHCR
+          # copy to prefer and pulls here count against the anonymous rate limit.
+          image: docker.io/eceasy/cli-proxy-api:v7.2.132@sha256:2332098d014bd48ad638475caec283fe54f35ad7c0bdadfd18a4cd267bec18d8
+          ports:
+            - name: http
+              containerPort: 8317
+          env:
+            # The image bakes TZ=Asia/Shanghai, which would timestamp this pod's logs differently
+            # from every other pod's in VictoriaLogs.
+            - name: TZ
+              value: Europe/Amsterdam
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            # auth-dir. The OAuth tokens, and the only writable path in the container.
+            - name: auth
+              mountPath: /root/.cli-proxy-api
+            # subPath so the ConfigMap lands as a file inside the image's working directory
+            # instead of masking it.
+            - name: config
+              mountPath: /CLIProxyAPI/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          # /healthz is registered on the engine ahead of the auth middleware, so it answers
+          # whether or not any credential has been seeded. That is deliberate here: a pod with an
+          # empty auth-dir is correctly running and waiting for the login procedure, not unhealthy.
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: auth
+          persistentVolumeClaim:
+            claimName: cli-proxy-api-auth
+        - name: config
+          configMap:
+            name: cli-proxy-api-config
+        - name: tmp
+          emptyDir: {}

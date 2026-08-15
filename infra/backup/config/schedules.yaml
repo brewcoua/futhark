@@ -19,6 +19,24 @@ metadata:
   namespace: actual
 spec: {}
 ---
+# What bifrost keeps that git does not is the usage its config store accumulates per virtual key.
+# Everything else in config.db is reapplied from its ConfigMap on the next start.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: bifrost
+spec: {}
+---
+# The OAuth tokens, which no apply recreates. Without this, losing the volume means repeating the
+# browser login for every account. See docs/src/operations/cli-proxy-login.md.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: cli-proxy-api
+spec: {}
+---
 # searxng is deliberately absent: its only volume is a disposable favicon cache on an emptyDir.
 apiVersion: k8up.io/v1
 kind: Schedule

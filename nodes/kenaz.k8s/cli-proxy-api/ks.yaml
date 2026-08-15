@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: cli-proxy-api
+spec:
+  path: ./nodes/kenaz.k8s/cli-proxy-api/app
+  dependsOn:
+    - name: infra-policies
+  # Neither `traefik-internal` nor `auth`: this app has no Ingress. Its only client is bifrost,
+  # over the cluster network, which infra/policies opens. Nor `infisical-operator-config`, because
+  # every value it reads is non-secret and ships in the ConfigMap; the one credential it holds is
+  # the OAuth token the PVC carries, and that is seeded by hand rather than by an operator. Nor
+  # `substitutions`, because nothing here is spelled from cluster-values.

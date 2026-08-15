@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: bifrost
+spec:
+  path: ./nodes/kenaz.k8s/bifrost/app
+  dependsOn:
+    - name: infra-policies
+    - name: traefik-internal
+    - name: infisical-operator-config
+    - name: substitutions
+  # No `auth` edge: Bifrost authenticates its own dashboard and management API from
+  # governance.auth_config, so the auth-sso Middleware would stack a second login in front of one
+  # that already exists. Same reasoning as open-webui, by a different mechanism. No `storage` edge
+  # either: its one PVC is local-path, which arrives with k3s rather than from that Kustomization.
+  #
+  # The ingress host is spelled from the Secret. Nothing in config.json is, because every value it
+  # needs from outside the file arrives as an environment variable instead.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values

@@ -62,6 +62,8 @@ nodes: nodes { class: boundary }
 actual: nodes/kenaz.k8s/actual { class: boundary }
 open-webui: nodes/kenaz.k8s/open-webui { class: boundary }
 searxng: nodes/kenaz.k8s/searxng { class: boundary }
+bifrost: nodes/kenaz.k8s/bifrost { class: boundary }
+cli-proxy-api: nodes/kenaz.k8s/cli-proxy-api { class: boundary }
 
 namespaces -> cert-manager
 namespaces -> infisical-operator
@@ -78,6 +80,7 @@ infisical-operator-config -> auth
 infisical-operator-config -> actual
 infisical-operator-config -> open-webui
 infisical-operator-config -> searxng
+infisical-operator-config -> bifrost
 
 cert-manager-config -> traefik-internal
 cert-manager-config -> auth
@@ -104,6 +107,7 @@ auth -> copyparty
 
 traefik-internal -> open-webui
 traefik-internal -> searxng
+traefik-internal -> bifrost
 auth -> searxng
 
 storage -> actual
@@ -116,6 +120,7 @@ substitutions -> backup { class: presence }
 substitutions -> actual { class: presence }
 substitutions -> open-webui { class: presence }
 substitutions -> searxng { class: presence }
+substitutions -> bifrost { class: presence }
 substitutions -> infra-policies { class: presence }
 substitutions -> glance { class: presence }
 substitutions -> gatus { class: presence }
@@ -136,6 +141,8 @@ infra-policies -> nodes
 infra-policies -> actual
 infra-policies -> open-webui
 infra-policies -> searxng
+infra-policies -> bifrost
+infra-policies -> cli-proxy-api
 infra-policies -> glance
 infra-policies -> gatus
 infra-policies -> copyparty

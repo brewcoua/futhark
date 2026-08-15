@@ -1,0 +1,15 @@
+---
+# No Ingress alongside this Service, unlike every other node app: the only client is bifrost, in
+# the cluster. See ../ks.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: cli-proxy-api
+  namespace: cli-proxy-api
+spec:
+  selector:
+    app: cli-proxy-api
+  ports:
+    - name: http
+      port: 8317
+      targetPort: http

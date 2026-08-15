@@ -1,0 +1,20 @@
+---
+# The OAuth tokens for every provider account this proxy fronts, written by an interactive login
+# and refreshed in place while it runs. Nothing recreates them from git, so losing this volume
+# means repeating the browser flow for every account. local-path is node-local hostPath storage,
+# so this disk dying takes the tokens with it, which is why the volume opts into the nightly
+# backup. See docs/src/operations/cli-proxy-login.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cli-proxy-api-auth
+  namespace: cli-proxy-api
+  annotations:
+    k8up.io/backup: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi

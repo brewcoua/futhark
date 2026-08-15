@@ -1,0 +1,23 @@
+---
+# config.db (SQLite), and nothing else: logs_store is off, so no request bodies land here.
+# local-path is node-local hostPath storage, which avoids the locking issues a network filesystem
+# can cause for SQLite. Node-local means this disk dying takes the data with it, so the volume
+# opts into the nightly backup. See docs/src/operations/recovery.md.
+#
+# Most of what the database holds is reapplied from configmap.yaml on every start, because
+# source_of_truth is "config.json". What a restore actually recovers is the per-virtual-key usage
+# the config store accumulates.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bifrost-data
+  namespace: bifrost
+  annotations:
+    k8up.io/backup: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi

@@ -161,7 +161,10 @@ allows:
 - **`cluster-reader`**: read-only on the whole project, **denied** `/infra/k8up`. Leave
   `accessTokenTrustedIps` alone for now. You set it at step 12, once the cluster has an egress
   address.
-- **`tofu-writer`**: write on `/nodes/kenaz/actual` only.
+- **`tofu-writer`**: write on the node folders the two writing modules target, and nothing else.
+  Today that is `/nodes/kenaz/actual`, `/nodes/kenaz/open-webui` and `/nodes/kenaz/bifrost`. See
+  [oidc](../tofu/oidc.md) and [bifrost](../tofu/bifrost.md). Widen it as a module gains a folder,
+  never to the whole project.
 - **`backup-reader`**: read on `/infra/k8up` and nothing else. The split is deliberate. Losing
   the cluster's read credential must not also mean losing the ability to decrypt B2. See
   [Secrets](../conventions/secrets.md).
@@ -171,15 +174,16 @@ Copy all three client ID and secret pairs into Proton Pass per the table above.
 Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout, per
 [Naming](../conventions/secrets.md#naming):
 
-| Folder                | Secrets                                                                                           | Consumed by                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `/infra/cert-manager` | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                 |
-| `/infra/csi-rclone`   | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                         |
-| `/infra/monitoring`   | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`              |
-| `/infra/auth`         | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`, `SSO_COOKIE_SECRET`                             | `infra/auth/app/*infisicalsecret.yaml`                  |
-| `/infra/glance`       | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`                                                   | `infra/glance/app/infisicalsecret.yaml`                 |
-| `/infra/k8up`         | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader` |
-| `/nodes/kenaz/actual` | none, leave empty                                                                                 | written by `just tf apply oidc`                         |
+| Folder                 | Secrets                                                                                           | Consumed by                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/infra/cert-manager`  | `BUNNY_API_KEY`                                                                                   | `infra/cert-manager/config/secret.yaml`                                                                                       |
+| `/infra/csi-rclone`    | 11 secrets, `STORAGEBOX_*` and `GDRIVE_*`, listed in [The rclone remotes](rclone.md#the-artifact) | `infra/storage/app/secret.yaml`                                                                                               |
+| `/infra/monitoring`    | `ADMIN_USER`, `ADMIN_PASSWORD`, `SLACK_WEBHOOK_URL`, `HEALTHCHECKS_PING_URL`                      | `infra/monitoring/app/grafana/secret.yaml`                                                                                    |
+| `/infra/auth`          | `POCKETID_ENCRYPTION_KEY`, `MAXMIND_LICENSE_KEY`, `SSO_COOKIE_SECRET`                             | `infra/auth/app/*infisicalsecret.yaml`                                                                                        |
+| `/infra/glance`        | `NETBIRD_API_KEY`, `GITHUB_TOKEN`, `WAQI_TOKEN`                                                   | `infra/glance/app/infisicalsecret.yaml`                                                                                       |
+| `/infra/k8up`          | `B2_KEY_ID`, `B2_APPLICATION_KEY`, `RESTIC_PASSWORD`                                              | `infra/backup/app/secret.yaml`, read as `backup-reader`                                                                       |
+| `/nodes/kenaz/actual`  | none, leave empty                                                                                 | written by `just tf apply oidc`                                                                                               |
+| `/nodes/kenaz/bifrost` | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`    | `nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml`. The two `VK_*` keys in this folder are written by `just tf apply bifrost` |
 
 `B2_KEY_ID` and `B2_APPLICATION_KEY` are placeholders for now. `tofu/b2` mints that key at step 8.
 `RESTIC_PASSWORD` is yours to generate, from `openssl rand -base64 32`, and it must exist before
@@ -454,18 +458,24 @@ still failing after that, start at [Troubleshooting](troubleshooting.md).
 Pocket ID is running now, so create its admin API key at **Settings → Admin → API Keys** on
 `auth.$DOMAIN`, and replace the `POCKETID_API_TOKEN` placeholder from step 1.
 
-`tofu/oidc` writes into Infisical at the path the cluster is already watching, which is why it
-goes last.
+`tofu/oidc` and `tofu/bifrost` write into Infisical at paths the cluster is already watching,
+which is why they go last.
 
 ```bash
-just tf plan bunny && just tf apply bunny
-just tf plan oidc  && just tf apply oidc
+just tf plan bunny   && just tf apply bunny
+just tf plan oidc    && just tf apply oidc
+just tf plan bifrost && just tf apply bifrost
 ```
 
-Each has its own prerequisites. See [bunny](../tofu/bunny.md) and [oidc](../tofu/oidc.md).
+Each has its own prerequisites. See [bunny](../tofu/bunny.md), [oidc](../tofu/oidc.md) and
+[bifrost](../tofu/bifrost.md).
 
-Verify: both plans are no-ops on a second run, and the Actual app picks up its OIDC client from
-`/nodes/kenaz/actual` without further edits.
+Verify: all three plans are no-ops on a second run, the Actual app picks up its OIDC client from
+`/nodes/kenaz/actual` without further edits, and `VK_OPEN_WEBUI` in `/nodes/kenaz/bifrost` holds
+the same value as `OPENAI_API_KEYS` in `/nodes/kenaz/open-webui`.
+
+`cli-proxy-api` serves no model until an account is linked, which is a browser flow rather than an
+apply. See [CLI proxy login](cli-proxy-login.md).
 
 ## 11. Prove the isolation holds
 

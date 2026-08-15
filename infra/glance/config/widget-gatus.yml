@@ -36,6 +36,8 @@
     Copyparty-url: https://files.${SUB_INTERNAL}.${DOMAIN}
     Open WebUI: sh:open-webui
     Open WebUI-url: https://chat.${SUB_INTERNAL}.${DOMAIN}
+    Bifrost: https://llm.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
+    Bifrost-url: https://llm.${SUB_INTERNAL}.${DOMAIN}
     SearXNG: sh:searxng
     SearXNG-url: https://search.${SUB_INTERNAL}.${DOMAIN}
   template: |
