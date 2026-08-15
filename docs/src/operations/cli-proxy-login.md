@@ -13,10 +13,17 @@ added.
 
 ## Prerequisites
 
-- `kubectl` pointed at the cluster. Every `just ks` and `just fx` recipe sets `KUBECONFIG` itself.
-- A browser on the machine running `kubectl`, signed in to the account being linked.
-- `nodes/kenaz.k8s/cli-proxy-api` already reconciled. `flux get kustomization cli-proxy-api` shows
-  Ready.
+- The generated kubeconfig at `ansible/.generated/kubeconfig`. Every command below goes through a
+  `just` recipe, which exports `KUBECONFIG` itself, so nothing here depends on the shell's own
+  cluster context. `just ks kctl` is a plain `kubectl` passthrough for the steps no recipe covers.
+- A browser on this machine, signed in to the account being linked.
+- `nodes/kenaz.k8s/cli-proxy-api` already reconciled:
+
+  ```bash
+  just fx get
+  ```
+
+  Verify: the `cli-proxy-api` Kustomization reads Ready.
 
 ## Why the pod is scaled down first
 
@@ -30,11 +37,11 @@ unaffected.
 1. Release the volume.
 
    ```bash
-   kubectl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=0
-   kubectl -n cli-proxy-api rollout status deployment/cli-proxy-api --timeout=60s
+   just ks kctl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=0
+   just ks kctl -n cli-proxy-api rollout status deployment/cli-proxy-api --timeout=60s
    ```
 
-   Verify: `kubectl -n cli-proxy-api get pods` reports no resources.
+   Verify: `just ks pods cli-proxy-api` reports no resources.
 
 2. Start a login pod on the same volume. Replace `--claude-login` with `--codex-login` or
    `--antigravity-login` for those providers; each opens its callback on a different port, so
@@ -42,33 +49,34 @@ unaffected.
    `/root`, and it is deleted at the end of this procedure.
 
    ```bash
-   kubectl -n cli-proxy-api run cli-proxy-login \
+   just ks kctl -n cli-proxy-api run cli-proxy-login \
      --image=docker.io/eceasy/cli-proxy-api:v7.2.132 \
      --restart=Never \
      --overrides='{"spec":{"containers":[{"name":"cli-proxy-login","image":"docker.io/eceasy/cli-proxy-api:v7.2.132","args":["/CLIProxyAPI/CLIProxyAPI","--claude-login"],"stdin":true,"tty":true,"volumeMounts":[{"name":"auth","mountPath":"/root/.cli-proxy-api"}]}],"volumes":[{"name":"auth","persistentVolumeClaim":{"claimName":"cli-proxy-api-auth"}}]}}'
    ```
 
-   Verify: `kubectl -n cli-proxy-api get pod cli-proxy-login` reports Running.
+   Verify: `just ks pods cli-proxy-api` shows `cli-proxy-login` Running.
 
 3. Forward the callback port and complete the flow.
 
    ```bash
-   kubectl -n cli-proxy-api port-forward pod/cli-proxy-login 54545:54545
+   just ks kctl -n cli-proxy-api port-forward pod/cli-proxy-login 54545:54545
    ```
 
-   In a second terminal, read the authorization URL the pod printed and open it:
+   In a second terminal, read the authorization URL the pod printed and open it. This recipe
+   follows the log, so leave it running to watch the rest of the flow:
 
    ```bash
-   kubectl -n cli-proxy-api logs cli-proxy-login
+   just ks logs cli-proxy-api cli-proxy-login
    ```
 
    Sign in. The vendor redirects to `http://localhost:54545/...`, the forward carries it to the
    pod, and the pod writes the token.
 
-   Verify: the pod logs report the login succeeded, and
+   Verify: the log reports the login succeeded, and
 
    ```bash
-   kubectl -n cli-proxy-api exec cli-proxy-login -- ls /root/.cli-proxy-api
+   just ks kctl -n cli-proxy-api exec cli-proxy-login -- ls /root/.cli-proxy-api
    ```
 
    lists at least one file.
@@ -76,10 +84,12 @@ unaffected.
 4. Remove the login pod and bring the app back.
 
    ```bash
-   kubectl -n cli-proxy-api delete pod cli-proxy-login
-   kubectl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=1
-   kubectl -n cli-proxy-api rollout status deployment/cli-proxy-api --timeout=120s
+   just ks kctl -n cli-proxy-api delete pod cli-proxy-login
+   just ks kctl -n cli-proxy-api scale deployment/cli-proxy-api --replicas=1
+   just ks kctl -n cli-proxy-api rollout status deployment/cli-proxy-api --timeout=120s
    ```
+
+   Verify: `just ks pods cli-proxy-api` shows one pod, Running and ready.
 
 ## Verify end to end
 
@@ -112,7 +122,7 @@ Nothing is committed until the token file is written, so a failed attempt leaves
 Delete the pod and start again from step 2:
 
 ```bash
-kubectl -n cli-proxy-api delete pod cli-proxy-login --ignore-not-found
+just ks kctl -n cli-proxy-api delete pod cli-proxy-login --ignore-not-found
 ```
 
 If the Deployment was left at 0 replicas, scale it back to 1. `bifrost` serves `ollama` either
