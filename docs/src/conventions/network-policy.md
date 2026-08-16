@@ -120,11 +120,11 @@ Open WebUI is the second caller, and reaches into two namespaces.
 session cookie. `infra/policies/namespaces/bifrost/netpol-allow-from-open-webui.yaml` admits it to
 Bifrost on 8080, which is its only model backend.
 
-Vane and Local Deep Research are the third and fourth, and each reaches the same two namespaces
-Open WebUI does, for the same two reasons: `searxng` on 8080 for results, `bifrost` on 8080 for
-the model. That is four more files, named after the caller in each of those two overlays.
+Vane is the third, and reaches the same two namespaces Open WebUI does, for the same two reasons:
+`searxng` on 8080 for results, `bifrost` on 8080 for the model. That is two more files, named
+after the caller in each of those two overlays.
 
-Bifrost is the fifth caller.
+Bifrost is the fourth caller.
 `infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml` admits it to
 cli-proxy-api on 8317. That file matters more than the others: cli-proxy-api has no `Ingress` and
 composes no `netpol-allow-from-ingress-internal`, so with the default deny in place this one hole

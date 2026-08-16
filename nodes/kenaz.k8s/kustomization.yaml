@@ -7,7 +7,6 @@ resources:
   - bifrost/ks.yaml
   - cli-proxy-api/ks.yaml
   - linkwarden/ks.yaml
-  - local-deep-research/ks.yaml
   - open-webui/ks.yaml
   - searxng/ks.yaml
   - vane/ks.yaml

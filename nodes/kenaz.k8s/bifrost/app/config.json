@@ -130,20 +130,6 @@
             "weight": 1
           }
         ]
-      },
-      {
-        "id": "vk-ldr",
-        "name": "local-deep-research",
-        "value": "env.VK_LDR",
-        "is_active": true,
-        "provider_configs": [
-          {
-            "provider": "ollama",
-            "allowed_models": ["*"],
-            "key_ids": ["*"],
-            "weight": 1
-          }
-        ]
       }
     ]
   },

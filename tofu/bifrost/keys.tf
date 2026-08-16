@@ -30,19 +30,14 @@ resource "random_password" "vk_cli" {
   special = false
 }
 
-# Vane's key, and LDR's. Both search apps, both read twice like open-webui's: once by Bifrost and
-# once by the app. Separate keys rather than one shared "search" key, because the point of a
-# virtual key here is that one app can be revoked without touching the other.
+# Vane's key. Read twice like open-webui's: once by Bifrost and once by the app. Its own key
+# rather than a shared one, because the point of a virtual key here is that one app can be revoked
+# without touching the others.
 #
-# Their entries in nodes/kenaz.k8s/bifrost/app/config.json name the ollama provider only. Neither
-# app has any use for cli-proxy, and a key that cannot reach it cannot spend the subscription
-# quota behind it on a runaway research loop.
+# Its entry in nodes/kenaz.k8s/bifrost/app/config.json names the ollama provider only. The app has
+# no use for cli-proxy, and a key that cannot reach it cannot spend the subscription quota behind
+# it on a runaway search loop.
 resource "random_password" "vk_vane" {
-  length  = 48
-  special = false
-}
-
-resource "random_password" "vk_ldr" {
   length  = 48
   special = false
 }
@@ -50,7 +45,7 @@ resource "random_password" "vk_ldr" {
 # /nodes/kenaz/bifrost in the prod environment, the path
 # nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml reads. That folder also holds four hand-seeded
 # keys: BIFROST_ENCRYPTION_KEY, BIFROST_ADMIN_USERNAME, BIFROST_ADMIN_PASSWORD and OLLAMA_API_KEY.
-# The sync is folder-wide, so all eight land in the bifrost-secrets Secret the Deployment pulls in
+# The sync is folder-wide, so all seven land in the bifrost-secrets Secret the Deployment pulls in
 # via envFrom.
 resource "infisical_secret" "vk_open_webui" {
   name         = "VK_OPEN_WEBUI"
@@ -76,14 +71,6 @@ resource "infisical_secret" "vk_vane" {
   folder_path  = "/nodes/kenaz/bifrost"
 }
 
-resource "infisical_secret" "vk_ldr" {
-  name         = "VK_LDR"
-  value        = "sk-bf-${random_password.vk_ldr.result}"
-  env_slug     = "prod"
-  workspace_id = var.infisical_project_id
-  folder_path  = "/nodes/kenaz/bifrost"
-}
-
 # The same token again, under the name Open WebUI expects, in the folder Open WebUI reads. This
 # second write is the whole point of putting the key in tofu: the value has to be identical on both
 # sides, and a value typed into two Infisical folders drifts the first time one is rotated.
@@ -95,23 +82,14 @@ resource "infisical_secret" "open_webui_bifrost_key" {
   folder_path  = "/nodes/kenaz/open-webui"
 }
 
-# The same two tokens again, each under the name its app reads it by. Vane calls the field
-# OPENAI_API_KEY because it configures Bifrost through its generic OpenAI provider; LDR spells the
-# whole path to the setting it locks. Neither name is ours to choose.
+# The same token again, under the name Vane reads it by. It calls the field OPENAI_API_KEY because
+# it configures Bifrost through its generic OpenAI provider. That name is not ours to choose.
 resource "infisical_secret" "vane_bifrost_key" {
   name         = "OPENAI_API_KEY"
   value        = infisical_secret.vk_vane.value
   env_slug     = "prod"
   workspace_id = var.infisical_project_id
   folder_path  = "/nodes/kenaz/vane"
-}
-
-resource "infisical_secret" "ldr_bifrost_key" {
-  name         = "LDR_LLM_OPENAI_ENDPOINT_API_KEY"
-  value        = infisical_secret.vk_ldr.value
-  env_slug     = "prod"
-  workspace_id = var.infisical_project_id
-  folder_path  = "/nodes/kenaz/local-deep-research"
 }
 
 # VK_CLI has no cluster consumer: it is typed into a shell on the operator's machine. Read it with

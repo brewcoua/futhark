@@ -24,27 +24,25 @@ and Pocket ID, all under `infra/` and all pinned with a `nodeSelector`.
 ## `kenaz.k8s`
 
 `kenaz` runs the k3s server, so it is both controller and worker, plus Flux and most of `infra/`.
-The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. It runs eight apps,
+The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. It runs seven apps,
 each in `nodes/kenaz.k8s/<app>/{ks.yaml,app/}` and each reading `/nodes/kenaz/<app>`:
 
-| App                   | Host                             | Reads from Infisical                                                                                                                           |
-| --------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `actual`              | `actual.$SUB_INTERNAL.$DOMAIN`   | `ACTUAL_OPENID_CLIENT_ID`, `ACTUAL_OPENID_CLIENT_SECRET`                                                                                       |
-| `open-webui`          | `chat.$SUB_INTERNAL.$DOMAIN`     | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`, `POSTGRES_PASSWORD`                                           |
-| `linkwarden`          | `links.$SUB_INTERNAL.$DOMAIN`    | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                                                 |
-| `searxng`             | `search.$SUB_INTERNAL.$DOMAIN`   | `SEARXNG_SECRET`                                                                                                                               |
-| `vane`                | `ask.$SUB_INTERNAL.$DOMAIN`      | `OPENAI_API_KEY`                                                                                                                               |
-| `local-deep-research` | `research.$SUB_INTERNAL.$DOMAIN` | `LDR_LLM_OPENAI_ENDPOINT_API_KEY`                                                                                                              |
-| `bifrost`             | `llm.$SUB_INTERNAL.$DOMAIN`      | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`, `VK_OPEN_WEBUI`, `VK_CLI`, `VK_VANE`, `VK_LDR` |
-| `cli-proxy-api`       | none                             | nothing                                                                                                                                        |
+| App             | Host                           | Reads from Infisical                                                                                                                 |
+| --------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `actual`        | `actual.$SUB_INTERNAL.$DOMAIN` | `ACTUAL_OPENID_CLIENT_ID`, `ACTUAL_OPENID_CLIENT_SECRET`                                                                             |
+| `open-webui`    | `chat.$SUB_INTERNAL.$DOMAIN`   | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`, `POSTGRES_PASSWORD`                                 |
+| `linkwarden`    | `links.$SUB_INTERNAL.$DOMAIN`  | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                                       |
+| `searxng`       | `search.$SUB_INTERNAL.$DOMAIN` | `SEARXNG_SECRET`                                                                                                                     |
+| `vane`          | `ask.$SUB_INTERNAL.$DOMAIN`    | `OPENAI_API_KEY`                                                                                                                     |
+| `bifrost`       | `llm.$SUB_INTERNAL.$DOMAIN`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`, `VK_OPEN_WEBUI`, `VK_CLI`, `VK_VANE` |
+| `cli-proxy-api` | none                           | nothing                                                                                                                              |
 
 `actual`, `open-webui` and `linkwarden` are OIDC clients of Pocket ID, so `tofu/oidc` writes their
-client ID and secret. `searxng`, `vane` and `local-deep-research` speak no OIDC and are gated by
+client ID and secret. `searxng` and `vane` speak no OIDC and are gated by
 the `auth-sso` middleware instead. Every remaining key is either seeded by hand or minted by
 `tofu/bifrost`: `WEBUI_SECRET_KEY` signs Open WebUI's JWTs and `NEXTAUTH_SECRET` signs
-Linkwarden's, both by hand, while `OPENAI_API_KEYS`, `OPENAI_API_KEY` and
-`LDR_LLM_OPENAI_ENDPOINT_API_KEY` are the virtual keys `bifrost` issues its three in-cluster
-clients. See [bifrost](../tofu/bifrost.md).
+Linkwarden's, both by hand, while `OPENAI_API_KEYS` and `OPENAI_API_KEY` are the virtual keys
+`bifrost` issues its two in-cluster clients. See [bifrost](../tofu/bifrost.md).
 
 `linkwarden` and `open-webui` keep their data outside their own namespace, in the shared
 PostgreSQL under `infra/postgres`. What is left on each PVC is files rather than a database:
@@ -87,37 +85,31 @@ Gemini ids arrive scrambled and unusable. The list is the one thing here that go
 another account in `cli-proxy-api` adds models that stay invisible until they are added to
 `config.json` too.
 
-### The two search surfaces
+### The search surface
 
-`vane` and `local-deep-research` answer questions from the web, and both sit on the same two
-backends: `bifrost` for the model and `searxng` for the results. They are separate apps because
-they answer different questions. `vane` returns one cited answer in seconds. `local-deep-research`
-runs many rounds of search and reading and returns a report, which takes minutes.
+`vane` answers questions from the web, and sits on two backends: `bifrost` for the model and
+`searxng` for the results. It returns one cited answer in seconds.
 
-Neither pins a model. Both expose a picker, and pinning one by environment variable would remove
-it in both cases, so the choice is made per question:
-`ollama/deepseek-v4-flash:cloud` for most of them, and `ollama/deepseek-v4-pro:cloud` when the
-reasoning matters more than the latency. Bifrost resolves the `provider/model` prefix, so that is
-how the names are spelled in each app.
+It pins no model. It exposes a picker, and pinning one by environment variable would remove it, so
+the choice is made per question: `ollama/deepseek-v4-flash:cloud` for most of them, and
+`ollama/deepseek-v4-pro:cloud` when the reasoning matters more than the latency. Bifrost resolves
+the `provider/model` prefix, so that is how the names are spelled in the app.
 
-Their two virtual keys name the `ollama` provider only. Neither app has any use for `cli-proxy`,
-and a key that cannot reach it cannot spend the subscription quota behind it on a research loop
-that does not stop.
+Its virtual key names the `ollama` provider only. The app has no use for `cli-proxy`, and a key
+that cannot reach it cannot spend the subscription quota behind it on a search loop that does not
+stop.
 
-The two differ in how their configuration is held. `local-deep-research` reads its environment on
-every start, so `app/config.env` is the record. `vane` reads it only on the boot that creates
+Its configuration is not held in git. `vane` reads its environment only on the boot that creates
 `data/config.json` and owns that file afterwards, so its models, its embedding model and any later
 key change are set in its Settings page and live on the PVC. That is also why
-`nodes/kenaz.k8s/searxng/app/settings.yml` now overrides the `wolframalpha` engine: `vane` routes
+`nodes/kenaz.k8s/searxng/app/settings.yml` overrides the `wolframalpha` engine: `vane` routes
 factual questions through it, and upstream ships it disabled.
 
 `vane` has no login at all, so `auth-sso` is the only thing in front of it.
-`local-deep-research` has its own, and keeps it: the account password derives the key its database
-is encrypted with, which no proxy can stand in for.
 
-`open-webui` reaches `searxng` for web search, `vane` and `local-deep-research` reach both it and
+`open-webui` reaches `searxng` for web search, `vane` reaches both it and
 `bifrost`, and `bifrost` reaches `cli-proxy-api`. None of them go through an ingress host, so
-seven files open those holes. See
+five files open those holes. See
 [Pod-to-pod across namespaces](../conventions/network-policy.md#pod-to-pod-across-namespaces).
 
 New apps land the same way. The step-by-step is

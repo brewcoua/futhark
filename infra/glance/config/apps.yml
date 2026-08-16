@@ -40,7 +40,6 @@
             - searxng/searxng
             - linkwarden/linkwarden
             - ItzCrazyKns/Vane
-            - LearningCircuit/local-deep-research
             - cloudnative-pg/cloudnative-pg
             # maximhq/bifrost is deliberately absent. It is a monorepo that tags each plugin
             # separately, so the newest release is almost never the gateway this cluster runs.

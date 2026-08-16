@@ -10,7 +10,6 @@ resources:
   - namespaces/bifrost
   - namespaces/cli-proxy-api
   - namespaces/linkwarden
-  - namespaces/local-deep-research
   - namespaces/open-webui
   - namespaces/searxng
   - namespaces/vane

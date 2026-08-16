@@ -99,14 +99,11 @@
                 - title: SearXNG
                   url: https://search.${SUB_INTERNAL}.${DOMAIN}
                   icon: sh:searxng
-                # selfh.st ships no icon for either, so both point at the one the app serves
-                # itself, the same URL form the Bifrost entry above uses.
+                # selfh.st ships no icon for it, so it points at the one the app serves itself,
+                # the same URL form the Bifrost entry above uses.
                 - title: Vane
                   url: https://ask.${SUB_INTERNAL}.${DOMAIN}
                   icon: https://ask.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
-                - title: Local Deep Research
-                  url: https://research.${SUB_INTERNAL}.${DOMAIN}
-                  icon: https://research.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
             - title: Personal
               links:
                 - title: Proton Mail

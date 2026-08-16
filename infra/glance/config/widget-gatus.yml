@@ -44,8 +44,6 @@
     Linkwarden-url: https://links.${SUB_INTERNAL}.${DOMAIN}
     Vane: https://ask.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
     Vane-url: https://ask.${SUB_INTERNAL}.${DOMAIN}
-    Local Deep Research: https://research.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
-    Local Deep Research-url: https://research.${SUB_INTERNAL}.${DOMAIN}
   template: |
     {{/* Required config options */}}
     {{ $baseURL := .Options.StringOr "base-url" "" }}

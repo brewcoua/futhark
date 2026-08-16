@@ -11,4 +11,3 @@ resources:
   - ../_templates/middleware-ratelimit
   - netpol-allow-from-open-webui.yaml
   - netpol-allow-from-vane.yaml
-  - netpol-allow-from-local-deep-research.yaml
