@@ -137,6 +137,32 @@ endpoints:
       - "[RESPONSE_TIME] < 2000"
       - "[CERTIFICATE_EXPIRATION] > 240h"
 
+  # Both of the next two sit behind auth-sso, so the 302 is oauth2-proxy answering and the check
+  # reaches the router rather than the app. Same shape as SearXNG above.
+  - name: Vane
+    group: Apps
+    url: https://ask.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 302"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  - name: Local Deep Research
+    group: Apps
+    url: https://research.${SUB_INTERNAL}.${DOMAIN}
+    interval: 60s
+    client:
+      ignore-redirect: true
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 302"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
   # Open WebUI is its own OIDC client rather than an auth-sso tenant, so the unauthenticated
   # request reaches the app and its login page renders 200.
   - name: Open WebUI

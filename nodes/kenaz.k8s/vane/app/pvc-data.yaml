@@ -1,0 +1,22 @@
+---
+# config.json, db.sqlite and the upload store, all three under /home/vane/data.
+#
+# config.json is the part git does not hold. Vane seeds it from the environment once and owns it
+# thereafter, so the models added in Settings and the chosen embedding model live only here.
+# local-path is node-local hostPath storage, which avoids the locking issues a network filesystem
+# can cause for SQLite. Node-local means this disk dying takes the data with it, so the volume
+# opts into the nightly backup. See docs/src/operations/recovery.md.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vane-data
+  namespace: vane
+  annotations:
+    k8up.io/backup: "true"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 5Gi

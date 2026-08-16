@@ -69,8 +69,14 @@ with nothing annotated at all once Grafana's state moved to PostgreSQL, which is
 has a `Schedule` either.
 
 Currently annotated: Actual's budget SQLite, Linkwarden's page archives, Open WebUI's uploads and
-vector store, Pocket ID's uploaded images. The last two are the remainder after a migration: the
+vector store, Pocket ID's uploaded images, Vane's settings and history, Local Deep Research's
+accounts and reports. Open WebUI's and Pocket ID's are the remainder after a migration: the
 databases behind them moved to PostgreSQL and what stays on the volume is files.
+
+Local Deep Research is the one whose snapshot is not enough on its own. Its database is SQLCipher,
+encrypted per user with a key derived from that user's password, so restoring the volume without
+the password restores nothing readable. Keep the account password wherever the rest of the
+crown jewels live. See [Secrets](../conventions/secrets.md).
 
 ### A third switch, for PostgreSQL
 

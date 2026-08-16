@@ -17,3 +17,9 @@ search:
   formats:
     - html
     - json
+# use_default_settings keeps every engine the image ships and this list only overrides the named
+# one, so nothing else is disturbed. Vane routes factual and computational questions through
+# wolframalpha, which upstream ships disabled; its own bundled instance enables it the same way.
+engines:
+  - name: wolframalpha
+    disabled: false

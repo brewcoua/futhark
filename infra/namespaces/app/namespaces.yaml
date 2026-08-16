@@ -211,3 +211,24 @@ metadata:
   labels:
     futk.eu/tier: node
     futk.eu/node: kenaz
+---
+# The quick answering engine at ask.$SUB_INTERNAL.$DOMAIN. Reads the searxng above and the
+# bifrost above that, and keeps its own settings and history in SQLite on a PVC here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vane
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz
+---
+# The long-form researcher at research.$SUB_INTERNAL.$DOMAIN. Same two backends as vane, and a
+# separate app because the two answer different questions: one reply in seconds against a report
+# built over many rounds.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-deep-research
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz

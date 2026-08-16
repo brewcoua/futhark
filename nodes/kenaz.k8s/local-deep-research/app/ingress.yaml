@@ -1,0 +1,30 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+#
+# This app has a login of its own, and auth-sso still sits in front of it. The two are not
+# redundant: the app's password is what derives the encryption key for that user's database, so it
+# cannot be replaced by the proxy, and the proxy is what keeps registration from being reachable
+# by anything on the mesh until LDR_APP_ALLOW_REGISTRATIONS is set.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: local-deep-research
+  namespace: local-deep-research
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: local-deep-research-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: research.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: local-deep-research
+                port:
+                  number: 80

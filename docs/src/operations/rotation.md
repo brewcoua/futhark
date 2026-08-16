@@ -557,10 +557,12 @@ the cost of two live keys mid-rotation.
 
 ### The Bifrost virtual keys
 
-`VK_OPEN_WEBUI`, `VK_CLI`, and the copy of the first one that Open WebUI reads as
-`OPENAI_API_KEYS`. The generic loop below does not apply: these are not edited in Infisical, and
-one of them lives in two folders that must agree. `tofu/bifrost` owns all three. The procedure,
-including the 401 window between the two restarts, is in [bifrost](../tofu/bifrost.md#rotating-a-key).
+`VK_OPEN_WEBUI`, `VK_CLI`, `VK_VANE`, `VK_LDR`, and the consumer-side copy of three of them:
+`OPENAI_API_KEYS` for Open WebUI, `OPENAI_API_KEY` for Vane, and
+`LDR_LLM_OPENAI_ENDPOINT_API_KEY` for Local Deep Research. The generic loop below does not apply:
+these are not edited in Infisical, and each pair lives in two folders that must agree.
+`tofu/bifrost` owns all seven. The procedure, including the 401 window between the two restarts
+and the extra Settings edit Vane needs, is in [bifrost](../tofu/bifrost.md#rotating-a-key).
 
 `BIFROST_ENCRYPTION_KEY` is different again. It encrypts the provider keys stored in `config.db`,
 so replacing it makes every stored row unreadable and Bifrost starts from an empty config store.

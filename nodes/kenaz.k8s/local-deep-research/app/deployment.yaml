@@ -1,0 +1,80 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: local-deep-research
+  namespace: local-deep-research
+spec:
+  replicas: 1
+  # Single-writer SQLite on a non-shared volume: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: local-deep-research
+  template:
+    metadata:
+      labels:
+        app: local-deep-research
+    spec:
+      containers:
+        - name: local-deep-research
+          image: docker.io/localdeepresearch/local-deep-research:1.10.3@sha256:4896071625bea7428197950f7c722218c7620b4dc828f7d0c450a1823920c3df
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: local-deep-research-config
+            - secretRef:
+                name: local-deep-research-secrets
+          # Starts as root and drops itself, rather than starting as UID 1000 the way every other
+          # app here does. The image's entrypoint chowns /data and creates a config directory under
+          # its own home, then hands off to the application through setpriv, which is an
+          # irreversible switch to UID 1000 with an empty capability set. It has no branch for
+          # already being unprivileged, so runAsNonRoot makes the container fail to start rather
+          # than run more safely.
+          #
+          # The five capabilities are what that root phase needs and nothing else: CHOWN and FOWNER
+          # for the volume, DAC_OVERRIDE to create the config directory, SETUID and SETGID for the
+          # handoff itself. allowPrivilegeEscalation: false is what stops the application half from
+          # taking any of it back.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            # No model runs here. What the limit covers is a report parsing many search results at
+            # once.
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: local-deep-research-data

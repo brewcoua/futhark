@@ -1,0 +1,29 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+#
+# Vane has no login of its own, so auth-sso is the only thing gating it. That makes the middleware
+# load-bearing rather than defence in depth: dropped from this list, the app is open to everything
+# on the mesh, including its Settings page and the virtual key inside it.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vane
+  namespace: vane
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: vane-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: ask.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vane
+                port:
+                  number: 80

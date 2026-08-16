@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# Local Deep Research queries this instance's JSON API over the cluster network rather than
+# through its ingress host, so no mesh ipBlock covers it. Same reasoning as
+# netpol-allow-from-open-webui.yaml: one file per consumer, so who reads what stays written down.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-local-deep-research
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: local-deep-research
+      ports:
+        - port: 8080

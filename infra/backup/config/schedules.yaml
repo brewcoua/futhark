@@ -67,6 +67,24 @@ metadata:
   namespace: auth
 spec: {}
 ---
+# The provider and models added in Settings, which git does not hold because Vane only seeds
+# config.json from the environment once, plus the chat history and the upload store.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: vane
+spec: {}
+---
+# The accounts and every report. Encrypted per user with a key derived from that user's password,
+# so a snapshot without the password restores nothing readable.
+apiVersion: k8up.io/v1
+kind: Schedule
+metadata:
+  name: backup
+  namespace: local-deep-research
+spec: {}
+---
 # Every tenant's rows, as one pg_dumpall taken at backup time. The command and the reasoning are
 # in infra/postgres/config/cluster.yaml. Restoring it is in docs/src/operations/recovery.md.
 apiVersion: k8up.io/v1

@@ -1,0 +1,13 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vane
+  namespace: vane
+spec:
+  selector:
+    app: vane
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

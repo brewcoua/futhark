@@ -1,0 +1,24 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The generated ConfigMap has no namespace of its own, and a reference is only rewritten when the
+# two agree, so this has to be spelled even though every resource already carries it.
+namespace: vane
+resources:
+  - pvc-data.yaml
+  - infisicalsecret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# Generated, so the content hash lands in the name and an edit rolls the Deployment. Vane only
+# reads these values on the boot that creates data/config.json, so a rolled pod is the least this
+# has to do for a change to have any chance of taking effect.
+configMapGenerator:
+  - name: vane-config
+    envs:
+      - config.env
+
+components:
+  - ../../../../config/infisical

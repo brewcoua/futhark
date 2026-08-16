@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vane
+  namespace: vane
+spec:
+  replicas: 1
+  # Single-writer SQLite on a non-shared volume: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: vane
+  template:
+    metadata:
+      labels:
+        app: vane
+    spec:
+      containers:
+        - name: vane
+          image: docker.io/itzcrazykns1337/vane:slim-v1.12.2@sha256:d2878cf9c91962aa3fc053b59bc9b89adcbdcaeb7ee36b54906e853464b2c190
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: vane-config
+            - secretRef:
+                name: vane-secrets
+          # Root, and a writable root filesystem, which is the exception in this tree. The image
+          # declares no USER and puts both runtime caches where only root can reach them: the
+          # Playwright browser under /root/.cache, and the embedding weights, fetched on first use
+          # into node_modules inside the image. Neither path moves with fsGroup and neither is on a
+          # volume this manifest could redirect, so the alternative is rebuilding the image. What
+          # is left is that the process holds no capabilities and cannot regain any.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            # config.json, db.sqlite and uploads. The app resolves all three against its working
+            # directory, so this one mount covers every path it writes.
+            - name: data
+              mountPath: /home/vane/data
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            # Chromium and a local embedding model share this process.
+            limits:
+              cpu: 2000m
+              memory: 3Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: vane-data
