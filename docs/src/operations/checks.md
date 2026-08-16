@@ -327,6 +327,6 @@ Worth stating, because the absence is easy to mistake for coverage:
   the substitute.
 - **Credential expiry.** Nothing watches it. See above.
 - **Backups that copied nothing.** A malformed exclude annotation makes K8up skip that PVC and
-  the job still succeeds. `just bak snapshots` is the check, and the 26h alert in
+  the job still succeeds. The size column in `just bak snapshots` is the check, and the 26h alert in
   `infra/monitoring/app/grafana/alerting/backup.yaml` is the backstop only for a namespace that
   stopped entirely. See [Backup and recovery](recovery.md).

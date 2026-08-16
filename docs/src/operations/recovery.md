@@ -174,14 +174,25 @@ A prune reclaims no billed storage for a further 30 days, because the bucket's
 
 ```bash
 just bak schedules          # every Schedule and its most recent jobs
-just bak snapshots          # every restic snapshot, and which volume it holds
+just bak snapshots          # every restic snapshot, the volume it holds and its size
+just bak ls <id> [<depth>]  # look inside one, without restoring it
 just bak jobs               # backup, check and prune jobs, newest last
 just bak logs <job> <ns>    # restic's summary of what that run copied
 ```
 
-Snapshot objects carry no size, so a run that copied nothing looks identical to one that worked.
-The job log is where the file and byte counts are, which makes `just bak logs` the check that
-matters after any change to an annotation.
+The Snapshot object carries no size, so `just bak snapshots` reads one off restic itself and
+joins it on the id. A `0` there is a snapshot that holds nothing, which is what a run that copied
+nothing looks like, and is the check that matters after any change to an annotation. It comes
+from the summary restic wrote at backup time, so a snapshot taken by a restic older than 0.17
+has an empty size rather than a wrong one.
+
+`just bak ls` lists a snapshot's contents with the size of each entry, `eza -T -L<depth>` style.
+The depth counts from the volume the snapshot holds rather than from `/`, and defaults to 2:
+
+```bash
+just bak ls <id>       # the volume's contents and one level under them
+just bak ls <id> 4     # deeper
+```
 
 Back up a namespace immediately instead of waiting for 03:00:
 

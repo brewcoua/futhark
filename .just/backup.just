@@ -8,10 +8,67 @@ help:
 schedules:
     kubectl get schedules.k8up.io -A
 
-# List every restic snapshot in the repository, with the volume each one holds
+# The same three values infra/backup/app/secret.yaml syncs for the operator, plus the bucket and
+# endpoint it was rendered with, as shell exports for `eval`. Read back off the cluster so no
+# recipe here can disagree with what actually wrote the snapshots.
+_repo-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    creds=$(kubectl -n k8up get secret k8up-b2 -o json)
+    env=$(kubectl -n k8up get deployment -o jsonpath='{.items[0].spec.template.spec.containers[0].env}')
+    bucket=$(jq -r '.[] | select(.name=="BACKUP_GLOBALS3BUCKET") | .value' <<<"$env")
+    endpoint=$(jq -r '.[] | select(.name=="BACKUP_GLOBALS3ENDPOINT") | .value' <<<"$env")
+
+    printf 'export RESTIC_PASSWORD=%q\n' "$(jq -r '.data.RESTIC_PASSWORD | @base64d' <<<"$creds")"
+    printf 'export AWS_ACCESS_KEY_ID=%q\n' "$(jq -r '.data.B2_KEY_ID | @base64d' <<<"$creds")"
+    printf 'export AWS_SECRET_ACCESS_KEY=%q\n' "$(jq -r '.data.B2_APPLICATION_KEY | @base64d' <<<"$creds")"
+    printf 'export RESTIC_REPOSITORY=%q\n' "s3:$endpoint/$bucket"
+
+# List every restic snapshot in the repository, with the volume each one holds and its size
 snapshots:
-    kubectl get snapshots.k8up.io -A \
-      -o 'custom-columns=NAMESPACE:.metadata.namespace,ID:.spec.id,DATE:.spec.date,PATH:.spec.paths[0]'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just bak _repo-env)"
+
+    # The size is not in the Snapshot CRD: K8up copies only the id, date and paths off restic.
+    # It comes from the snapshot's own summary, which restic wrote at backup time, so the whole
+    # list costs one call rather than a `restic stats` per snapshot. A snapshot taken by a restic
+    # older than 0.17 carries no summary and lands here with an empty size.
+    sizes=$(restic snapshots --json \
+      | jq -r '.[] | [.id, (.summary.total_bytes_processed // "")] | @tsv')
+
+    kubectl get snapshots.k8up.io -A -o 'jsonpath={range .items[*]}{.metadata.namespace}{"\t"}{.spec.id}{"\t"}{.spec.date}{"\t"}{.spec.paths[0]}{"\n"}{end}' \
+      | awk -F'\t' -v OFS='\t' 'NR==FNR {s[$1]=$2; next} {print $1, $2, $3, $4, ($2 in s ? s[$2] : "")}' \
+        <(echo "$sizes") - \
+      | numfmt -d $'\t' --to=iec --field=5 --invalid=ignore \
+      | column -t -s $'\t' -N NAMESPACE,ID,DATE,PATH,SIZE
+
+# Depth counts from the volume the snapshot holds rather than from /, so the default shows that
+# volume's contents and one level under it.
+#
+# Look inside a snapshot without restoring it, `eza -T -L<depth>` style
+ls id depth="2":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    eval "$(just bak _repo-env)"
+
+    # A restic snapshot holds exactly one path, and `restic ls` walks the whole tree under it
+    # with no depth flag of its own — the depth is a filter on the paths it prints, counted
+    # against the snapshot's own root rather than against /.
+    base=$(restic snapshots --json "{{ id }}" | jq -r '.[0].paths[0]')
+    [ -n "$base" ] && [ "$base" != "null" ] \
+      || { echo "no snapshot '{{ id }}' in the repository (see: just bak snapshots)" >&2; exit 1; }
+
+    restic ls -l "{{ id }}" \
+      | awk -v base="$base" -v d='{{ depth }}' '
+          BEGIN { root = base; sub(/\/+$/, "", root); b = gsub(/\//, "/", root) }
+          length($1) >= 10 && $1 ~ /^[-dlbcps]/ {
+            p = substr($0, index($0, "/"))
+            n = gsub(/\//, "/", p) - b
+            if (n >= 1 && n <= d) printf "%10s  %*s%s\n", $4, 2 * (n - 1), "", p
+          }' \
+      | numfmt --to=iec --field=1 --invalid=ignore
 
 # List the backup, check and prune jobs K8up has run, newest last
 jobs:
@@ -65,18 +122,7 @@ pg-dump id="" out="":
     [ -n "$out" ] || out=".tmp/postgres-$(date +%Y%m%dT%H%M%S).sql"
     mkdir -p "$(dirname "$out")"
 
-    # The same three values infra/backup/app/secret.yaml syncs for the operator, plus the bucket
-    # and endpoint it was rendered with. Read back off the cluster so this recipe cannot disagree
-    # with what actually wrote the snapshot.
-    creds=$(kubectl -n k8up get secret k8up-b2 -o json)
-    export RESTIC_PASSWORD=$(jq -r '.data.RESTIC_PASSWORD | @base64d' <<<"$creds")
-    export AWS_ACCESS_KEY_ID=$(jq -r '.data.B2_KEY_ID | @base64d' <<<"$creds")
-    export AWS_SECRET_ACCESS_KEY=$(jq -r '.data.B2_APPLICATION_KEY | @base64d' <<<"$creds")
-
-    env=$(kubectl -n k8up get deployment -o jsonpath='{.items[0].spec.template.spec.containers[0].env}')
-    bucket=$(jq -r '.[] | select(.name=="BACKUP_GLOBALS3BUCKET") | .value' <<<"$env")
-    endpoint=$(jq -r '.[] | select(.name=="BACKUP_GLOBALS3ENDPOINT") | .value' <<<"$env")
-    export RESTIC_REPOSITORY="s3:$endpoint/$bucket"
+    eval "$(just bak _repo-env)"
 
     restic dump "$snap" "$path" > "$out"
     echo

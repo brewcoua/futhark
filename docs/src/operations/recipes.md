@@ -114,19 +114,21 @@ so you do not need it in your environment. Re-converging the cluster is `just an
 
 ## `bak`, backups
 
-| Recipe                | Does                                                          |
-| --------------------- | ------------------------------------------------------------- |
-| `bak schedules`       | Every Schedule and the jobs it most recently produced         |
-| `bak snapshots`       | Every restic snapshot, and which volume it holds              |
-| `bak jobs`            | Backup, check and prune jobs, newest last                     |
-| `bak logs <job> <ns>` | A job's log, including restic's summary of what it copied     |
-| `bak now <ns>`        | Back up a namespace immediately                               |
-| `bak restore <ns>`    | **Wipes** the namespace's `local-path` PVCs and restores them |
-| `bak pg-dump [<id>]`  | Write the PostgreSQL dump to a local file. Reads only         |
-| `bak pg-restore`      | **Overwrites** every database in the instance from that dump  |
+| Recipe                  | Does                                                          |
+| ----------------------- | ------------------------------------------------------------- |
+| `bak schedules`         | Every Schedule and the jobs it most recently produced         |
+| `bak snapshots`         | Every restic snapshot, which volume it holds and its size     |
+| `bak ls <id> [<depth>]` | List a snapshot's contents and sizes, without restoring it    |
+| `bak jobs`              | Backup, check and prune jobs, newest last                     |
+| `bak logs <job> <ns>`   | A job's log, including restic's summary of what it copied     |
+| `bak now <ns>`          | Back up a namespace immediately                               |
+| `bak restore <ns>`      | **Wipes** the namespace's `local-path` PVCs and restores them |
+| `bak pg-dump [<id>]`    | Write the PostgreSQL dump to a local file. Reads only         |
+| `bak pg-restore`        | **Overwrites** every database in the instance from that dump  |
 
-A snapshot carries no size, so a run that copied nothing looks like one that worked. `bak logs` is
-where the file and byte counts are.
+A size of `0` in `bak snapshots` is a run that copied nothing, which is otherwise indistinguishable
+from one that worked. `bak ls` shows what such a snapshot does and does not hold; `bak logs` is
+where the file and byte counts for a single run are.
 
 `bak restore` deletes data. It prints which PVCs it will destroy and which it will leave alone,
 and requires you to type the namespace back before it proceeds. Only `local-path` PVCs are ever
