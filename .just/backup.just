@@ -113,13 +113,18 @@ pg-restore id="":
       -o 'jsonpath={range .items[*]}{range .spec.ingress[?(@.ports[0].port==5432)]}{range .from[*]}{.namespaceSelector.matchLabels.kubernetes\.io/metadata\.name}{"\n"}{end}{end}{end}' \
       | grep -v '^cnpg-system$' | grep -v '^$' | sort -u)
 
-    # Flux scales them straight back up once the Kustomizations resume, so the replica counts are
-    # never written down anywhere. Same mechanism as `restore` below.
+    # Flux scales them straight back up once these resume, so the replica counts are never
+    # written down anywhere. Both owners, for the same reason as `restore` below: a
+    # chart-created workload (every one in monitoring) appears in no Kustomization inventory at
+    # all, only in the release, and suspending the wrong owner means nothing scales it back.
     ks=""
+    hr=""
     for ns in $tenants; do
       ks="$ks $(kubectl -n flux-system get kustomization \
         -o 'jsonpath={range .items[*]}{.metadata.name}{"\t"}{range .status.inventory.entries[*]}{.id}{" "}{end}{"\n"}{end}' \
         | awk -v ns="$ns" 'index($0, "\t" ns "_") || index($0, " " ns "_") {print $1}')"
+      hr="$hr $(kubectl -n flux-system get helmrelease \
+        -o "jsonpath={range .items[?(@.spec.targetNamespace=='$ns')]}{.metadata.name}{' '}{end}")"
     done
 
     echo
@@ -139,10 +144,21 @@ pg-restore id="":
     # tenants already suspended and at zero replicas, and a failure has to degrade to "the
     # restore did not happen" rather than to "the cluster is off". Flux puts every replica count
     # back from git on resume.
-    resume() { for k in $ks; do flux resume kustomization "$k" > /dev/null || true; done; }
+    #
+    # A HelmRelease needs the --force on top of the resume: `kubectl scale` is cluster drift, not
+    # release drift, so helm-controller reconciles a resumed release as already up to date and
+    # leaves the replica counts at zero. --force re-runs the upgrade, which re-applies them.
+    resume() {
+      for h in $hr; do
+        flux resume helmrelease "$h" -n flux-system > /dev/null || true
+        flux reconcile helmrelease "$h" -n flux-system --force > /dev/null || true
+      done
+      for k in $ks; do flux resume kustomization "$k" > /dev/null || true; done
+    }
     trap resume EXIT
 
     for k in $ks; do flux suspend kustomization "$k"; done
+    for h in $hr; do flux suspend helmrelease "$h" -n flux-system; done
     for ns in $tenants; do
       kubectl -n "$ns" scale deployment,statefulset --all --replicas=0
       # Not `pod --all`: the scale above does not touch a DaemonSet, so its pods stay Running
