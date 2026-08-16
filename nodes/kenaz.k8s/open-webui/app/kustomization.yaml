@@ -7,6 +7,7 @@ kind: Kustomization
 namespace: open-webui
 resources:
   - pvc-data.yaml
+  - pvc-uploads.yaml
   - infisicalsecret.yaml
   - deployment.yaml
   - service.yaml

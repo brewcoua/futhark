@@ -10,6 +10,13 @@ metadata:
   namespace: open-webui
   annotations:
     k8up.io/backup: "true"
+    # DATA_DIR is also HOME and the model cache, so most of this volume is downloads rather than
+    # state: ~700 MB of embedding model the pod refetches from Hugging Face, and pip's HTTP
+    # cache. Excluding cache/ whole holds only while image generation and TTS stay off, as
+    # config.env has them; turning either on puts generated images and speech under cache/ that
+    # chats reference and nothing recreates. Same annotation as infra/auth/app/pvc.yaml, and the
+    # same footgun: a malformed array makes K8up skip this PVC silently.
+    k8up.io/backup-restic-args: '["--exclude=/data/open-webui-data/cache", "--exclude=/data/open-webui-data/.cache"]'
 spec:
   accessModes:
     - ReadWriteOnce

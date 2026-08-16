@@ -14,9 +14,10 @@ spec:
     # webui.db moved to the shared instance, so the Database and DatabaseRole have to exist
     # before the app opens a connection. See app/infisicalsecret.yaml.
     - name: postgres-config
+    # app/pvc-uploads.yaml uses storageClassName: storagebox-crypt.
+    - name: storage
   # No `auth` edge: Open WebUI is an OIDC client of Pocket ID directly rather than a consumer of
-  # infra/auth's Middleware. No `storage` edge either: its one PVC is local-path, which arrives
-  # with k3s rather than from that Kustomization.
+  # infra/auth's Middleware.
   #
   # The internal hostname (ingress host, WEBUI_URL, OIDC callback) and the edge one (Pocket ID's
   # discovery URL) are both spelled from the same Secret.

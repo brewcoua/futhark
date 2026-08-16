@@ -1,0 +1,18 @@
+---
+# Uploaded attachments, off-node on storagebox-crypt rather than on the node's disk beside the
+# ChromaDB store. Plain blob storage written once and read back whole, so the locking caveat in
+# pvc-data.yaml does not apply. No k8up annotation: the Storage Box snapshots itself, and a copy
+# in B2 would be a second offsite copy of the same bytes. Same tiering as
+# nodes/kenaz.k8s/actual/app/pvc-user-files.yaml.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: open-webui-uploads
+  namespace: open-webui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: storagebox-crypt
+  resources:
+    requests:
+      storage: 10Gi

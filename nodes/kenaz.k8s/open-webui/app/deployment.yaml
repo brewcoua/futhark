@@ -48,6 +48,9 @@ spec:
             # HF_HOME and SENTENCE_TRANSFORMERS_HOME at.
             - name: data
               mountPath: /app/backend/data
+            # UPLOAD_DIR, nested inside DATA_DIR above and mounted over it.
+            - name: uploads
+              mountPath: /app/backend/data/uploads
             # STATIC_DIR points here. See config.env.
             - name: static
               mountPath: /app/static
@@ -83,6 +86,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: open-webui-data
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: open-webui-uploads
         - name: static
           emptyDir: {}
         - name: tmp
