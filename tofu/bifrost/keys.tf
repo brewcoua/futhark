@@ -42,10 +42,18 @@ resource "random_password" "vk_vane" {
   special = false
 }
 
+# Kvasir's key. Scoped to the ollama provider only, for the same reason as Vane's and more sharply:
+# a STORM run is an unattended loop that spends minutes issuing model calls, so a key that cannot
+# reach cli-proxy cannot drain the subscription quota behind it when a run goes wrong.
+resource "random_password" "vk_kvasir" {
+  length  = 48
+  special = false
+}
+
 # /nodes/kenaz/bifrost in the prod environment, the path
 # nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml reads. That folder also holds four hand-seeded
 # keys: BIFROST_ENCRYPTION_KEY, BIFROST_ADMIN_USERNAME, BIFROST_ADMIN_PASSWORD and OLLAMA_API_KEY.
-# The sync is folder-wide, so all seven land in the bifrost-secrets Secret the Deployment pulls in
+# The sync is folder-wide, so all eight land in the bifrost-secrets Secret the Deployment pulls in
 # via envFrom.
 resource "infisical_secret" "vk_open_webui" {
   name         = "VK_OPEN_WEBUI"
@@ -71,6 +79,14 @@ resource "infisical_secret" "vk_vane" {
   folder_path  = "/nodes/kenaz/bifrost"
 }
 
+resource "infisical_secret" "vk_kvasir" {
+  name         = "VK_KVASIR"
+  value        = "sk-bf-${random_password.vk_kvasir.result}"
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/nodes/kenaz/bifrost"
+}
+
 # The same token again, under the name Open WebUI expects, in the folder Open WebUI reads. This
 # second write is the whole point of putting the key in tofu: the value has to be identical on both
 # sides, and a value typed into two Infisical folders drifts the first time one is rotated.
@@ -90,6 +106,17 @@ resource "infisical_secret" "vane_bifrost_key" {
   env_slug     = "prod"
   workspace_id = var.infisical_project_id
   folder_path  = "/nodes/kenaz/vane"
+}
+
+# The same token again, under the name Kvasir reads it by. OPENAI_API_KEY is not a name either side
+# chose: litellm and knowledge_storm's Encoder read it out of the environment directly, and an alias
+# is how embedding calls end up at api.openai.com instead of at bifrost.
+resource "infisical_secret" "kvasir_bifrost_key" {
+  name         = "OPENAI_API_KEY"
+  value        = infisical_secret.vk_kvasir.value
+  env_slug     = "prod"
+  workspace_id = var.infisical_project_id
+  folder_path  = "/nodes/kenaz/kvasir"
 }
 
 # VK_CLI has no cluster consumer: it is typed into a shell on the operator's machine. Read it with

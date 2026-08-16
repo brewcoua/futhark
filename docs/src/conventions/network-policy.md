@@ -101,7 +101,7 @@ from, and either can change without dragging the other with it.
 
 The templates above cover the two directions that recur: monitoring scraping everything, and an
 ingress reaching one namespace. A pod in one namespace calling a pod in another is neither, and
-five callers do it today. Each namespace they reach admits them with its own file. Every one of
+six callers do it today. Each namespace they reach admits them with its own file. Every one of
 these files names the port the pod listens on, not the port its `Service` publishes.
 
 Glance reaches into two namespaces.
@@ -112,19 +112,27 @@ query against one of them, and Glance is an ordinary pod that no mesh `ipBlock` 
 `infra/policies/namespaces/gatus/netpol-allow-from-glance.yaml` does the same for the Gatus API on
 8080, which is where the apps page gets service health.
 
-Open WebUI is the second caller, and reaches into two namespaces.
+Open WebUI is the second caller, and reaches into three namespaces.
 
 `infra/policies/namespaces/searxng/netpol-allow-from-open-webui.yaml` admits it to SearXNG on
 8080, which is where its web search runs its queries. It could have gone through
 `search.$SUB_INTERNAL.$DOMAIN` instead, but that host sits behind `auth-sso` and a pod carries no
 session cookie. `infra/policies/namespaces/bifrost/netpol-allow-from-open-webui.yaml` admits it to
 Bifrost on 8080, which is its only model backend.
+`infra/policies/namespaces/kvasir/netpol-allow-from-open-webui.yaml` admits it to Kvasir on 8080,
+which its STORM pipe function calls. That third file carries the weight `cli-proxy-api`'s does:
+Kvasir has no `Ingress` and composes no `netpol-allow-from-ingress-internal`, so with the default
+deny in place it is the whole of its reachability, and the service ships no authentication of its
+own.
 
 Vane is the third, and reaches the same two namespaces Open WebUI does, for the same two reasons:
 `searxng` on 8080 for results, `bifrost` on 8080 for the model. That is two more files, named
 after the caller in each of those two overlays.
 
-Bifrost is the fourth caller.
+Kvasir is the fourth, and reaches those same two namespaces for those same two reasons. Two more
+files again, in the same two overlays.
+
+Bifrost is the fifth caller.
 `infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml` admits it to
 cli-proxy-api on 8317. That file matters more than the others: cli-proxy-api has no `Ingress` and
 composes no `netpol-allow-from-ingress-internal`, so with the default deny in place this one hole

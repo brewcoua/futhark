@@ -163,7 +163,7 @@ allows:
   address.
 - **`tofu-writer`**: write on the node folders the two writing modules target, and nothing else.
   Today that is `/nodes/kenaz/actual`, `/nodes/kenaz/open-webui`, `/nodes/kenaz/linkwarden`,
-  `/nodes/kenaz/bifrost` and `/nodes/kenaz/vane`. See
+  `/nodes/kenaz/bifrost`, `/nodes/kenaz/vane` and `/nodes/kenaz/kvasir`. See
   [oidc](../tofu/oidc.md) and [bifrost](../tofu/bifrost.md). Widen it as a module gains a folder,
   never to the whole project.
 - **`backup-reader`**: read on `/infra/k8up` and nothing else. The split is deliberate. Losing
@@ -188,8 +188,9 @@ Then create the folders and secrets. Names are `SCREAMING_SNAKE_CASE` throughout
 | `/infra/postgres`         | one `<TENANT>_POSTGRES_PASSWORD` per tenant: `LINKWARDEN_`, `GRAFANA_`, `GATUS_`, `OPENWEBUI_`, `POCKETID_` | `infra/postgres/config/infisicalsecret.yaml`                                                                                                      |
 | `/nodes/kenaz/linkwarden` | `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                                                      | `nodes/kenaz.k8s/linkwarden/app/infisicalsecret.yaml`. The two `OIDC_*` keys are written by `just tf apply oidc`                                  |
 | `/nodes/kenaz/open-webui` | `WEBUI_SECRET_KEY`, `POSTGRES_PASSWORD`                                                                     | `nodes/kenaz.k8s/open-webui/app/infisicalsecret.yaml`. `OAUTH_*` is written by `just tf apply oidc`, `OPENAI_API_KEYS` by `just tf apply bifrost` |
-| `/nodes/kenaz/bifrost`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`              | `nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml`. The three `VK_*` keys in this folder are written by `just tf apply bifrost`                   |
+| `/nodes/kenaz/bifrost`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`              | `nodes/kenaz.k8s/bifrost/app/infisicalsecret.yaml`. The four `VK_*` keys in this folder are written by `just tf apply bifrost`                    |
 | `/nodes/kenaz/vane`       | none, leave empty                                                                                           | written by `just tf apply bifrost`                                                                                                                |
+| `/nodes/kenaz/kvasir`     | none, leave empty                                                                                           | written by `just tf apply bifrost`                                                                                                                |
 
 Every database password appears twice on purpose: once in `/infra/postgres`, where CloudNativePG
 creates the role, and once in the consuming app's own folder, where it is assembled into a
@@ -512,6 +513,21 @@ Then decommission whatever store these values came from, and confirm nothing sti
 ```bash
 grep -rn 'pass://' --exclude-dir=.git .
 ```
+
+Install the Kvasir pipe function in Open WebUI. Nothing reconciles this: Open WebUI keeps its
+Functions in its own database, and `ENABLE_PERSISTENT_CONFIG=False` governs its settings, not these.
+A rebuilt cluster therefore has a running `kvasir` that no client can reach until this is repeated.
+What does cover it is the `open-webui` backup Schedule, since the function is a row in that
+database.
+
+Take `openwebui/storm.py` from [brewcoua/kvasir](https://github.com/brewcoua/kvasir), paste it into
+Admin Panel then Functions, and set its `KVASIR_URL` valve to
+`http://kvasir.kvasir.svc.cluster.local:8080`. The shipped default is `http://kvasir:8080`, which
+does not resolve from another namespace. A `STORM` model then appears in the model picker.
+
+`openwebui/costorm.py` is deliberately not installed. It needs an OpenAI-shaped `/v1/embeddings`
+route and neither provider behind Bifrost serves one. See
+[Node apps](../gitops/nodes.md#the-search-surface).
 
 Finally, put the two NetBird PAT expiry dates in a calendar. Nothing here tracks them. See
 [Credential rotation](rotation.md).

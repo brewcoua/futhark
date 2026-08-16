@@ -9,6 +9,7 @@ resources:
   - namespaces/actual
   - namespaces/bifrost
   - namespaces/cli-proxy-api
+  - namespaces/kvasir
   - namespaces/linkwarden
   - namespaces/open-webui
   - namespaces/searxng

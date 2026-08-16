@@ -9,5 +9,6 @@ resources:
   - ../_templates/netpol-allow-from-monitoring
   - ../_templates/netpol-allow-from-ingress-internal
   - ../_templates/middleware-ratelimit
+  - netpol-allow-from-kvasir.yaml
   - netpol-allow-from-open-webui.yaml
   - netpol-allow-from-vane.yaml

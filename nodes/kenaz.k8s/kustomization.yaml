@@ -6,6 +6,7 @@ resources:
   - actual/ks.yaml
   - bifrost/ks.yaml
   - cli-proxy-api/ks.yaml
+  - kvasir/ks.yaml
   - linkwarden/ks.yaml
   - open-webui/ks.yaml
   - searxng/ks.yaml

@@ -1,0 +1,15 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: kvasir
+spec:
+  path: ./nodes/kenaz.k8s/kvasir/app
+  dependsOn:
+    - name: infra-policies
+    - name: infisical-operator-config
+  # Neither `traefik-internal` nor `auth`: this app has no Ingress. Its only client is open-webui,
+  # over the cluster network, which infra/policies opens. Nor `storage`, because both its writable
+  # paths are emptyDir. Nor `substitutions`, because nothing here is spelled from cluster-values:
+  # both backends are cluster-internal Services.

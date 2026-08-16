@@ -1,0 +1,21 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The generated ConfigMap has no namespace of its own, and a reference is only rewritten when the
+# two agree, so this has to be spelled even though every resource already carries it.
+namespace: kvasir
+resources:
+  - infisicalsecret.yaml
+  - deployment.yaml
+  - service.yaml
+
+# Generated, so the content hash lands in the name and an edit rolls the Deployment. Every value
+# here is read once at startup, so a change only takes effect on a fresh pod.
+configMapGenerator:
+  - name: kvasir-config
+    envs:
+      - config.env
+
+components:
+  - ../../../../config/infisical

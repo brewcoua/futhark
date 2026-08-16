@@ -130,6 +130,20 @@
             "weight": 1
           }
         ]
+      },
+      {
+        "id": "vk-kvasir",
+        "name": "kvasir",
+        "value": "env.VK_KVASIR",
+        "is_active": true,
+        "provider_configs": [
+          {
+            "provider": "ollama",
+            "allowed_models": ["*"],
+            "key_ids": ["*"],
+            "weight": 1
+          }
+        ]
       }
     ]
   },

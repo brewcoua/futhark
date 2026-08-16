@@ -38,3 +38,4 @@ spec:
       - searxng
       - linkwarden
       - vane
+      - kvasir

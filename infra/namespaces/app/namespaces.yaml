@@ -221,3 +221,14 @@ metadata:
   labels:
     futk.eu/tier: node
     futk.eu/node: kenaz
+---
+# The long-form research service, reading the searxng above and the bifrost above that. No host of
+# its own: it has no Ingress, because it ships no login and its only client is the Open WebUI pipe
+# function calling it over the cluster network.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kvasir
+  labels:
+    futk.eu/tier: node
+    futk.eu/node: kenaz

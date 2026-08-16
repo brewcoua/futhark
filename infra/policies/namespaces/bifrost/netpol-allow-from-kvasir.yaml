@@ -1,0 +1,20 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
+#
+# Kvasir reaches its model backend over the cluster network. It has no ingress host of its own, so
+# no mesh ipBlock covers it either way. Same reasoning as netpol-allow-from-open-webui.yaml: one
+# file per consumer, so who reads what stays written down.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-from-kvasir
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kvasir
+      ports:
+        - port: 8080

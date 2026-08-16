@@ -8,7 +8,7 @@ It is one of the two modules allowed to write to a secret store. See the write e
 
 ## What it manages
 
-Three `random_password` resources and five `infisical_secret` resources, in `keys.tf`. Nothing
+Four `random_password` resources and seven `infisical_secret` resources, in `keys.tf`. Nothing
 else, and nothing outside Infisical.
 
 | Secret            | Folder                    | Read by                                                      |
@@ -18,6 +18,8 @@ else, and nothing outside Infisical.
 | `VK_CLI`          | `/nodes/kenaz/bifrost`    | Bifrost. The operator's copy comes from this module's output |
 | `VK_VANE`         | `/nodes/kenaz/bifrost`    | Bifrost                                                      |
 | `OPENAI_API_KEY`  | `/nodes/kenaz/vane`       | Vane, to send it. Same value as `VK_VANE`                    |
+| `VK_KVASIR`       | `/nodes/kenaz/bifrost`    | Bifrost                                                      |
+| `OPENAI_API_KEY`  | `/nodes/kenaz/kvasir`     | Kvasir, to send it. Same value as `VK_KVASIR`                |
 
 The paired rows are why the module exists. A virtual key is only useful when both ends spell it
 identically, and the two ends read different Infisical folders. Typed by hand, the two copies
@@ -25,7 +27,16 @@ agree until the first rotation.
 
 Each app gets its own key rather than sharing one, so any of them can be revoked without
 disturbing the others. The name on the consumer side is the app's, not this repository's: Vane
-reaches Bifrost through its generic OpenAI provider and so reads `OPENAI_API_KEY`.
+reaches Bifrost through its generic OpenAI provider and so reads `OPENAI_API_KEY`. Kvasir reads the
+same name for a stricter reason. `litellm` and `knowledge_storm`'s `Encoder` read it out of the
+environment directly, and its `Encoder` takes no base URL argument at all, so an alias is how
+embedding traffic ends up at `api.openai.com` instead of at Bifrost.
+
+`vk-vane` and `vk-kvasir` name the `ollama` provider only in
+`nodes/kenaz.k8s/bifrost/app/config.json`, while `vk-open-webui` and `vk-cli` reach both providers.
+Neither app has a use for `cli-proxy`, and a key that cannot reach it cannot spend the subscription
+quota behind it on a loop that does not stop. Kvasir is the sharper case of the two: a STORM run is
+unattended and issues calls for minutes.
 
 ## What it does not manage
 
@@ -53,7 +64,7 @@ an apply depend on Bifrost already running and reachable at a mesh-only hostname
 just tf apply bifrost
 ```
 
-Verify: the five secrets appear in Infisical, each pair in the table above holds one value, and
+Verify: the seven secrets appear in Infisical, each pair in the table above holds one value, and
 every one of them begins `sk-bf-`.
 
 The prefix is not cosmetic. A virtual key without it is accepted on the `x-bf-vk` header only, and
@@ -102,6 +113,15 @@ Vane needs one extra step. It copies `OPENAI_API_KEY` into `data/config.json` on
 creates that file and reads the environment no further, so a restart alone leaves it sending the
 old key. Open its Settings page after the rollout and paste the new value into the OpenAI
 provider's API key field.
+
+`random_password.vk_kvasir` is the plain case, with no Settings edit to follow: Kvasir reads its
+environment on every start.
+
+```bash
+just tf apply bifrost -replace=random_password.vk_kvasir
+kubectl -n bifrost rollout restart deployment/bifrost
+kubectl -n kvasir rollout restart deployment/kvasir
+```
 
 Rotating `random_password.vk_cli` needs no restart of anything but Bifrost, and the new value is
 read with `just tf output` above.
