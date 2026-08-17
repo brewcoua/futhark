@@ -19,6 +19,15 @@ setup host='' *args: render-secrets
 k8s: render-secrets
     ansible-playbook playbooks/k8s.yml
 
+# k8s.yml already fetches the kubeconfig as part of the converge, so regenerating is that same
+# fetch on its own rather than a second code path. The rewrite of 127.0.0.1 to the controller's
+# mesh address lives in the k8s_cluster role and only there.
+
+# Re-fetch ansible/.generated/kubeconfig from the k3s controller
+[working-directory('ansible')]
+kubeconfig: render-secrets
+    ansible-playbook playbooks/k8s.yml --tags kubeconfig
+
 # Both stores, composed, in this order and no other. sops yields a document that still holds
 # `{{ pass:// }}` references — it treats each value as an opaque string, so the braces survive
 # — and pass-cli inject then resolves them against the operator's Proton Pass session.

@@ -259,6 +259,10 @@ The kubeconfig k3s writes says `https://127.0.0.1:6443`, which is true on the no
 to the operator. The role fetches it and rewrites the address to the controller's mesh IP, rather
 than pointing it at a `tls-san` name, so it keeps working when mesh DNS is the thing that broke.
 
+The file lands in `ansible/.generated/`, which is gitignored, so a fresh clone or a wiped
+`.generated/` has no kubeconfig and every `just ks` recipe fails. `just ans kubeconfig` re-runs
+that fetch on its own, through the `kubeconfig` tag on `k8s.yml`, without converging the cluster.
+
 ## How secrets reach a play
 
 Two mechanisms, no custom code in this repo any more.

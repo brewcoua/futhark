@@ -93,6 +93,7 @@
   register: k8s_cluster_kubeconfig
   no_log: true
   when: k8s_cluster_is_controller
+  tags: kubeconfig
 
 - name: Write the kubeconfig for the operator
   ansible.builtin.copy:
@@ -105,3 +106,4 @@
   become: false
   no_log: true
   when: k8s_cluster_is_controller
+  tags: kubeconfig
