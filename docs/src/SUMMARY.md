@@ -37,6 +37,10 @@
 - [Cluster infrastructure](gitops/infra.md)
 - [Node apps](gitops/nodes.md)
 
+# Podman, the standalone plane
+
+- [The standalone Podman plane](gitops/podman.md)
+
 # OpenTofu, the cloud plane
 
 - [Rules for every module](tofu/index.md)

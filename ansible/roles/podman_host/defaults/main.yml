@@ -1,0 +1,22 @@
+---
+# Where the quadlet reconciler drops unit files. Podman's own search path for root-owned generated
+# units, so it is not a choice — see `man quadlet`.
+podman_host_unit_dir: /etc/containers/systemd
+
+# Non-secret configuration files the units bind-mount, and the 0600 env files roles/forge writes
+# beside them. 0700 because the second kind is in here.
+podman_host_config_dir: /etc/futhark
+
+# Container state. Bind mounts rather than podman named volumes: a named volume lives under
+# /var/lib/containers/storage and its on-disk path is an implementation detail, which makes both
+# the backup target and the restore procedure harder to state than they need to be.
+podman_host_data_dir: /srv/futhark
+
+# firewalld's public zone. 443 for Traefik, 22 for Forgejo's git SSH — the host's own sshd moved to
+# ssh_port in roles/ssh_harden, which is what leaves 22 free to be a container's.
+#
+# 80 is deliberately absent: the ACME resolver in nodes/brokkr.podman/config/traefik.yaml uses
+# TLS-ALPN-01, which is answered on 443, so there is no plaintext listener to open.
+podman_host_open_ports:
+  - 443/tcp
+  - 22/tcp

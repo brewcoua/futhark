@@ -35,3 +35,38 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan codeberg.org >> ~/.ssh/known_hosts
           git push --mirror "$GIT_MIRROR_CODEBERG"
+
+  # brokkr's own Forgejo, which this repository is what brokkr exists to hold. A separate job rather
+  # than a second step in the one above: the two mirrors are independent, and Codeberg going down
+  # must not stop the self-hosted copy being written, or the other way round.
+  #
+  # The remote and its deploy key are repository variables and secrets rather than values here, since
+  # the host is git.<domain> and the domain is identifying. Empty until they are set, which is why
+  # every step is skipped rather than failing.
+  brokkr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GIT_MIRROR_BROKKR: ${{ vars.GIT_MIRROR_BROKKR }}
+    steps:
+      - uses: actions/checkout@v7
+        if: vars.GIT_MIRROR_BROKKR != ''
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: webfactory/ssh-agent@v0.10.0
+        if: vars.GIT_MIRROR_BROKKR != ''
+        with:
+          ssh-private-key: ${{ secrets.GIT_MIRROR_BROKKR_KEY }}
+
+      # Same TOFU caveat as Codeberg's, and here it is a host this repository provisions: the
+      # authoritative fingerprint is whatever `ssh-keyscan` returns from the node itself, which
+      # ansible/roles/forge_bootstrap does not record anywhere. Blast radius is this mirror push.
+      - name: Push mirror to brokkr
+        if: vars.GIT_MIRROR_BROKKR != ''
+        run: |
+          host=$(printf '%s\n' "$GIT_MIRROR_BROKKR" | sed -e 's|^ssh://||' -e 's|^[^@]*@||' -e 's|[:/].*$||')
+          mkdir -p ~/.ssh
+          ssh-keyscan "$host" >> ~/.ssh/known_hosts
+          git push --mirror "$GIT_MIRROR_BROKKR"

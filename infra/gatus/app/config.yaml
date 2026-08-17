@@ -217,3 +217,36 @@ endpoints:
       - '[BODY] == pat(*<div id="root">*)'
       - "[RESPONSE_TIME] < 2000"
       - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  # The two endpoints below are not in the cluster: they run on brokkr under Podman, behind a Traefik
+  # of its own, with certificates it issues itself over TLS-ALPN-01. See docs/src/gitops/podman.md.
+  #
+  # Checked from here anyway, and this is the right direction of dependency: the cluster watching the
+  # fallback tells you the fallback is there before you need it, where the reverse would only tell
+  # you about an outage you are already in.
+  #
+  # The certificate assertion is doing more work here than anywhere else on this page. Every other
+  # row is renewed by cert-manager, which has its own alerting; these two are renewed by a Traefik
+  # process on a machine nothing else watches.
+  - name: Forgejo
+    group: Forge
+    url: https://git.${DOMAIN}/api/healthz
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 200"
+      - "[BODY].status == pass"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
+  # WOODPECKER_OPEN=false, so an anonymous request lands on the login page rather than a dashboard.
+  # 200 is the login page rendering, which is as far as an unauthenticated probe can get.
+  - name: Woodpecker
+    group: Forge
+    url: https://ci.${DOMAIN}/
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 200"
+      - "[RESPONSE_TIME] < 2000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"

@@ -27,15 +27,15 @@ node:
   initial_port: 22
 ```
 
-| Field                           | Meaning                                                                                                                                              |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `workflow`                      | `k8s` or `none`. Branches later setup steps; `k8s` nodes are the ones `playbooks/k8s.yml` installs k3s on                                            |
-| `k8s_role`                      | `controller` or `worker`. Only with `workflow: k8s`. A k3s server is a worker too unless tainted                                                     |
-| `mesh`                          | Optional, default false. Joins the NetBird mesh                                                                                                      |
-| `public_ingress`                | Optional, default false. Opens 443 in firewalld and marks this host as the one `PUBLIC_IP` and `MESH_IP` in `config/sops/cluster.sops.yaml` describe |
-| `app_tier`                      | Optional, default false. This host carries apps under `nodes/<hostname>.k8s/`, so it gets an `infisical-node-<hostname>` tier                        |
-| `ip`                            | The node's public address. Also becomes its Kubernetes `ExternalIP`, via k3s's `node-external-ip`                                                    |
-| `initial_user` / `initial_port` | First-contact login, the provider default, before the admin account exists                                                                           |
+| Field                           | Meaning                                                                                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `workflow`                      | `k8s`, `podman` or `none`. Branches later setup steps; `k8s` nodes are the ones `playbooks/k8s.yml` installs k3s on, `podman` nodes get the standalone container plane |
+| `k8s_role`                      | `controller` or `worker`. Only with `workflow: k8s`. A k3s server is a worker too unless tainted                                                                       |
+| `mesh`                          | Optional, default false. Joins the NetBird mesh                                                                                                                        |
+| `public_ingress`                | Optional, default false. Opens 443 in firewalld and marks this host as the one `PUBLIC_IP` and `MESH_IP` in `config/sops/cluster.sops.yaml` describe                   |
+| `app_tier`                      | Optional, default false. This host carries apps under `nodes/<hostname>.k8s/`, so it gets an `infisical-node-<hostname>` tier                                          |
+| `ip`                            | The node's public address. Also becomes its Kubernetes `ExternalIP`, via k3s's `node-external-ip`                                                                      |
+| `initial_user` / `initial_port` | First-contact login, the provider default, before the admin account exists                                                                                             |
 
 `ip` stays a reference, never a literal, because a real address is an identifying value and this
 repository is public. The `nodes` map comes from `config/sops/ops.sops.yaml`:
@@ -54,6 +54,13 @@ unchanged, and Jinja resolves the indirection at use time. See
 
 Exactly one host should be a controller. A second controller makes etcd a two-member cluster
 with quorum two, which is worse for availability than a single controller, not better.
+
+`workflow` decides two things beyond which playbook touches the host: which four roles
+`playbooks/setup.yml` runs under its `podman` tag, and which NetBird group the peer joins.
+`ansible/roles/netbird` derives that group name from this field, so **a new `workflow` value needs a
+matching `netbird_group` in `tofu/netbird/groups.tf` before the first join**, or the peer enrols into
+a group that does not exist and the setup key is rejected. `podman` is `brokkr`; see
+[The standalone Podman plane](../gitops/podman.md).
 
 `mesh` is orthogonal to `workflow`: opt in for any node, cloud or local, that needs mesh
 reachability. There is no mesh IP to store. Once joined, the node is addressed as
@@ -95,14 +102,20 @@ just ops sops config/sops/ops.sops.yaml
 ln -s ../../../nodes/<hostname>/host.yml ansible/inventory/host_vars/<hostname>/host.yml
 # then add `<hostname>: {}` under all.hosts in ansible/inventory/hosts.yml
 just ans setup <hostname>
-just ans k8s
+just ans k8s   # workflow: k8s only
 ```
 
 `just ans setup` writes the node's mesh address back into `nodes.<hostname>.mesh_ip`. Commit that
 change before running `just ans k8s`, which reads it.
 
 Verify: `just ans ping` reaches the new host, `ssh <hostname> netbird status` reports connected,
-and `just ks nodes` lists it `Ready`.
+and for a `workflow: k8s` node, `just ks nodes` lists it `Ready`.
+
+A `workflow: podman` node skips `just ans k8s` entirely, and `just ans setup` is the whole
+procedure: it converges the runtime, pushes the secrets, installs the git reconciler and starts the
+containers. Verify with `ssh <hostname> podman ps` instead. Its own prerequisites, the NetBird group
+and the `ansible.secrets.<hostname>` references, are in
+[The standalone Podman plane](../gitops/podman.md).
 
 If the node will run its own tenant apps under `nodes/<hostname>.k8s/`, it also needs its own
 Infisical operator tier, which is three files and one defaults entry, listed in

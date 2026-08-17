@@ -65,15 +65,24 @@ recipients there leaves the files themselves sealed to the old ones.
 
 ## `ans`, hosts
 
-| Recipe               | Does                                                           |
-| -------------------- | -------------------------------------------------------------- |
-| `ans setup [<host>]` | First contact and hardening. Re-runnable                       |
-| `ans k8s`            | Converge the cluster and bootstrap Flux                        |
-| `ans render-secrets` | Resolve the crown jewels into `ansible/.generated/secrets.yml` |
-| `ans ping`           | `ansible all -m ping`                                          |
-| `ans lint`           | `ansible-lint`                                                 |
+| Recipe                        | Does                                                           |
+| ----------------------------- | -------------------------------------------------------------- |
+| `ans setup [<host>] [<args>]` | First contact and hardening. Re-runnable                       |
+| `ans k8s`                     | Converge the cluster and bootstrap Flux                        |
+| `ans render-secrets`          | Resolve the crown jewels into `ansible/.generated/secrets.yml` |
+| `ans ping`                    | `ansible all -m ping`                                          |
+| `ans lint`                    | `ansible-lint`                                                 |
 
 `setup` and `k8s` both depend on `render-secrets`, so you rarely run it by hand.
+
+`setup` is variadic after the hostname, so `playbooks/setup.yml`'s tags are reachable. Pass `''` as
+the hostname to mean all of them:
+
+```bash
+just ans setup brokkr --tags podman        # one node's container plane
+just ans setup '' --skip-tags podman       # the fleet's base layers only
+just ans setup kenaz --tags mesh           # re-converge one node's mesh join
+```
 
 ## `fx`, Flux
 

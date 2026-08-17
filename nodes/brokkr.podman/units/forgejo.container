@@ -1,0 +1,77 @@
+# Forgejo. The forge this repository is mirrored to, and the one thing on this node that has to keep
+# working when the cluster does not.
+#
+# Every value here is non-secret and therefore reviewable in a diff. The secrets arrive through
+# EnvironmentFile, which ansible/roles/forge writes at 0600 and the git reconciler never touches.
+[Unit]
+Description=Futhark: Forgejo
+Requires=brokkr-network.service
+After=brokkr-network.service
+
+[Container]
+Image=codeberg.org/forgejo/forgejo:13.0.5@sha256:d05b9e587f02a746784d42c815c486b1d4f138646128f990a841833f513fe088
+ContainerName=forgejo
+Network=brokkr.network
+
+# 22, because roles/ssh_harden moved this host's own sshd to ssh_port and left it free. That is what
+# makes `git@git.${DOMAIN}:owner/repo.git` work with no port in the URL.
+PublishPort=22:22
+# HTTP on the loopback only. Traefik reaches this container by name over the brokkr network and does
+# not need the published port; roles/forge_bootstrap's readiness probe does.
+PublishPort=127.0.0.1:3000:3000
+
+Volume=/srv/futhark/forgejo:/data:Z
+
+# Forgejo's image runs as this uid/gid inside the container and chowns /data to it on first start.
+Environment=USER_UID=1000
+Environment=USER_GID=1000
+
+Environment=FORGEJO__server__PROTOCOL=http
+Environment=FORGEJO__server__HTTP_PORT=3000
+Environment=FORGEJO__server__DOMAIN=git.${DOMAIN}
+Environment=FORGEJO__server__ROOT_URL=https://git.${DOMAIN}/
+Environment=FORGEJO__server__SSH_DOMAIN=git.${DOMAIN}
+Environment=FORGEJO__server__SSH_PORT=22
+Environment=FORGEJO__server__LANDING_PAGE=explore
+
+Environment=FORGEJO__database__DB_TYPE=sqlite3
+Environment=FORGEJO__database__PATH=/data/forgejo.db
+
+# Public to read, closed to sign-up. Accounts come from Pocket ID, which roles/forge_bootstrap
+# registers as an OAuth login source, plus the one local admin the same role creates.
+# ALLOW_ONLY_EXTERNAL_REGISTRATION is what makes the first OIDC login create an account while the
+# local sign-up form stays gone.
+Environment=FORGEJO__service__DISABLE_REGISTRATION=false
+Environment=FORGEJO__service__ALLOW_ONLY_EXTERNAL_REGISTRATION=true
+Environment=FORGEJO__service__ENABLE_BASIC_AUTHENTICATION=false
+Environment=FORGEJO__service__REQUIRE_SIGNIN_VIEW=false
+Environment=FORGEJO__service__DEFAULT_KEEP_EMAIL_PRIVATE=true
+Environment=FORGEJO__openid__ENABLE_OPENID_SIGNIN=false
+Environment=FORGEJO__openid__ENABLE_OPENID_SIGNUP=false
+
+# Forgejo is behind Traefik, so it must not try to be a TLS terminator or a redirector itself, and
+# it has to read the forwarded address to log and rate-limit the real client.
+Environment=FORGEJO__security__REVERSE_PROXY_LIMIT=1
+# The brokkr network's pinned subnet, from brokkr.network. Only Traefik is on it, and port 3000 is
+# otherwise published to the loopback only, so this is the complete set of proxies that can reach it.
+Environment=FORGEJO__security__REVERSE_PROXY_TRUSTED_PROXIES=10.89.0.0/24
+
+# Woodpecker is the CI. Forgejo's own Actions runner is deliberately off, so there is one place
+# pipelines run and one place they are configured.
+Environment=FORGEJO__actions__ENABLED=false
+
+# Mailer unconfigured, so nothing tries to send and time out. It also means OIDC is the only
+# password-reset path, which is fine: the local admin's password lives in Proton Pass.
+Environment=FORGEJO__mailer__ENABLED=false
+
+EnvironmentFile=/etc/futhark/forgejo.env
+
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+# A cold start migrates the database, which is slow the first time.
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

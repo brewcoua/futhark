@@ -1,0 +1,23 @@
+---
+node:
+  hostname: brokkr
+  os: fedora
+  # Not in the cluster. `podman` branches setup.yml onto podman_host, quadlet_gitops and
+  # restic_backup, and keeps playbooks/k8s.yml — which gates every play on workflow == 'k8s' —
+  # off this host entirely. It is also the NetBird group this peer joins, so tofu/netbird must
+  # declare a group of the same name before the join. See ansible/roles/netbird/defaults/main.yml.
+  workflow: podman
+  mesh: true
+  # Deliberately false, even though this node does serve 443 to the internet. public_ingress means
+  # "the node PUBLIC_IP and MESH_IP in config/sops/cluster.sops.yaml describe", which is still
+  # ogma, and roles/firewall_ingress closes 80 and lowers the port floor for traefik-edge's
+  # hostNetwork bind. roles/podman_host opens this node's own ports instead.
+  public_ingress: false
+  # Identifying, so the literal lives encrypted in config/sops/ops.sops.yaml under nodes. Also read
+  # by tofu/bunny's refs.env for the git and ci A records.
+  ip: "{{ nodes[inventory_hostname].ip }}"
+  # Written back into that same file by the netbird role after the join. Defaulted so a cold
+  # bootstrap parses; nothing on this host asserts it, since there is no cluster to join.
+  mesh_ip: "{{ nodes[inventory_hostname].mesh_ip | default('') }}"
+  initial_user: fedora
+  initial_port: 22

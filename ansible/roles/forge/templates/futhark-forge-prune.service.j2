@@ -1,0 +1,15 @@
+[Unit]
+Description=Futhark: check and prune the forge's restic repository
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ podman_host_config_dir }}/restic.env
+# check before forget, in that order and not the other way round: pruning a repository that is
+# already damaged rewrites the damage in, and there is no second copy to recover from.
+ExecStart=/usr/bin/restic check
+ExecStart=/usr/bin/restic forget --tag forge --prune \
+    --keep-daily {{ forge_keep_daily }} \
+    --keep-weekly {{ forge_keep_weekly }} \
+    --keep-monthly {{ forge_keep_monthly }}

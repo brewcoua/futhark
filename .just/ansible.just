@@ -4,10 +4,15 @@ import '_common.just'
 help:
     @just --list ans
 
+# Variadic like `just tf apply`, so the playbook's own flags reach it. That is what makes
+# playbooks/setup.yml's six tags usable: `just ans setup brokkr --tags podman` re-converges one
+# node's container plane, and `just ans setup --skip-tags podman` provisions the fleet's base layers
+# during a cold bootstrap, before the secrets that plane needs exist.
+
 # Run the setup playbook, against one host or all of them
 [working-directory('ansible')]
-setup host='': render-secrets
-    ansible-playbook playbooks/setup.yml {{ if host == '' { '' } else { '-l ' + host } }}
+setup host='' *args: render-secrets
+    ansible-playbook playbooks/setup.yml {{ if host == '' { '' } else { '-l ' + host } }} {{ args }}
 
 # Run the k3s cluster + Flux bootstrap playbook
 [working-directory('ansible')]
@@ -33,13 +38,15 @@ k8s: render-secrets
 #
 # `--extract` yields the subtree's own keys at the top level, which is why secrets.yml lands as
 # `admin:`/`secrets:` — the shape the playbooks' vars_files expect — and why nodes.yml lands as a
-# bare hostname map that group_vars/all/nodes.yml puts back under a `nodes` key. cluster.yml is
-# the same file Flux and tofu read, just flattened out of the Secret.
+# bare hostname map that group_vars/all/nodes.yml puts back under a `nodes` key. brokkr.yml is the
+# same shape, read by group_vars/all/brokkr.yml. cluster.yml is the same file Flux and tofu read,
+# just flattened out of the Secret.
 render-secrets:
     @pass-cli info > /dev/null 2>&1 || { echo "no Proton Pass session — run: just ops pass-session" >&2; exit 1; }
     mkdir -p ansible/.generated
     sops -d --extract '["ansible"]' config/sops/ops.sops.yaml | pass-cli inject -f -o ansible/.generated/secrets.yml
     sops -d --extract '["nodes"]' config/sops/ops.sops.yaml > ansible/.generated/nodes.yml
+    sops -d --extract '["brokkr"]' config/sops/ops.sops.yaml > ansible/.generated/brokkr.yml
     sops -d --extract '["stringData"]' config/sops/cluster.sops.yaml > ansible/.generated/cluster.yml
 
 # Ping all nodes

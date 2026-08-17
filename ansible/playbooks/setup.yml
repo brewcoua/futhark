@@ -19,6 +19,8 @@
   #   mesh      the NetBird join and the pod -> mesh routing
   #   metrics   what the node publishes to node-exporter's textfile collector on its own,
   #             separately from what the mesh watchdog writes under the mesh tag
+  #   podman    the standalone container plane: the runtime, the pushed secrets, the git
+  #             reconciler and the forge bootstrap. Only on a workflow: podman node
   #
   # Anything that touches how we *connect* is `always`: the identity probe below decides which
   # login and port every later task uses, so skipping it by tag would have `--tags mesh` dial a
@@ -50,6 +52,22 @@
     - role: egress_exporter
       when: node.public_ingress | default(false)
       tags: metrics
+    # These four are one sequence and the order is load-bearing. podman_host provides the runtime
+    # and the directories; forge writes the env files a .container unit needs before it can start;
+    # quadlet_gitops brings the units in from git and starts them; forge_bootstrap needs the
+    # container it then talks to. See docs/src/gitops/podman.md.
+    - role: podman_host
+      when: node.workflow == 'podman'
+      tags: podman
+    - role: forge
+      when: node.workflow == 'podman'
+      tags: podman
+    - role: quadlet_gitops
+      when: node.workflow == 'podman'
+      tags: podman
+    - role: forge_bootstrap
+      when: node.workflow == 'podman'
+      tags: podman
   post_tasks:
     # set_fact persists for the rest of the run — the host now answers only as the
     # admin user on the hardened port, even if ssh_identity picked the initial login.

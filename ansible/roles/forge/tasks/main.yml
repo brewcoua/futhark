@@ -1,0 +1,99 @@
+---
+# Gated by node.workflow == 'podman' in playbooks/setup.yml, and ordered before
+# roles/quadlet_gitops: a .container unit whose EnvironmentFile does not exist fails to start, so
+# the secrets have to be on disk before the units arrive.
+- name: Install restic and sqlite
+  ansible.builtin.dnf:
+    name:
+      - restic
+      # `sqlite3 .backup` on the host, against the containers' database files. Not run inside the
+      # containers: neither image is guaranteed to ship the CLI.
+      - sqlite
+    state: present
+  when: node.os == 'fedora'
+
+- name: Create the container data directories
+  ansible.builtin.file:
+    path: "{{ podman_host_data_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ forge_data_dirs }}"
+
+# 0700: the SQLite copies in here are the whole database, including every user's hashed credential
+# and every access token.
+- name: Create the backup staging directory
+  ansible.builtin.file:
+    path: "{{ podman_host_data_dir }}/{{ forge_backup_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Create the textfile collector directory
+  ansible.builtin.file:
+    path: "{{ forge_textfile_dir }}"
+    state: directory
+    mode: "0755"
+
+# The one place this node's secrets exist outside Proton Pass. no_log, because a diff of a changed
+# env file is the secret. The quadlet reconciler excludes *.env so it never deletes these.
+- name: Install the container environment files
+  ansible.builtin.template:
+    src: "{{ item }}.env.j2"
+    dest: "{{ podman_host_config_dir }}/{{ item }}.env"
+    mode: "0600"
+  loop:
+    - forgejo
+    - woodpecker-server
+    - woodpecker-agent
+    - restic
+  no_log: true
+  # A rotated secret has to reach the running process, and nothing else would restart it: the
+  # quadlet timer only sees git, and git never sees these files.
+  notify: Restart the forge containers
+
+- name: Install the backup script
+  ansible.builtin.template:
+    src: futhark-forge-backup.sh.j2
+    dest: /usr/local/bin/futhark-forge-backup.sh
+    mode: "0755"
+
+- name: Install the backup and prune systemd units and timers
+  ansible.builtin.template:
+    src: "futhark-forge-{{ item.0 }}.{{ item.1 }}.j2"
+    dest: "/etc/systemd/system/futhark-forge-{{ item.0 }}.{{ item.1 }}"
+    mode: "0644"
+  loop: "{{ ['backup', 'prune'] | product(['service', 'timer']) | list }}"
+
+# `restic init` on an existing repository exits non-zero with "config file already exists", which is
+# the success case on every run after the first. `cat config` is the idempotent probe.
+- name: Check whether the restic repository exists
+  ansible.builtin.command: restic cat config
+  environment:
+    RESTIC_REPOSITORY: "{{ forge_restic_repository }}"
+    RESTIC_PASSWORD: "{{ secrets.brokkr.RESTIC_PASSWORD }}"
+    AWS_ACCESS_KEY_ID: "{{ secrets.brokkr.B2_KEY_ID }}"
+    AWS_SECRET_ACCESS_KEY: "{{ secrets.brokkr.B2_APPLICATION_KEY }}"
+  register: forge_restic_probe
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Initialise the restic repository
+  ansible.builtin.command: restic init
+  environment:
+    RESTIC_REPOSITORY: "{{ forge_restic_repository }}"
+    RESTIC_PASSWORD: "{{ secrets.brokkr.RESTIC_PASSWORD }}"
+    AWS_ACCESS_KEY_ID: "{{ secrets.brokkr.B2_KEY_ID }}"
+    AWS_SECRET_ACCESS_KEY: "{{ secrets.brokkr.B2_APPLICATION_KEY }}"
+  when: forge_restic_probe.rc != 0
+  changed_when: true
+  no_log: true
+
+- name: Enable the backup and prune timers
+  ansible.builtin.systemd:
+    name: "futhark-forge-{{ item }}.timer"
+    daemon_reload: true
+    enabled: true
+    state: started
+  loop:
+    - backup
+    - prune

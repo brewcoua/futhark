@@ -1,0 +1,13 @@
+---
+# The name Forgejo gives the Pocket ID login source. It is also the callback path segment, so
+# tofu/oidc's pocketid_client.forgejo callback URL has to spell the same word:
+# https://git.<domain>/user/oauth2/<name>/callback
+forge_bootstrap_oauth_name: pocketid
+
+# Pocket ID's OIDC discovery document. Composed from the domain rather than stored, the same way
+# every app's config.env under nodes/kenaz.k8s/ composes it.
+forge_bootstrap_oidc_issuer: "https://auth.{{ dns.domain }}"
+
+# How long to wait for Forgejo to answer before giving up. A cold start migrates its database, which
+# is slow the first time and fast every time after.
+forge_bootstrap_timeout: 180

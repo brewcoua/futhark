@@ -1,0 +1,51 @@
+# Traefik's dynamic configuration: the two public routes this node serves.
+#
+# ${DOMAIN} is substituted by ansible/roles/quadlet_gitops, the off-cluster equivalent of Flux's
+# postBuild.substituteFrom. The domain is an identifying value and this repository is public, so it
+# is never spelled out here. See docs/src/conventions/domains.md.
+#
+# Reconciled from git into /etc/futhark/dynamic.yaml.
+
+http:
+  routers:
+    forgejo:
+      rule: "Host(`git.${DOMAIN}`)"
+      entryPoints: [websecure]
+      service: forgejo
+      middlewares: [security-headers]
+      tls:
+        certResolver: letsencrypt
+
+    woodpecker:
+      rule: "Host(`ci.${DOMAIN}`)"
+      entryPoints: [websecure]
+      service: woodpecker
+      middlewares: [security-headers]
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    # By container name over the brokkr network. Podman's DNS on a user-defined network is what makes
+    # this resolve, which is the only reason brokkr.network exists.
+    forgejo:
+      loadBalancer:
+        servers:
+          - url: http://forgejo:3000
+
+    woodpecker:
+      loadBalancer:
+        servers:
+          - url: http://woodpecker-server:8000
+
+  middlewares:
+    security-headers:
+      headers:
+        # HSTS. Both hosts are TLS-only and there is no plaintext listener to fall back to, so
+        # there is nothing this can break. Not preloaded: that is a decision about the whole domain,
+        # and this node serves two names under it.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: false
+        # Forgejo and Woodpecker both render user-supplied content. Neither needs to be framed.
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin

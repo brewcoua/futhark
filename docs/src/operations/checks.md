@@ -318,6 +318,27 @@ Nothing in this repository tracks the expiry dates. Put them in a calendar when 
 tokens. The replacement procedure is
 [Credential rotation](rotation.md#the-netbird-tokens).
 
+## The forge node's own signals
+
+`brokkr` is outside the cluster, so nothing above reaches it and it reports on itself. Both signals
+are node-exporter textfile metrics, written by the units that produce them and scraped over the mesh:
+
+| Metric                                  | Goes to 0 when                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------- |
+| `futhark_quadlet_last_run_success`      | A reconcile failed: a non-fast-forwardable branch, or a unit that will not start |
+| `futhark_forge_backup_last_run_success` | A backup failed: usually an expired B2 key or a full disk                        |
+
+`futhark_quadlet_revision_info` carries the revision the node currently has applied, as a label,
+which is the fastest way to answer "did that commit land". Read it with
+`ssh brokkr git -C /var/lib/futhark-gitops rev-parse --short HEAD`, or from the metric.
+
+Two Gatus endpoints cover it from the cluster side, `git.$DOMAIN` and `ci.$DOMAIN`, in a `Forge`
+group of their own. The direction of dependency is deliberate: the cluster watches the fallback, so
+you learn the fallback is gone before you need it. Their `[CERTIFICATE_EXPIRATION]` assertion does
+more work than anywhere else on that page, because these two certificates are renewed by a Traefik
+process on a machine nothing else watches, not by cert-manager. See
+[The standalone Podman plane](../gitops/podman.md).
+
 ## What has no check at all
 
 Worth stating, because the absence is easy to mistake for coverage:
@@ -325,6 +346,14 @@ Worth stating, because the absence is easy to mistake for coverage:
 - **NetBird policy.** There are no server-side policy tests, so a wrong rule applies cleanly and
   fails later, in traffic. The [isolating test](../ansible/networking.md#the-isolating-test) is
   the substitute.
+- **The forge's Quadlet units.** `kustomize-build` never sees them, because they are systemd unit
+  files rather than manifests and their directory holds no `kustomization.yaml`. Nothing validates
+  them before they reach the node, so a broken unit is caught by the reconciler failing on the node,
+  not by a hook. Recovery is another commit; see
+  [Changing what runs](../gitops/podman.md#changing-what-runs).
+- **The break-glass admin.** Nothing proves it still works, and it is the one credential whose whole
+  purpose is being available during an outage. Test it deliberately, by logging in to `git.$DOMAIN`
+  with Pocket ID scaled to zero.
 - **Credential expiry.** Nothing watches it. See above.
 - **Backups that copied nothing.** A malformed exclude annotation makes K8up skip that PVC and
   the job still succeeds. The size column in `just bak snapshots` is the check, and the 26h alert in

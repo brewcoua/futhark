@@ -1,0 +1,66 @@
+---
+# The pull half of this node's GitOps. Gated by node.workflow == 'podman' in playbooks/setup.yml.
+# Config reconciles from git on a timer; secrets are pushed by roles/forge and never appear here.
+# See docs/src/gitops/podman.md.
+- name: Install envsubst
+  ansible.builtin.dnf:
+    name: gettext
+    state: present
+  when: node.os == 'fedora'
+
+- name: Create the textfile collector directory
+  ansible.builtin.file:
+    path: "{{ quadlet_gitops_textfile_dir }}"
+    state: directory
+    mode: "0755"
+
+# `version` rather than a bare clone: the reconciler tracks one branch and merges --ff-only, so the
+# checkout has to be on that branch and not on a detached HEAD.
+#
+# No credential of any kind. The remote is public HTTPS, which is what makes this node's
+# reconciliation independent of the cluster and of Proton Pass both.
+- name: Clone the repository this node reconciles from
+  ansible.builtin.git:
+    repo: "{{ quadlet_gitops_repo }}"
+    dest: "{{ quadlet_gitops_dir }}"
+    version: "{{ quadlet_gitops_branch }}"
+    # The reconciler fast-forwards on its own schedule. Letting Ansible reset the working tree
+    # would make `just ans setup` a second, silent way to change what runs here.
+    update: false
+
+# Has to exist before the script runs: the reconciler sources it to resolve the ${DOMAIN} that every
+# unit file in git spells rather than hardcodes.
+- name: Install the reconciler's substitution values
+  ansible.builtin.template:
+    src: substitutions.env.j2
+    dest: "{{ podman_host_config_dir }}/substitutions.env"
+    mode: "0644"
+
+- name: Install the quadlet reconciler script
+  ansible.builtin.template:
+    src: futhark-quadlet.sh.j2
+    dest: /usr/local/bin/futhark-quadlet.sh
+    mode: "0755"
+
+- name: Install the quadlet reconciler systemd unit and timer
+  ansible.builtin.template:
+    src: "futhark-quadlet.{{ item }}.j2"
+    dest: "/etc/systemd/system/futhark-quadlet.{{ item }}"
+    mode: "0644"
+  loop:
+    - service
+    - timer
+
+- name: Enable the quadlet reconciler timer
+  ansible.builtin.systemd:
+    name: futhark-quadlet.timer
+    daemon_reload: true
+    enabled: true
+    state: started
+
+# The timer's first run is two minutes out. Without this a fresh converge leaves the node with no
+# units at all for that long, and the failure mode of the next role's Forgejo bootstrap is then
+# "no such container" rather than anything that says why.
+- name: Reconcile once now
+  ansible.builtin.command: /usr/local/bin/futhark-quadlet.sh
+  changed_when: true

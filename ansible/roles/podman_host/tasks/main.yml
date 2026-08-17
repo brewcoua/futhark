@@ -1,0 +1,56 @@
+---
+# Rootful Podman with Quadlet, for a node that runs containers without a Kubernetes API in front of
+# them. Gated by node.workflow == 'podman' in playbooks/setup.yml — nothing in here branches on
+# hostname, same convention as roles/firewall_ingress and roles/netbird.
+#
+# Rootful is the simpler choice rather than the safer one. It binds 443 and 22 with no port-floor
+# sysctl and needs no lingering user session, at the cost of the Woodpecker agent's socket being a
+# root socket. See docs/src/gitops/podman.md.
+- name: Install Podman and the reconciler's dependencies
+  ansible.builtin.dnf:
+    name:
+      - podman
+      # The quadlet reconciler in roles/quadlet_gitops is a git clone plus an rsync.
+      - git
+      - rsync
+    state: present
+  when: node.os == 'fedora'
+
+# The Docker-compatible API. The Woodpecker agent is the only consumer: it speaks the Docker API to
+# start each pipeline step's container. Nothing else on the node gets the socket — Traefik uses its
+# file provider precisely so it does not need one.
+- name: Enable the Podman API socket
+  ansible.builtin.systemd:
+    name: podman.socket
+    enabled: true
+    state: started
+  when: node.os == 'fedora'
+
+- name: Open the container ports in firewalld's public zone
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop: "{{ podman_host_open_ports }}"
+  when: node.os == 'fedora'
+
+- name: Create the quadlet unit directory
+  ansible.builtin.file:
+    path: "{{ podman_host_unit_dir }}"
+    state: directory
+    mode: "0755"
+
+# 0700 rather than 0755: roles/forge writes the 0600 env files in here, and a directory a
+# non-root account can list is a directory whose filenames say what secrets exist.
+- name: Create the configuration directory
+  ansible.builtin.file:
+    path: "{{ podman_host_config_dir }}"
+    state: directory
+    mode: "0700"
+
+- name: Create the container data directory
+  ansible.builtin.file:
+    path: "{{ podman_host_data_dir }}"
+    state: directory
+    mode: "0755"

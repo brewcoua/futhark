@@ -1,0 +1,50 @@
+---
+# The forge stack's secrets and backups: everything about this node that cannot reconcile from git,
+# because it is either a credential or a schedule that has to exist before the containers start.
+#
+# Runs before roles/quadlet_gitops in playbooks/setup.yml, since a .container unit whose
+# EnvironmentFile is missing fails to start.
+#
+# The paths below compose podman_host_data_dir and podman_host_config_dir from roles/podman_host
+# rather than restating them. A statically listed role's defaults are merged into the play's
+# variables at play start, so they resolve here regardless of role order, and the three roles cannot
+# disagree about where the files are.
+
+# One directory per container's state, under roles/podman_host's data root. Bind-mount targets, so
+# the unit files in nodes/<host>.podman/units/ and this list have to agree.
+forge_data_dirs:
+  - traefik
+  - forgejo
+  - woodpecker-server
+
+# Where the pre-backup SQLite snapshots are written. Backed up along with the data directories, and
+# the reason a backup of a live SQLite file is not what gets uploaded.
+forge_backup_dir: backup
+
+# The SQLite databases, as <app>:<path relative to the data root>. `sqlite3 .backup` against each
+# produces a consistent copy without stopping the container, which is the whole point of doing it
+# this way rather than around a `systemctl stop`.
+forge_databases:
+  forgejo: forgejo/forgejo.db
+  woodpecker: woodpecker-server/woodpecker.sqlite
+
+# 03:00 and 05:00, matching the cluster's own backup and prune windows in
+# infra/backup/config/schedules.yaml and schedule-maintenance.yaml.
+forge_backup_time: "03:00"
+forge_prune_time: "Sun 05:00"
+
+# The same retention as the cluster's, from infra/backup/config/schedule-maintenance.yaml. One
+# policy across both repositories, so a restore expectation learned in one holds in the other.
+forge_keep_daily: 14
+forge_keep_weekly: 8
+forge_keep_monthly: 6
+
+# Backblaze's S3-compatible endpoint. Composed rather than stored: the hostname is Backblaze's fixed
+# pattern, so a stored copy could only disagree with it.
+#
+# The region comes from cluster.sops.yaml's B2_REGION, not from the `brokkr` key, because a B2 region
+# is a fact of the account and there is one account. The bucket comes from the `brokkr` key, because
+# there are two buckets and this is the one this node may write to.
+forge_restic_repository: "s3:https://s3.{{ cluster_values.B2_REGION }}.backblazeb2.com/{{ brokkr.B2_BUCKET }}"
+
+forge_textfile_dir: /var/lib/node_exporter/textfile_collector

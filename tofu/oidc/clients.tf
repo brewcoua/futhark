@@ -119,6 +119,38 @@ resource "infisical_secret" "linkwarden_oidc_client_id" {
 # searxng gets no client of its own: it speaks no OIDC and is gated by the shared auth-sso
 # oauth2-proxy below.
 
+# forgejo — nodes/brokkr.podman, which is not in the cluster. Confidential client, same as actual.
+#
+# The callback path's middle segment is the name Forgejo gives the login source, not a fixed string:
+# <root_url>/user/oauth2/<source name>/callback. `pocketid` here has to match
+# forge_bootstrap_oauth_name in ansible/roles/forge_bootstrap/defaults/main.yml, which is what passes
+# it to `forgejo admin auth add-oauth`.
+#
+# git.<domain>, not git.<sub_internal>.<domain>: this one is on the public edge on purpose. It is the
+# forge holding a mirror of this repository, so it has to be reachable when the cluster is not, and a
+# mesh-only name would fail exactly then.
+resource "pocketid_client" "forgejo" {
+  name          = "Forgejo"
+  callback_urls = ["https://git.${var.domain}/user/oauth2/pocketid/callback"]
+  is_public     = false
+  pkce_enabled  = true
+  # Forgejo has no role model this can map onto, so both groups get the same access. Repository
+  # permissions are Forgejo's own, granted per user inside it, and the one account with server-wide
+  # admin is the local break-glass one that does not come through here at all.
+  allowed_user_groups = [
+    pocketid_group.administrators.id,
+    pocketid_group.users.id,
+  ]
+}
+
+# No infisical_secret pair for this client, unlike every other one in this file. brokkr runs no
+# Infisical operator and deliberately holds no credential for any secret store, so writing the values
+# there would put them somewhere the consumer cannot read.
+#
+# They go out as outputs instead, filed by hand into Proton Pass, which is the same shape
+# tofu/b2/keys.tf uses for k8up's Backblaze key: the module mints and stops there. See
+# outputs.tf beside this file.
+
 # grafana — infra/monitoring. The callback path is not a choice: Grafana always uses
 # <root_url>/login/<provider>, and the provider here is generic_oauth.
 resource "pocketid_client" "grafana" {

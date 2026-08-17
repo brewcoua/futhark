@@ -426,6 +426,7 @@ Three distinct credentials, and they are easy to confuse:
 | `backblaze-tofu`       | `tofu/b2`'s provider                                    | Below                                         |
 | `backblaze-tofu-state` | `tofu/b2`'s S3 state backend, plus its state passphrase | Below                                         |
 | The backup B2 key      | K8up, via Infisical `/infra/k8up`                       | [The backup B2 key](#the-backup-b2-key) below |
+| brokkr's B2 key        | `brokkr`, via `/etc/futhark/restic.env`                 | [brokkr's secrets](#brokkrs-secrets) below    |
 
 For `backblaze-tofu`:
 
@@ -466,6 +467,74 @@ check goes red after its grace period, which reads as a node fault and is not on
    ```
 
 4. Verify the check reports within its 2 minute period and returns to green.
+
+### brokkr's secrets
+
+Ten fields across three items, all of them read by `ansible/roles/forge` and none of them by
+anything in the cluster. They are grouped here because they share one rotation step and one caveat.
+
+**The caveat, and it applies to every row below:** `brokkr` holds no secret-store credential, so
+nothing there reconciles a rotated value. It reaches the node only when Ansible runs. The git
+reconciler on the node will not do it, and neither will Flux. See
+[The standalone Podman plane](../gitops/podman.md).
+
+| Item                | Fields                                             | Minted by                        |
+| ------------------- | -------------------------------------------------- | -------------------------------- |
+| `brokkr-forgejo`    | `admin password`, `secret key`                     | You                              |
+| `brokkr-forgejo`    | `oidc client id`, `oidc client secret`             | `tofu/oidc`                      |
+| `brokkr-woodpecker` | `forge client id`, `forge client secret`           | Forgejo's OAuth application list |
+| `brokkr-woodpecker` | `agent secret`                                     | You                              |
+| `brokkr-restic`     | `repository password`, `key id`, `application key` | You, then `tofu/b2`              |
+
+The common step, after updating any field:
+
+```bash
+just ans setup brokkr --tags podman
+```
+
+That rewrites the env files, restarts the containers that read them, and re-runs
+`forgejo admin auth update-oauth`, which is what makes a new OIDC client secret reach the running
+Forgejo rather than sitting in a file it already read.
+
+Four of them need something first.
+
+**`oidc client id` and `oidc client secret`.** Replace the Pocket ID client, then read the new pair
+out of the module. The client ID changes too, because Pocket ID mints it and the provider only
+honours an explicit one at create time:
+
+```bash
+just tf apply oidc -replace=pocketid_client.forgejo
+just tf output oidc -raw forgejo_oidc_client_id
+just tf output oidc -raw forgejo_oidc_client_secret
+```
+
+**`forge client id` and `forge client secret`.** No plane in this repository can mint these: Forgejo
+does. In Forgejo, **Settings → Applications**, edit the Woodpecker application and regenerate the
+secret. Existing Woodpecker sessions survive; a new login fails until the node is re-converged.
+
+**`repository password`.** This cannot be rotated in place. `restic key add` adds a second key to the
+repository rather than replacing the first, so rotating it means adding the new key, updating the
+field, re-converging, then `restic key remove` for the old one. Losing it with no copy means losing
+every forge snapshot, exactly as for the cluster's. See
+[What cannot be rotated](#what-cannot-be-rotated).
+
+**`key id` and `application key`.** Same destroy-then-create semantics as K8up's, so backups fail
+between the apply and the re-converge:
+
+```bash
+just tf apply b2 -replace=b2_application_key.brokkr
+just tf output b2 -raw brokkr_b2_key_id
+just tf output b2 -raw brokkr_b2_application_key
+```
+
+Verify, after the re-converge:
+
+```bash
+ssh brokkr systemctl start futhark-forge-backup.service
+ssh brokkr journalctl -u futhark-forge-backup -n 20
+```
+
+Expect a snapshot id in the log. Then delete the old Backblaze key.
 
 ### The Storage Box SSH key
 
@@ -650,6 +719,12 @@ with the key.
 it, and unchangeable afterwards without starting a new repository. A new repository means the
 existing backups stay readable only with the old password. See
 [Backup and recovery](recovery.md#encryption).
+
+The same holds for `brokkr-restic`'s `repository password`, with one difference worth knowing: the
+node's repository is initialised by `restic init` from Ansible rather than by an operator inside a
+job, so `restic key add` and `restic key remove` are available to add a second key and drop the
+first. That changes the password without abandoning the repository, but it is a two-step rotation
+against live data rather than a field edit. See [brokkr's secrets](#brokkrs-secrets).
 
 **The four `rclone-crypt` passwords.** `password` and `password2` on each crypt remote derive the
 keys that wrapped the data. Change one and the data it wrapped is unreadable. They are stored

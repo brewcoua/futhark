@@ -37,6 +37,10 @@ the working directory `ansible.cfg` expects. See [Recipe reference](../operation
 | `mesh_route_table`, `mesh_route_priority` | The routing-rule slot the pod-to-mesh script in `roles/netbird` claims                                                                              |
 | `k8s_pod_cidr`, `k8s_service_cidr`        | k3s's own defaults, pinned as a single source of truth                                                                                              |
 
+`brokkr.yml` beside these loads the forge node's own bucket name the same way `nodes.yml` loads the
+addresses, out of a top-level key both Ansible and `tofu/b2` read. See
+[Secrets](../conventions/secrets.md#the-node-that-reads-no-store).
+
 **These are collected rather than written at each use site** because they had drifted into
 different spellings of the same fact: the mesh range was a literal in fail2ban's `ignoreip`,
 a literal again in the mesh role's firewalld loop, and a hand-expanded regex in `k8s_cluster`'s
@@ -65,31 +69,43 @@ rather than host-scoped.
 
 ## Playbooks
 
-| Playbook    | Recipe                    | Does                                                                                               |
-| ----------- | ------------------------- | -------------------------------------------------------------------------------------------------- |
-| `setup.yml` | `just ans setup [<host>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall. Re-runnable |
-| `k8s.yml`   | `just ans k8s`            | Installs the k3s controller, joins the workers, then the Flux bootstrap                            |
+| Playbook    | Recipe                             | Does                                                                                                                                   |
+| ----------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup.yml` | `just ans setup [<host>] [<args>]` | First contact on a fresh node: update, admin user, SSH hardening, mesh join, firewall, and the standalone container plane. Re-runnable |
+| `k8s.yml`   | `just ans k8s`                     | Installs the k3s controller, joins the workers, then the Flux bootstrap                                                                |
 
 `setup.yml` runs per host and is gated by the node's own flags. The `netbird` role only runs when
-`node.mesh` is true, and `firewall_ingress` and `egress_exporter` only when `node.public_ingress`
-is. Nothing in any role branches on a hostname, so a future node opts into either by setting the
-flag.
+`node.mesh` is true, `firewall_ingress` and `egress_exporter` only when `node.public_ingress` is,
+and the four Podman roles only when `node.workflow` is `podman`. Nothing in any role branches on a
+hostname, so a future node opts into any of them by setting the flag.
+
+`setup` is variadic after the hostname, so the playbook's own flags reach it. Pass `''` as the
+hostname to mean all of them: `just ans setup '' --skip-tags podman`.
 
 It also carries tags, so a single concern can be re-converged without running the whole thing:
 
-| Tag        | Roles                          |
-| ---------- | ------------------------------ |
-| `base`     | `fedora_common`                |
-| `access`   | `admin_user`, `ssh_harden`     |
-| `firewall` | `fail2ban`, `firewall_ingress` |
-| `mesh`     | `netbird`                      |
-| `metrics`  | `egress_exporter`              |
+| Tag        | Roles                                                       |
+| ---------- | ----------------------------------------------------------- |
+| `base`     | `fedora_common`                                             |
+| `access`   | `admin_user`, `ssh_harden`                                  |
+| `firewall` | `fail2ban`, `firewall_ingress`                              |
+| `mesh`     | `netbird`                                                   |
+| `metrics`  | `egress_exporter`                                           |
+| `podman`   | `podman_host`, `forge`, `quadlet_gitops`, `forge_bootstrap` |
 
 `admin_user` and `ssh_harden` share one tag on purpose: `ssh_harden` disables root and password
 login, so running it without `admin_user` locks the host out permanently. `ssh_identity` and the
 post-play `set_fact` are tagged `always`, because they decide which login and port every other
 task connects with. Skipping them would have `--tags mesh` dial a fresh host as an admin user that
 does not exist yet.
+
+The four roles under `podman` share one tag because they are one sequence, and the order in
+`setup.yml` is load-bearing: `podman_host` provides the runtime and the directories, `forge` writes
+the env files a `.container` unit needs before it can start, `quadlet_gitops` brings the units in
+from git and starts them, and `forge_bootstrap` talks to the container that results. Splitting the
+tag would let an operator run the fourth without the second. Skipping it is the supported case, and
+it is what a cold bootstrap does until the credentials that plane needs exist; see
+[Cold bootstrap](../operations/setup.md#7-host-provisioning).
 
 `k8s.yml` is tagged the same way: `k8s`, `flux`.
 
@@ -111,6 +127,10 @@ over the network with the fetched kubeconfig, with no SSH and no `become`.
 | `netbird`          | Mesh join with a freshly minted single-use setup key, firewalld zoning, the pod-to-mesh routing fix, and the SSH-config opt-out |
 | `firewall_ingress` | Opens 443 in firewalld's public zone. Only on the `public_ingress` node                                                         |
 | `egress_exporter`  | Publishes the node's public address as a node-exporter textfile metric. Only on the `public_ingress` node                       |
+| `podman_host`      | Rootful Podman, its API socket, this node's own firewalld ports, and the Quadlet directories. Only on a `workflow: podman` node |
+| `forge`            | The forge's 0600 env files, its restic repository, and the backup and prune timers. Only on a `workflow: podman` node           |
+| `quadlet_gitops`   | The git-pull reconciler that keeps `nodes/<host>.podman/` applied. Only on a `workflow: podman` node                            |
+| `forge_bootstrap`  | Forgejo's local admin and its Pocket ID login source, both idempotent. Only on a `workflow: podman` node                        |
 | `k8s_cluster`      | Installs k3s from inventory, server then agents, and writes the kubeconfig                                                      |
 | `flux_bootstrap`   | Flux Operator, the seed Secrets, then `flux/cluster.yaml`                                                                       |
 
@@ -122,7 +142,16 @@ learn by reading `setup.yml` top to bottom. Ansible runs a role once per play re
 many times it is reached, so the dependencies cost nothing at runtime, though `--list-tasks`
 prints the pre-deduplication list and will show them repeated.
 
-Four roles are worth knowing in more detail.
+`podman_host`, `forge`, `quadlet_gitops` and `forge_bootstrap` cannot express their order that way.
+Each needs the previous one's _effects_ rather than its tasks, and a `meta` dependency would run the
+role rather than order it, so the sequence lives in `setup.yml`'s role list with a comment saying it
+is load-bearing. They do share variables across that boundary: `forge` and `quadlet_gitops` compose
+their paths from `podman_host`'s defaults, which resolve because a statically listed role's defaults
+are merged into the play's variables at play start, regardless of role order.
+
+Five roles are worth knowing in more detail. The four Podman ones are covered together in
+[The standalone Podman plane](../gitops/podman.md), because what is worth knowing about them is the
+plane they build rather than any one of them.
 
 ### `fedora_common`
 

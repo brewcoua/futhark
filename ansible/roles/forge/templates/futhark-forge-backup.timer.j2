@@ -1,0 +1,11 @@
+[Unit]
+Description=Futhark: nightly forge backup
+
+[Timer]
+OnCalendar={{ forge_backup_time }}
+RandomizedDelaySec=15min
+# The node may have been off at 03:00, and a missed night is a night with no snapshot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

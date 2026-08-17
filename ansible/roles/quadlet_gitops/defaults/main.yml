@@ -1,0 +1,29 @@
+---
+# The reconciler's own settings. Where it writes to, podman_host_unit_dir and
+# podman_host_config_dir, comes from roles/podman_host rather than being restated here: a statically
+# listed role's defaults are merged into the play's variables at play start, so they resolve in this
+# role's templates regardless of role order.
+
+# The repository this node reconciles from, and the branch it tracks. Anonymous HTTPS against the
+# public remote on purpose: this repository is public, so the node needs no deploy key, holds no
+# credential for it, and has nothing to rotate. Flux uses SSH because it also needs to be reachable
+# from a private mirror; this does not.
+quadlet_gitops_repo: https://github.com/brewcoua/futhark.git
+quadlet_gitops_branch: master
+
+# Where the clone lives. Not /var/lib/futhark, which roles/netbird's watchdog already owns for its
+# escalation state.
+quadlet_gitops_dir: /var/lib/futhark-gitops
+
+# The subtree in that repository this node is the consumer of, and the two destinations its halves
+# rsync into. Named for the node's own hostname, so a second podman node reads its own subtree
+# without this role learning anything about either.
+quadlet_gitops_source: "nodes/{{ node.hostname }}.podman"
+
+# How often the timer fires. The reconciler short-circuits on an unchanged revision, so a tighter
+# interval costs one `git fetch` and nothing else.
+quadlet_gitops_interval: 5min
+
+# Where node-exporter's textfile collector reads from. Same directory roles/netbird and
+# roles/egress_exporter write into, and all the spellings have to agree.
+quadlet_gitops_textfile_dir: /var/lib/node_exporter/textfile_collector

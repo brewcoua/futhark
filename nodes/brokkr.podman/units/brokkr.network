@@ -1,0 +1,14 @@
+# One user-defined network for the whole stack. Its only job is Podman's built-in DNS: on the
+# default bridge, containers have no names to resolve, and Traefik's file provider addresses
+# forgejo and woodpecker-server by name.
+#
+# Reconciled from git by ansible/roles/quadlet_gitops. See docs/src/gitops/podman.md.
+[Unit]
+Description=Futhark: the forge stack's container network
+
+[Network]
+NetworkName=brokkr
+# Pinned rather than left to Podman's own allocation, so forgejo.container can name the exact CIDR in
+# REVERSE_PROXY_TRUSTED_PROXIES. Podman would otherwise pick the next free 10.89.x.0/24, and which
+# one it picked would be state on the node rather than a fact in this file.
+Subnet=10.89.0.0/24

@@ -49,6 +49,21 @@
         '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s+[\\w.-]+: "?(?<currentValue>[^"\\s]+)"?',
       ],
     },
+    {
+      // brokkr's Quadlet units. No built-in manager reads a systemd unit file, and these are not
+      // YAML, so neither `kubernetes` nor `flux` above sees them. Without this the four image pins
+      // there never move and the repo's "nothing floats" rule quietly becomes "nothing moves".
+      //
+      // The shape is Quadlet's `Image=` key holding the same tag@digest pin every manifest in this
+      // repo uses. See docs/src/gitops/podman.md.
+      customType: "regex",
+      description: "Container images in Podman Quadlet units",
+      managerFilePatterns: ["/^nodes/[^/]+\\.podman/units/.+\\.container$/"],
+      matchStrings: [
+        "Image=(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[a-f0-9]+)",
+      ],
+      datasourceTemplate: "docker",
+    },
   ],
 
   packageRules: [

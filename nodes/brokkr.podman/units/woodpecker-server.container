@@ -1,0 +1,44 @@
+# Woodpecker's server: the web UI, the pipeline queue, and the OAuth client for Forgejo.
+#
+# It authenticates users against Forgejo, not against Pocket ID. A Woodpecker user is a Forgejo user
+# who granted it access, so the login chain is browser -> Woodpecker -> Forgejo -> Pocket ID, and
+# Pocket ID appears in it only once.
+[Unit]
+Description=Futhark: Woodpecker CI server
+Requires=brokkr-network.service
+After=brokkr-network.service forgejo.service
+
+[Container]
+Image=docker.io/woodpeckerci/woodpecker-server:v3.17.0@sha256:23bdea05bc35ce150d9ba768889c3f00b3a618785c85b268e8fbf9b06d5a21e0
+ContainerName=woodpecker-server
+Network=brokkr.network
+
+# Nothing published. Traefik reaches the web UI by name over the brokkr network, and the agent
+# reaches the gRPC port the same way, so neither needs a host port.
+Volume=/srv/futhark/woodpecker-server:/var/lib/woodpecker:Z
+
+Environment=WOODPECKER_HOST=https://ci.${DOMAIN}
+Environment=WOODPECKER_SERVER_ADDR=:8000
+Environment=WOODPECKER_GRPC_ADDR=:9000
+
+Environment=WOODPECKER_DATABASE_DRIVER=sqlite3
+Environment=WOODPECKER_DATABASE_DATASOURCE=/var/lib/woodpecker/woodpecker.sqlite
+
+Environment=WOODPECKER_FORGEJO=true
+Environment=WOODPECKER_FORGEJO_URL=https://git.${DOMAIN}
+
+# Closed. WOODPECKER_OPEN=false means a Forgejo user cannot enrol themselves, which matters here
+# more than usual: a pipeline runs against the Podman socket, so authoring one is close to root on
+# this node. See docs/src/gitops/podman.md.
+Environment=WOODPECKER_OPEN=false
+Environment=WOODPECKER_AUTHENTICATE_PUBLIC_REPOS=false
+
+EnvironmentFile=/etc/futhark/woodpecker-server.env
+
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

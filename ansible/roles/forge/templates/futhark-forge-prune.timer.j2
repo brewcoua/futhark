@@ -1,0 +1,10 @@
+[Unit]
+Description=Futhark: weekly forge repository check and prune
+
+[Timer]
+OnCalendar={{ forge_prune_time }}
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

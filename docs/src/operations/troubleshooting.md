@@ -167,3 +167,52 @@ just tf init
 ```
 
 See [Checks and CI](checks.md#pre-commit).
+
+## A commit changed `nodes/brokkr.podman/` and nothing happened
+
+That node is not reconciled by Flux, so `just fx failing` will never mention it and neither will
+anything else in the cluster. It polls this repository itself, every five minutes, and the only place
+the outcome is recorded is the node:
+
+```bash
+ssh brokkr systemctl status futhark-quadlet.timer
+ssh brokkr journalctl -u futhark-quadlet -n 30
+ssh brokkr git -C /var/lib/futhark-gitops rev-parse --short HEAD
+```
+
+Three causes, in the order they happen. **The commit is not pushed**, since the node clones the
+remote and not your working tree, exactly as Flux does. **The branch was rewritten**, which the
+reconciler refuses with a `merge --ff-only` failure rather than resolving. **The reconcile failed**,
+in which case the containers keep serving the previous revision and the only signal is
+`futhark_quadlet_last_run_success` at 0.
+
+Recovery is another commit. Nothing on the node keeps a previous revision to roll back to, which is
+the same contract Flux has. See [The standalone Podman plane](../gitops/podman.md).
+
+## A container on brokkr fails with `Failed to load environment files`
+
+The `EnvironmentFile` that `ansible/roles/forge` writes is missing. Config on that node reconciles
+from git; secrets do not, and never will. Push them:
+
+```bash
+just ans setup brokkr --tags podman
+```
+
+The same command is the fix for a **rotated secret that has not taken effect**, and for
+`The requested OAuth 2.0 Client does not exist` on the Pocket ID login button, which means Forgejo
+holds a client id that `tofu/oidc` has since replaced. That run re-runs
+`forgejo admin auth update-oauth` as well as rewriting the files.
+
+## brokkr serves a self-signed or expired certificate
+
+Traefik on that node issues its own over ACME TLS-ALPN-01, which is answered on 443 and requires the
+challenge to reach the node directly. Anything terminating TLS in front of it breaks issuance
+silently.
+
+```bash
+ssh brokkr journalctl -u traefik -n 50 | grep -i acme
+```
+
+Check `git.$DOMAIN` and `ci.$DOMAIN` still resolve to that node's address and not the edge node's;
+`just tf plan bunny` being a no-op confirms the records are what the repository says. cert-manager is
+not involved here at any point, so nothing in `just ks certs` is relevant.

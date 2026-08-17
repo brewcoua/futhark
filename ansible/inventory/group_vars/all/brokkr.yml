@@ -1,0 +1,12 @@
+---
+# brokkr's identifying but non-granting values, from the one place they are written down: the
+# `brokkr` key of config/sops/ops.sops.yaml, which `just ans render-secrets` decrypts into
+# ansible/.generated/brokkr.yml. tofu/b2 reads the same key through its refs.env, so the bucket
+# name has one home rather than two that drift.
+#
+# Inventory-level and not a playbook's vars_files, for the same reason as nodes.yml beside this
+# file: it is read by a role rather than by the play, and every host resolving it costs nothing.
+#
+# Not under `ansible.secrets`: nothing here grants anything, and the tofu plane does not read that
+# subtree.
+brokkr: "{{ lookup('file', generated_dir + '/brokkr.yml') | from_yaml }}"

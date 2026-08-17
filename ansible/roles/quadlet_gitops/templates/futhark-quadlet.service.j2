@@ -1,0 +1,10 @@
+[Unit]
+Description=Futhark: reconcile this node's Podman workloads from git
+# The fetch is over the public route and the restarts are local, so this needs no ordering against
+# netbird. It does need Podman's API socket, since a restarted container is started through it.
+After=network-online.target podman.socket
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/futhark-quadlet.sh

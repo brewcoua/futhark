@@ -1,0 +1,4 @@
+---
+# Opens this node's own ports in firewalld's public zone.
+dependencies:
+  - role: firewalld

@@ -255,6 +255,28 @@ Flux needs them and cannot read the operator store. `ansible/roles/netbird` writ
 back into `ops.sops.yaml` after every join, so treat that as the canonical one and keep
 `cluster.sops.yaml` in step by hand. Nothing detects drift between them.
 
+### The node that reads no store
+
+`brokkr` is the exception to the table above, and it is deliberate. It runs outside the cluster, so
+there is no Infisical operator to read for it, and giving it a machine identity would spend one of
+the five the free tier allows on a node that would then hold a credential able to read almost the
+whole project.
+
+So it holds none. `ansible/roles/forge` writes its runtime secrets into `/etc/futhark/*.env` at
+0600, resolved out of Proton Pass through the same `just ans render-secrets` path every other role
+uses, and the reconciler on the node excludes `*.env` from the rsync so git never touches them.
+`config/sops/ops.sops.yaml` carries the references under `ansible.secrets.brokkr`.
+
+This keeps the boundary above intact in both directions. The node cannot fetch a secret it was not
+given, and nothing in the cluster can read what the node has. Two values reach it by hand rather than
+through a store, because their minter cannot write to one the node can read: `tofu/oidc` emits
+Forgejo's OIDC client pair as outputs, and `tofu/b2` emits its Backblaze key, both filed into Proton
+Pass the same way K8up's key is filed into Infisical.
+
+The cost is that a rotation there does not reconcile. It reaches the node when someone runs
+`just ans setup brokkr --tags podman` and not before. See
+[The standalone Podman plane](../gitops/podman.md).
+
 ## Infisical, and how tier isolation is enforced
 
 Apps read their secrets through the [Infisical

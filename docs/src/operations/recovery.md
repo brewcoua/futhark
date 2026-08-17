@@ -25,6 +25,7 @@ Five tiers, decided by where the data already lives rather than by how important
 | Attachments and blobs | `storagebox-crypt`, offsite over rclone | The Storage Box's own snapshots |
 | Bulk media            | `gdrive-crypt`, offsite over rclone     | **None.** See below             |
 | Everything else       | git and Infisical                       | Reconciled back by Flux         |
+| The forge's state     | `brokkr`, outside the cluster           | restic to its own B2 bucket     |
 
 A `local-path` volume is on one node's disk. Lose that disk and the data is gone, which is why
 that tier is the one K8up carries. `storagebox-crypt` is already offsite and already snapshotted.
@@ -38,6 +39,11 @@ even reach trash. So the class is for data you can re-fetch or afford to lose. P
 irreplaceable on it and you must opt the PVC in explicitly, with the annotation below, which then
 pulls every byte back through rclone and up to B2. That is usually the sign it belonged on a
 different class.
+
+The last row is the one this page's machinery does not cover at all. `brokkr` is not in the cluster,
+so K8up does not see it and no `Schedule` names it; it runs its own restic timer against its own
+bucket. Everything below is about the cluster's repository, and brokkr's is in
+[brokkr](#brokkr).
 
 ## Deciding what gets copied
 
@@ -129,6 +135,11 @@ The nightly job copies `pocket-id.db` and Actual's budget databases as files, al
 it is equivalent to recovering from a power cut, which SQLite handles, but it is not the same as a
 dump. `k8up.io/backupcommand` would take a real `sqlite3 .backup` instead, and needs `sqlite3` to
 exist in each image. Not adopted for these, though it is what the `postgres` namespace uses.
+
+`brokkr` does take the quiesced copy, because it is not going through K8up at all and can run
+`sqlite3 .backup` on the host against the container's file. Its databases are Forgejo's and
+Woodpecker's, and both hold every user's credential, so a crash-consistent copy was not worth the
+saving there. See [brokkr](#brokkr).
 
 ## Encryption
 
@@ -320,10 +331,75 @@ restic restore <id> --target /restore
 
 `<region>` and `<bucket>` are `B2_REGION` and `B2_BUCKET` in `config/sops/cluster.sops.yaml`.
 
+## brokkr
+
+`brokkr` is outside the cluster and backs itself up, so nothing above applies to it. It writes to its
+own restic repository in its own B2 bucket, with a key that cannot read the cluster's. That
+separation is the whole reason there are two repositories rather than one with two prefixes: restic
+has no per-path access control, so a key that can write into a repository can read every snapshot in
+it. See [The standalone Podman plane](../gitops/podman.md#backups).
+
+Its credentials are already on the node, in `/etc/futhark/restic.env`, which is the fastest path
+when the node itself is what you are recovering:
+
+```bash
+ssh brokkr
+sudo -i
+set -a; . /etc/futhark/restic.env; set +a
+
+restic snapshots --tag forge
+```
+
+Off the node, take `RESTIC_PASSWORD`, `B2_KEY_ID` and `B2_APPLICATION_KEY` from the Proton Pass
+`brokkr-restic` item, the bucket from `brokkr.B2_BUCKET` in `config/sops/ops.sops.yaml` and the region
+from `B2_REGION` in `config/sops/cluster.sops.yaml`, then export them as above.
+
+Each snapshot holds the three data directories and the SQLite staging directory together, so one
+snapshot is the whole node's state. To restore it:
+
+```bash
+# Restore beside the live data first and read it, rather than over the top of it.
+restic restore latest --target /restore
+
+systemctl stop forgejo woodpecker-server woodpecker-agent
+cp -a /restore/srv/futhark/forgejo/. /srv/futhark/forgejo/
+cp -a /restore/srv/futhark/woodpecker-server/. /srv/futhark/woodpecker-server/
+# The live .db files are the ones the containers wrote; the consistent copies are in backup/.
+cp /restore/srv/futhark/backup/forgejo.db /srv/futhark/forgejo/forgejo.db
+cp /restore/srv/futhark/backup/woodpecker.db /srv/futhark/woodpecker-server/woodpecker.sqlite
+systemctl start forgejo woodpecker-server woodpecker-agent
+```
+
+The database copies from `backup/` are what to use, not the ones inside the data directories. Those
+were captured live and may hold a partial transaction; the ones in `backup/` came from
+`sqlite3 .backup` and are consistent.
+
+`/srv/futhark/traefik` is in the snapshot too but is not worth restoring. It holds the ACME account
+key and the issued certificates, and Traefik re-issues both on start.
+
+Rehearse this before relying on it. Restoring to `/restore` and confirming
+`git -C /restore/srv/futhark/forgejo/git/repositories/<owner>/<repo>.git log` reads and
+`sqlite3 /restore/srv/futhark/backup/forgejo.db .tables` opens is the whole rehearsal, and it touches
+nothing live.
+
+### Rebuild brokkr from scratch
+
+1. Reinstall the OS, then `just ans setup brokkr`. That converges the runtime, pushes the secrets,
+   clones the repository and starts every container from the units in git. The forge comes up empty.
+2. Commit the new `nodes.brokkr.mesh_ip` the `netbird` role wrote, and delete the stale peer from the
+   NetBird dashboard, exactly as for a cluster node.
+3. Restore as above. The bootstrap tasks in `ansible/roles/forge_bootstrap` recreate the local admin
+   and the Pocket ID login source against the empty instance, and restoring over them replaces both
+   with what the snapshot holds, which is the intended outcome.
+
+Nothing here needs the cluster, Flux or Infisical at any point. That is the property being tested.
+
 ## Rebuild a wiped node
 
-A corrupted host gets reinstalled, which destroys every `local-path` volume on it. Both nodes hold
-some: Pocket ID is pinned to `ogma`, Actual to `kenaz`, and the monitoring stack floats.
+A corrupted host gets reinstalled, which destroys every `local-path` volume on it. Both cluster nodes
+hold some: Pocket ID is pinned to `ogma`, Actual to `kenaz`, and the monitoring stack floats. For
+`brokkr`, which has no `local-path` volume and no cluster to rejoin, the procedure is
+[Rebuild brokkr from scratch](#rebuild-brokkr-from-scratch) instead.
 
 1. Reinstall the OS, then:
 
@@ -377,6 +453,9 @@ restic repository password.
 | Which bucket, which region            | `config/sops/cluster.sops.yaml`                                                         |
 | The bucket itself, and the B2 key     | `tofu/b2`, see [b2](../tofu/b2.md)                                                      |
 | The B2 key and the restic password    | Infisical, `/infra/k8up`                                                                |
+| brokkr's bucket and B2 key            | `tofu/b2`, `brokkr.B2_BUCKET` in `config/sops/ops.sops.yaml`                            |
+| brokkr's restic password and B2 key   | Proton Pass, `brokkr-restic`                                                            |
+| brokkr's timers and retention         | `ansible/roles/forge`                                                                   |
 | Restore and inspection tasks          | `.just/backup.just`                                                                     |
 | The PostgreSQL instance and tenants   | `infra/postgres/`, see [Cluster infrastructure](../gitops/infra.md#the-shared-database) |
 | Failure alerts                        | `infra/monitoring/app/grafana/alerting/backup.yaml`                                     |

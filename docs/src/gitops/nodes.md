@@ -21,6 +21,12 @@ Not every cluster node gets a directory here. `ogma` runs no tenant apps. It is 
 entrypoint, so what it carries is cluster-wide infra rather than per-node workloads: both Traefiks
 and Pocket ID, all under `infra/` and all pinned with a `nodeSelector`.
 
+And not every directory here is reconciled by Flux. `nodes/brokkr.podman/` is Podman Quadlet units
+for a host outside the cluster, pulled by a timer on that host rather than pushed by Flux. It is
+named to match its `workflow` field the same way, holds no `kustomization.yaml`, and is excluded from
+the artifact Flux packs by `.sourceignore`. See
+[The standalone Podman plane](podman.md).
+
 ## `kenaz.k8s`
 
 `kenaz` runs the k3s server, so it is both controller and worker, plus Flux and most of `infra/`.
@@ -154,7 +160,7 @@ nightly snapshot. The pipe function exposes both models regardless, so a Co-STOR
 here survives only until the pod restarts.
 
 The Open WebUI half is one Pipe function, installed by hand and living in Open WebUI's database
-rather than in git. See [Cold bootstrap](../operations/setup.md#12-aftercare).
+rather than in git. See [Cold bootstrap](../operations/setup.md#13-aftercare).
 
 `open-webui` reaches `searxng` for web search, `bifrost` for models and `kvasir` for research,
 `vane` and `kvasir` each reach `searxng` and `bifrost`, and `bifrost` reaches `cli-proxy-api` and
@@ -163,3 +169,21 @@ rather than in git. See [Cold bootstrap](../operations/setup.md#12-aftercare).
 
 New apps land the same way. The step-by-step is
 [Adding a node app](../conventions/layout.md#adding-a-node-app).
+
+## `brokkr.podman`
+
+`brokkr` is in no Kubernetes cluster. It runs Forgejo at `git.$DOMAIN` and Woodpecker CI at
+`ci.$DOMAIN` as rootful Podman containers, behind a Traefik of its own that issues its own
+certificates, and it reconciles them by pulling this repository on a timer.
+
+| Unit                | Host          | Reads from                            |
+| ------------------- | ------------- | ------------------------------------- |
+| `traefik`           | both, on 443  | `/etc/futhark/{traefik,dynamic}.yaml` |
+| `forgejo`           | `git.$DOMAIN` | `/etc/futhark/forgejo.env`            |
+| `woodpecker-server` | `ci.$DOMAIN`  | `/etc/futhark/woodpecker-server.env`  |
+| `woodpecker-agent`  | none          | `/etc/futhark/woodpecker-agent.env`   |
+
+Nothing here reads Infisical, and that is the point rather than an omission: the node holds no
+credential for any secret store, so its secrets are pushed as 0600 env files by
+`ansible/roles/forge`. Everything about how that works, what it costs, and what to verify is in
+[The standalone Podman plane](podman.md).

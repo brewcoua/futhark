@@ -179,17 +179,23 @@ wrong rule is accepted and only fails later, in traffic. The
 
 ## Groups
 
-Two axes. `node` is every machine this repository provisions. `k8s` is the workflow it runs. Today
-every node is both, but the policies target the workflow, so a future node running something else
-joins `node` and reaches nothing extra. `admin` is the operator's own devices, enrolled from the
-dashboard.
+Two axes. `node` is every machine this repository provisions. `k8s` and `podman` are the workflows
+those machines run. The policies target the workflow rather than the fleet, which is what the second
+axis buys: `brokkr` runs containers under Podman with no Kubernetes API, so it joins `node` and
+`podman` and reaches nothing the `k8s` rules open. `admin` is the operator's own devices, enrolled
+from the dashboard.
 
 `ansible/roles/netbird` puts a peer in `node` (`mesh_node_group`) and in its workflow group
 (`node.workflow` in `ansible/nodes/<host>/host.yml`) at join, matching group **names**. Rename a
 group here and the same name must change there, or the next join lands the peer outside every
-rule.
+rule. The same coupling means **a new `workflow` value needs its group created here before that
+node's first join**, or the setup key's `auto_groups` names a group that does not exist.
 
-`peers` carries `ignore_changes` on all three groups. Ansible fills it, and without the lifecycle
+`podman` has no policy of its own, and needs none: `brokkr`'s inbound traffic is public and arrives
+on 443 rather than over the mesh, and administering it is already covered by `admin ssh` below,
+which targets `node`.
+
+`peers` carries `ignore_changes` on all four groups. Ansible fills it, and without the lifecycle
 block an apply would empty the group again.
 
 ## Access model

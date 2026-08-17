@@ -1,0 +1,41 @@
+# The node's only public listener. Terminates TLS for git.${DOMAIN} and ci.${DOMAIN} and proxies to
+# the two containers over the brokkr network.
+#
+# Not the cluster's traefik-edge: that one is a Flux-managed HelmRelease pinned to ogma and fronts
+# the cluster. This is a second, independent instance whose whole point is working when that one
+# does not. Same technology on purpose, so its router and middleware model is already familiar.
+#
+# ${DOMAIN} is substituted by ansible/roles/quadlet_gitops from the values Ansible writes, the
+# off-cluster equivalent of Flux's postBuild.substituteFrom. See docs/src/conventions/domains.md.
+[Unit]
+Description=Futhark: TLS termination and routing for the forge
+Requires=brokkr-network.service
+After=brokkr-network.service
+
+[Container]
+# chart-free, so the pin is the image alone: tag for readability, digest for what actually resolves.
+Image=docker.io/library/traefik:v3.7.10@sha256:9c3b91d5fb7770853ca5c1124a23c34bf2d9b47ffaebeab2614cbaf410dcb2ac
+ContainerName=traefik
+Network=brokkr.network
+
+# 443 only. The ACME resolver in traefik.yaml uses TLS-ALPN-01, which is answered on the TLS
+# listener itself, so there is no plaintext port to open and roles/podman_host does not open one.
+PublishPort=443:443
+
+# :Z, not :z — these mounts are this container's alone, so the private SELinux label is correct and
+# a shared one would be a needless relabel of a file another service reads.
+Volume=/etc/futhark/traefik.yaml:/etc/traefik/traefik.yaml:ro,Z
+Volume=/etc/futhark/dynamic.yaml:/etc/traefik/dynamic.yaml:ro,Z
+# The ACME account key and every issued certificate. Backed up with the rest of the node's state,
+# though losing it costs only a re-issue.
+Volume=/srv/futhark/traefik:/acme:Z
+
+# No socket of any kind. Traefik discovers routes from a file, not from the Podman API, which is why
+# the only thing on this node holding that socket is the Woodpecker agent.
+NoNewPrivileges=true
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

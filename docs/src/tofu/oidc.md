@@ -9,7 +9,9 @@ It is the one module allowed to write to a secret store. See the write exception
 ## What it manages
 
 One `pocketid_client` plus two `infisical_secret` resources per app, in `clients.tf`. Add a new
-group following the existing blocks' shape as each app adopts OIDC login.
+group following the existing blocks' shape as each app adopts OIDC login. The one exception is
+`forgejo`, whose consumer cannot read Infisical at all; see
+[The one client with no Infisical pair](#the-one-client-with-no-infisical-pair).
 
 One of those clients is not an app. `pocketid_client.sso` is the oauth2-proxy in `infra/auth`, a
 single relying party standing in for every internal app that speaks no OIDC. Its secrets go to
@@ -49,6 +51,34 @@ Both are written to the app's Infisical folder, and the app's `InfisicalStaticSe
 folder into a Secret the Deployment consumes with `envFrom`. An app whose ConfigMap hardcodes a
 client ID that Pocket ID never issued fails every login with `The requested OAuth 2.0 Client does
 not exist.`
+
+### The one client with no Infisical pair
+
+`pocketid_client.forgejo` is registered here like every other, but has no `infisical_secret`
+resources. Forgejo runs on `brokkr`, outside the cluster, and that node holds no credential for any
+secret store, so writing the values into Infisical would put them somewhere the consumer cannot
+read. They leave through `outputs.tf` instead and are filed into Proton Pass by hand, which is the
+same shape [b2](b2.md#filing-k8ups-key) uses for K8up's Backblaze key.
+
+```bash
+just tf output oidc -raw forgejo_oidc_client_id
+just tf output oidc -raw forgejo_oidc_client_secret
+```
+
+Two things about this client differ from the rest and both are easy to get wrong:
+
+- **The callback path's middle segment is not fixed.** Forgejo builds it as
+  `<root_url>/user/oauth2/<login source name>/callback`, and that name is
+  `forge_bootstrap_oauth_name` in `ansible/roles/forge_bootstrap/defaults/main.yml`. Both spell
+  `pocketid`; change one and every login fails at the redirect.
+- **The host is `git.$DOMAIN`, not `git.$SUB_INTERNAL.$DOMAIN`.** This one is on the public edge
+  deliberately. It is the forge holding a mirror of this repository, so it has to be reachable when
+  the cluster is not, and a mesh-only name would fail in exactly that case.
+
+`ansible/roles/forge_bootstrap` is what registers the client inside Forgejo, with
+`forgejo admin auth add-oauth` on the first converge and `update-oauth` on every one after. That
+second form is what makes a rotated secret reach the running instance. See
+[The standalone Podman plane](../gitops/podman.md#authentication).
 
 ```bash
 just tf init oidc

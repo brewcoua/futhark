@@ -1,0 +1,150 @@
+#!/usr/bin/env bash
+# Reconciles this node's Podman workloads from git. There is no Flux off-cluster, and the point of
+# this node is that it keeps working when the cluster does not, so it pulls rather than being
+# pushed. Managed by ansible/roles/quadlet_gitops — edits are overwritten.
+#
+# Two properties this relies on, both documented in docs/src/gitops/podman.md:
+#
+#   - `rsync --delete` is what makes this reconciliation rather than a copy. Removing a unit file
+#     from git removes the unit, and `systemctl daemon-reload` then stops and reaps its container.
+#   - A bad commit rolls forward, not back. Nothing here keeps a previous revision to return to;
+#     recovery is another commit. That is the same contract as Flux, and deliberately so.
+set -euo pipefail
+
+REPO_DIR={{ quadlet_gitops_dir }}
+UNIT_DIR={{ podman_host_unit_dir }}
+CONFIG_DIR={{ podman_host_config_dir }}
+SOURCE={{ quadlet_gitops_source }}
+BRANCH={{ quadlet_gitops_branch }}
+SUBST_FILE={{ podman_host_config_dir }}/substitutions.env
+METRICS_FILE={{ quadlet_gitops_textfile_dir }}/futhark_quadlet.prom
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+publish() {
+  # Written to a temporary file in the same directory and moved into place: node-exporter reads the
+  # directory on every scrape and would otherwise be able to read a half-written file.
+  local rev=$1 ok=$2 tmp
+  tmp=$(mktemp "${METRICS_FILE}.XXXXXX")
+  cat >"$tmp" <<EOF
+# HELP futhark_quadlet_revision_info The repository revision currently applied to this node.
+# TYPE futhark_quadlet_revision_info gauge
+futhark_quadlet_revision_info{revision="$rev",branch="$BRANCH"} 1
+# HELP futhark_quadlet_last_run_success Whether the last reconcile attempt succeeded.
+# TYPE futhark_quadlet_last_run_success gauge
+futhark_quadlet_last_run_success $ok
+# HELP futhark_quadlet_last_run_timestamp_seconds Unix time of the last reconcile attempt.
+# TYPE futhark_quadlet_last_run_timestamp_seconds gauge
+futhark_quadlet_last_run_timestamp_seconds $(date +%s)
+EOF
+  chmod 0644 "$tmp"
+  mv "$tmp" "$METRICS_FILE"
+}
+
+# A failed reconcile has to be visible as a failure rather than as silence, because the containers
+# already running keep serving and nothing else on this node would notice.
+fail() {
+  publish "$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo unknown)" 0
+}
+trap fail ERR
+
+git -C "$REPO_DIR" fetch --prune --quiet origin "$BRANCH"
+
+if [ "$(git -C "$REPO_DIR" rev-parse HEAD)" = "$(git -C "$REPO_DIR" rev-parse "origin/$BRANCH")" ]; then
+  publish "$(git -C "$REPO_DIR" rev-parse --short HEAD)" 1
+  exit 0
+fi
+
+# --ff-only, so a rewritten branch fails loudly here rather than being merged into whatever
+# revision this node happens to hold.
+git -C "$REPO_DIR" merge --ff-only --quiet "origin/$BRANCH"
+
+# The unit half and the config half land in different directories, so this is two rsyncs and not
+# one. --delete on both: a file removed from git has to be removed from the node.
+#
+# *.env is excluded from the config half because Ansible owns those files. They hold this node's
+# secrets, they are never in git, and an unguarded --delete would take them out on every run.
+#
+# --chmod rather than --archive's default of copying the source mode: the repository is world
+# readable and $CONFIG_DIR is 0700 for a reason (roles/forge writes the env files into it), and a
+# trailing-slash rsync sets the destination directory's own mode too.
+#
+# Rendered through envsubst on the way, not copied. The domain is an identifying value and this
+# repository is public, so a unit file spells it `${DOMAIN}` exactly as a cluster manifest does.
+# This is the same substitution Flux performs with postBuild.substituteFrom; here the values come
+# from $SUBST_FILE, which Ansible writes. Named variables only, so a literal `$` anywhere else
+# survives — the `$$` escaping a Flux-reconciled manifest needs does not apply.
+render() {
+  local src=$1 dest=$2
+  mkdir -p "$dest"
+  ( cd "$src" && find . -type f -print0 ) | while IFS= read -r -d '' f; do
+    mkdir -p "$dest/$(dirname "$f")"
+    envsubst "$SUBST_VARS" < "$src/$f" > "$dest/$f"
+  done
+}
+
+# shellcheck disable=SC2016
+SUBST_VARS='${DOMAIN} ${SUB_INTERNAL}'
+set -a
+# shellcheck source=/dev/null
+. "$SUBST_FILE"
+set +a
+
+render "$REPO_DIR/$SOURCE/units" "$work/units-rendered"
+render "$REPO_DIR/$SOURCE/config" "$work/config-rendered"
+
+rsync --recursive --links --times --delete --checksum --itemize-changes \
+  --perms --chmod=D755,F644 \
+  "$work/units-rendered/" "$UNIT_DIR/" > "$work/units"
+rsync --recursive --links --times --delete --checksum --itemize-changes --exclude '*.env' \
+  --perms --chmod=D700,F644 \
+  "$work/config-rendered/" "$CONFIG_DIR/" > "$work/config"
+
+# Quadlet is a systemd generator: it turns the files above into units at daemon-reload time. Until
+# this runs, a new .container file is not a unit and `systemctl start` cannot find it.
+systemctl daemon-reload
+
+# What to restart. A changed .container maps to exactly one service, so only that one needs
+# restarting. Anything else — a .network, a .pod, a Traefik config file — has readers that are not
+# derivable from the filename, so the answer is every container on the node.
+#
+# The service list comes from the unit files themselves rather than from a list of app names, so
+# this role stays unaware of what the node runs.
+# `if` rather than `test && assign`: under `set -e` a bare short-circuit that ends a statement or a
+# loop body makes the whole script exit on the false branch.
+targeted=true
+changed_units=$(awk '$1 ~ /^[<>ch*]/ {print $2}' "$work/units")
+if [ -s "$work/config" ]; then
+  targeted=false
+fi
+for f in $changed_units; do
+  if [ "${f%.container}" = "$f" ]; then
+    targeted=false
+  fi
+done
+
+if [ "$targeted" = true ]; then
+  restart=""
+  for f in $changed_units; do
+    unit="${f%.container}.service"
+    # A unit whose file was deleted no longer exists after the reload. Skip it rather than fail:
+    # daemon-reload has already stopped and reaped it, which is the intended outcome.
+    if systemctl cat "$unit" > /dev/null 2>&1; then
+      restart="$restart $unit"
+    fi
+  done
+else
+  restart=$(find "$UNIT_DIR" -maxdepth 1 -name '*.container' -printf '%f\n' \
+    | sed 's/\.container$/.service/')
+fi
+
+for unit in $restart; do
+  echo "restarting $unit"
+  systemctl restart "$unit"
+done
+
+rev=$(git -C "$REPO_DIR" rev-parse --short HEAD)
+echo "reconciled to $rev"
+publish "$rev" 1
+trap - ERR

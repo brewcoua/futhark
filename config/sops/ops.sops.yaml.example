@@ -17,6 +17,34 @@ ansible:
     healthchecks:
       kenaz: "{{ pass://<vault>/healthchecks/kenaz }}"
       ogma: "{{ pass://<vault>/healthchecks/ogma }}"
+      brokkr: "{{ pass://<vault>/healthchecks/brokkr }}"
+    # brokkr's runtime secrets. This node runs no Infisical operator and holds no store
+    # credential of its own, so its secrets are pushed here by roles/podman_host into 0600 env
+    # files rather than pulled at runtime. Config on brokkr reconciles from git; secrets do not.
+    # See docs/src/conventions/secrets.md.
+    brokkr:
+      # The break-glass local account. The whole reason this node exists is that it keeps working
+      # with the cluster — and therefore Pocket ID — down, so this is a password and not an
+      # OIDC identity.
+      FORGEJO_ADMIN_USER: forgeadmin
+      FORGEJO_ADMIN_PASSWORD: "{{ pass://<vault>/brokkr-forgejo/admin password }}"
+      FORGEJO_SECRET_KEY: "{{ pass://<vault>/brokkr-forgejo/secret key }}"
+      # Minted by tofu/oidc and read out of its outputs, not written into Infisical: brokkr cannot
+      # read Infisical. `just tf output oidc` prints both, then they are filed here by hand.
+      FORGEJO_OIDC_CLIENT_ID: "{{ pass://<vault>/brokkr-forgejo/oidc client id }}"
+      FORGEJO_OIDC_CLIENT_SECRET: "{{ pass://<vault>/brokkr-forgejo/oidc client secret }}"
+      # Woodpecker authenticates against Forgejo, not against Pocket ID, so Forgejo mints this
+      # pair. Created once in Forgejo's own OAuth application list at bootstrap.
+      WOODPECKER_FORGE_CLIENT_ID: "{{ pass://<vault>/brokkr-woodpecker/forge client id }}"
+      WOODPECKER_FORGE_CLIENT_SECRET: "{{ pass://<vault>/brokkr-woodpecker/forge client secret }}"
+      WOODPECKER_AGENT_SECRET: "{{ pass://<vault>/brokkr-woodpecker/agent secret }}"
+      # This node's own restic repository, separate from the cluster's. Held here as well as
+      # nowhere else: there is no Infisical copy to lose access to.
+      RESTIC_PASSWORD: "{{ pass://<vault>/brokkr-restic/repository password }}"
+      # Minted by tofu/b2's b2_application_key.brokkr and filed here by hand, the same way k8up's
+      # pair is filed into Infisical.
+      B2_KEY_ID: "{{ pass://<vault>/brokkr-restic/key id }}"
+      B2_APPLICATION_KEY: "{{ pass://<vault>/brokkr-restic/application key }}"
     infisical:
       cluster_reader:
         client_id: "{{ pass://<vault>/infisical-cluster-reader/client id }}"
@@ -32,6 +60,19 @@ nodes:
   ogma:
     ip: 203.0.113.11
     mesh_ip: ""
+  brokkr:
+    ip: 203.0.113.12
+    mesh_ip: ""
+
+# brokkr's own restic bucket, top level rather than under `ansible` or `tofu` because both planes
+# read it and neither reads the other's subtree: roles/forge needs it to build the repository URL,
+# and tofu/b2 needs it to create the bucket. One copy, so the two cannot disagree — the same reason
+# tofu/bunny reads the node addresses out of `nodes` rather than keeping its own.
+#
+# No region here. The region is a fact of the B2 account, not of the bucket, and it is already
+# recorded once as B2_REGION in config/sops/cluster.sops.yaml.
+brokkr:
+  B2_BUCKET: example-brokkr
 
 tofu:
   b2:

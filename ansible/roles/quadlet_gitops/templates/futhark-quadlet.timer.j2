@@ -1,0 +1,14 @@
+[Unit]
+Description=Futhark: poll git for Podman workload changes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec={{ quadlet_gitops_interval }}
+# Small, unlike the egress exporter's: the point of a short interval is that a commit lands
+# promptly, and there is no rate-limited third party to spread load across.
+RandomizedDelaySec=30
+# The node may have been off across a commit, and what it holds on disk is then behind the branch.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

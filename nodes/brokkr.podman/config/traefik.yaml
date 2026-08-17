@@ -1,0 +1,46 @@
+# Traefik's static configuration: what it listens on, how it gets certificates, and where it reads
+# routes from. Everything here is fixed at process start, which is why a change to this file makes
+# the reconciler restart every container rather than just one.
+#
+# Reconciled from git by ansible/roles/quadlet_gitops into /etc/futhark/traefik.yaml.
+# See docs/src/gitops/podman.md.
+
+entryPoints:
+  # One listener, and TLS only. The cluster's edge does the same thing for the same reason: there is
+  # nothing to serve over plaintext, so a plaintext listener is only an attack surface and a
+  # downgrade path. Nothing here redirects from 80, because roles/podman_host never opens it.
+  websecure:
+    address: ":443"
+
+providers:
+  # A file, not the Podman socket. Routes are then reviewable in git, and Traefik holds no socket
+  # that would make it root-equivalent on this node.
+  file:
+    filename: /etc/traefik/dynamic.yaml
+    # The unit restarts on a config change anyway, so this is belt and braces rather than the
+    # mechanism. It also means an operator editing the file by hand for a test sees the effect.
+    watch: true
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # TLS-ALPN-01, not DNS-01 and not HTTP-01. DNS-01 would need the Bunny API key on this node,
+      # which is a crown-jewel credential the cluster's cert-manager already holds and this node has
+      # no business holding. HTTP-01 would need port 80 open. TLS-ALPN-01 is answered on the 443
+      # listener that already exists, with no extra credential and no extra port.
+      #
+      # The cost is that it cannot issue a wildcard, so every hostname needs its own record and its
+      # own certificate. With two hostnames that is the cheaper trade.
+      tlsChallenge: {}
+      # The email is identifying, so it is not written here. Let's Encrypt treats it as optional and
+      # only uses it for expiry warnings, which Gatus already covers.
+      storage: /acme/acme.json
+
+# Access logs to stdout, so journalctl is the one place to look. No file to rotate.
+accessLog: {}
+
+log:
+  level: INFO
+
+# No api section and no dashboard. The cluster's Traefik exposes its dashboard on the mesh; this one
+# has nothing that needs looking at which the logs do not say.

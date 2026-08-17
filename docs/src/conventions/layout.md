@@ -30,6 +30,12 @@ If you are naming a Kubernetes YAML file something else, you are naming it wrong
   also why a reusable Component cannot live under `infra/`. `config/` is where those go.
 - `nodes/<hostname>.k8s/<app>/{ks.yaml, app/}`: one directory per node app. See
   [Node apps](../gitops/nodes.md).
+- `nodes/<hostname>.podman/{units/, config/}`: a node that runs containers without Kubernetes. No
+  `ks.yaml` and no `kustomization.yaml`, because Flux reconciles none of it: a timer on the node
+  rsyncs `units/` into `/etc/containers/systemd/` and `config/` into `/etc/futhark/`. The file-name
+  rule above does not apply, since nothing in it is Kubernetes YAML. Add the directory to
+  `.sourceignore`, not to `nodes/kustomization.yaml`. See
+  [The standalone Podman plane](../gitops/podman.md).
 
 Cluster-wide infra that happens to be pinned to a specific node is not a `nodes/` entry.
 Pocket ID runs only on `ogma`, and expresses that as a `nodeSelector` under `infra/`. `nodes/` is for tenant workloads, not infra controllers.
@@ -54,7 +60,8 @@ A range is a version the repo cannot state.
 
 - **Container images pin `tag@sha256:…`.** The tag stays for readability; the digest is what
   actually resolves. A tag alone can be repointed at a different binary, and Flux would never
-  reconcile, because nothing it watches changed.
+  reconcile, because nothing it watches changed. This holds for a Quadlet `Image=` line too, where
+  the reasoning is the same and the reconciler is a timer rather than Flux.
 - **Helm charts pin `MAJOR.MINOR.PATCH`.** A chart patch is still a template change reaching the
   cluster, and under a `MAJOR.MINOR.*` range it arrived with no commit behind it.
 

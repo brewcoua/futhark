@@ -2,7 +2,8 @@
 
 Build the whole thing from nothing, in order. At the end you have provisioned hosts on a NetBird
 mesh, a k3s cluster reconciling from this repository through Flux, every runtime secret resolving
-from Infisical, and nightly backups reaching Backblaze B2.
+from Infisical, nightly backups reaching Backblaze B2, and optionally a git forge on a node outside
+that cluster.
 
 Every step is re-runnable. Expect a few hours, most of it waiting on reconciliation and on DNS-01
 propagation.
@@ -19,11 +20,12 @@ Before step 1, have:
 - Fedora or another `dnf` distribution on the operator machine, plus `uv`. `just ops deps`
   requires both, and installs everything else itself.
 
-Three values cannot exist until something else is running, so they are filled in twice: the edge
-node's mesh address (step 7), the backup B2 application key (step 8) and the Pocket ID API token
-(step 10). Each is called out where it lands. Blue runs forward through the twelve steps, green
-marks the first and last, and each red dashed arrow reaches back to a step that has to be
-revisited once the value it needed finally exists.
+Five values cannot exist until something else is running, so they are filled in twice: the edge
+node's mesh address (step 7), the backup B2 application key and the forge's own B2 key (step 8), the
+Pocket ID API token (step 10) and Forgejo's OIDC client pair (step 11). Each is called out where it
+lands. Blue runs forward through the thirteen steps, green marks the first and last, and each red
+dashed arrow reaches back to a step that has to be revisited once the value it needed finally
+exists.
 
 ```d2
 direction: down
@@ -51,9 +53,10 @@ repo: "3-6. This machine and this repo\njust ops setup, age key, node definition
 hosts: "7-8. The hosts, the mesh, the bucket\njust ans setup, then just tf apply netbird, b2"
 cluster: "9. The cluster\njust ans k8s: k3s, then Flux"
 cloud: "10. The cloud plane\njust tf apply bunny, oidc"
-after: "11-12. Prove the isolation,\nthen accessTokenTrustedIps" { class: boundary }
+forge: "11. The forge\njust ans setup brokkr --tags podman"
+after: "12-13. Prove the isolation,\nthen accessTokenTrustedIps" { class: boundary }
 
-stores -> repo -> hosts -> cluster -> cloud -> after
+stores -> repo -> hosts -> cluster -> cloud -> forge -> after
 
 hosts -> repo: "MESH_IP was a placeholder in step 5.\nThe node had not joined the mesh yet" {
   class: backfill
@@ -64,10 +67,16 @@ hosts -> stores: "The backup B2 key was a placeholder in step 2.\ntofu/b2 mints 
 cloud -> stores: "POCKETID_API_TOKEN was a placeholder in step 1.\nPocket ID did not exist yet" {
   class: backfill
 }
+forge -> repo: "Six brokkr fields were placeholders in step 1.\nSteps 8, 10 and 11 mint them" {
+  class: backfill
+}
 ```
 
-The three red edges are the only backward ones, and they are why the phases are not simply a list.
+The four red edges are the only backward ones, and they are why the phases are not simply a list.
 Each of those values is produced by a step that needs a file written several steps earlier.
+
+Step 11 is skippable in full. Nothing after it depends on the forge, and nothing in the cluster does
+either, which is the property that node exists to have.
 
 ## 1. Proton Pass
 
@@ -112,6 +121,9 @@ table has to agree with. Item and field names are lowercase-with-spaces, per
 | `backblaze-tofu-state`     | `key id`, `application key`, `state passphrase`                                      | A second B2 key restricted to `tofu/b2`'s state bucket, plus the passphrase state is encrypted under                              |
 | `storagebox`               | `ssh key`                                                                            | The Storage Box key pair's private half, generated at [The rclone remotes](rclone.md#the-storage-box)                             |
 | `rclone-crypt`             | `storagebox password`, `storagebox password2`, `gdrive password`, `gdrive password2` | The four obscured crypt passwords. Placeholders for now, since they are minted after step 3                                       |
+| `brokkr-forgejo`           | `admin password`, `secret key`, `oidc client id`, `oidc client secret`               | The forge's break-glass account and its signing key. The two `oidc` fields are placeholders; step 11 fills them                   |
+| `brokkr-woodpecker`        | `forge client id`, `forge client secret`, `agent secret`                             | The `forge` pair is placeholders. Forgejo itself issues them, at step 11                                                          |
+| `brokkr-restic`            | `repository password`, `key id`, `application key`                                   | The forge's own restic repository. The two B2 fields are placeholders; step 8 mints them                                          |
 
 Two NetBird PATs, on two **service users** of different roles, both created in the dashboard
 before either token. The roles, and why they differ, are
@@ -127,6 +139,30 @@ One `healthchecks` item holds every node's ping URL, one field per node named fo
 adding a node is adding a field. Create each check in healthchecks.io first, with period 2 minutes
 and grace 15 minutes, which is past the ladder's restart and re-up rungs and short of its reboot
 rung. A node whose field is missing still runs its watchdog, it just reports nothing.
+
+The three `brokkr-*` items are only needed if you are building a `workflow: podman` node. Skip them
+otherwise, and skip that node's field on `healthchecks` too. Four of their ten fields you generate
+now, with a password manager or `openssl rand -base64 48`:
+
+| Field                               | Is                                                                                 |
+| ----------------------------------- | ---------------------------------------------------------------------------------- |
+| `brokkr-forgejo/admin password`     | The local admin's password. Long: it is the account that survives a cluster outage |
+| `brokkr-forgejo/secret key`         | Forgejo's `SECRET_KEY`, which signs its own tokens                                 |
+| `brokkr-woodpecker/agent secret`    | Shared between the Woodpecker server and its agent. Not read by anything else      |
+| `brokkr-restic/repository password` | Encrypts the forge's backups. **Losing it loses every forge snapshot**             |
+
+The admin's _username_ goes in `config/sops/ops.sops.yaml` rather than here, as
+`ansible.secrets.brokkr.FORGEJO_ADMIN_USER`. It grants nothing on its own but is identifying, so it
+cannot be an `Environment=` line in a committed unit file.
+
+The remaining six cannot exist yet, because nothing has minted them: `tofu/b2` mints the two
+`brokkr-restic` B2 fields at step 8, `tofu/oidc` mints the two `brokkr-forgejo` `oidc` fields at step
+10, and Forgejo itself issues the two `forge` fields on `brokkr-woodpecker` at step 11. Leave all six as
+placeholders and finish them at [step 11](#11-the-forge), which lists the command that prints each.
+
+`brokkr-restic/repository password` deserves the same treatment as the cluster's restic password: it
+is the one credential here with no second copy anywhere, by construction, and there is no recovery
+path if it is lost. See [Backup and recovery](recovery.md#brokkr).
 
 `storagebox` and `rclone-crypt` are the items in the table no committed `pass://` reference points
 at. Their consumers read Infisical, not the vault, so these copies exist only so the credentials
@@ -159,7 +195,7 @@ Create three Universal Auth machine identities. With yourself that is 4 of the 5
 allows:
 
 - **`cluster-reader`**: read-only on the whole project, **denied** `/infra/k8up`. Leave
-  `accessTokenTrustedIps` alone for now. You set it at step 12, once the cluster has an egress
+  `accessTokenTrustedIps` alone for now. You set it at step 13, once the cluster has an egress
   address.
 - **`tofu-writer`**: write on the node folders the two writing modules target, and nothing else.
   Today that is `/nodes/kenaz/actual`, `/nodes/kenaz/open-webui`, `/nodes/kenaz/linkwarden`,
@@ -325,8 +361,17 @@ needs filling in.
 
 - `ansible.admin`: the admin user's name and SSH public key.
 - `ansible.secrets`: nothing to change beyond the vault name, per [step 1](#1-proton-pass).
+- `ansible.secrets.brokkr`: the forge node's runtime secrets, if you are building one. Eleven keys,
+  ten of them `pass://` references into the three `brokkr-*` items from step 1 and one,
+  `FORGEJO_ADMIN_USER`, a literal. Six of those references point at fields nothing has minted yet:
+  the two `FORGEJO_OIDC_*`, the two `WOODPECKER_FORGE_*` and the two `B2_*`. The references are still
+  correct, so write them all now; it is the Proton Pass fields behind six of them that stay
+  placeholders until [step 11](#11-the-forge).
 - `nodes.<hostname>.ip`: that node's public address. Leave `mesh_ip` empty. The node has not
   joined the mesh yet, and `roles/netbird` writes it in at step 7.
+- `brokkr.B2_BUCKET`: the forge node's own restic bucket, separate from the cluster's. Read by both
+  Ansible and `tofu/b2`, which is why it is top level rather than inside either plane's section. Omit
+  the key entirely if you are not building that node.
 - `tofu.<module>`: each module's own credentials and identifying values. `netbird` needs its PAT,
   `bunny` its API key, `oidc` the Pocket ID base URL and the Infisical project ID, `b2` its two
   key pairs, the state passphrase and the state bucket.
@@ -365,11 +410,17 @@ unpushed commit is invisible to the cluster.
 ## 7. Host provisioning
 
 ```bash
-just ans setup
+just ans setup '' --skip-tags podman
 ```
 
-Update, admin user, SSH hardening, mesh join, firewall. Add `<host>` to limit it to one machine.
-Safe to re-run. `ssh_identity` picks whichever login currently answers, and after the first run
+Update, admin user, SSH hardening, mesh join, firewall. Pass a hostname as the first argument to
+limit it to one machine; `''` means all of them, and anything after it goes to `ansible-playbook`.
+Safe to re-run.
+
+`--skip-tags podman` matters only if you are building a `workflow: podman` node. That plane needs
+credentials no step before this one has minted, so it is deferred to
+[step 11](#11-the-forge). On a cluster-only fleet the flag is a no-op and
+plain `just ans setup` is equivalent. `ssh_identity` picks whichever login currently answers, and after the first run
 each host answers only as the admin user on the hardened port. Provisioning nodes one at a time is
 fine, because the mesh-peer resolution in `roles/netbird` retries while the new peer's DNS record
 propagates.
@@ -435,6 +486,17 @@ step 2. Do this before the cluster, because `infra/backup` reconciles at step 9 
 there. Get it wrong and the symptom is every K8up job failing against a repository it cannot
 open.
 
+If you declared `brokkr.B2_BUCKET` at step 5, this apply also created the forge's bucket and its
+scoped key. That pair goes to **Proton Pass**, not Infisical, because the node that reads it holds no
+store credential:
+
+```bash
+just tf output b2 -raw brokkr_b2_key_id           # -> brokkr-restic/key id
+just tf output b2 -raw brokkr_b2_application_key  # -> brokkr-restic/application key
+```
+
+Filing them now completes two of the four placeholders left at step 5.
+
 Verify:
 
 ```bash
@@ -491,7 +553,85 @@ the same value as `OPENAI_API_KEYS` in `/nodes/kenaz/open-webui`.
 `cli-proxy-api` serves no model until an account is linked, which is a browser flow rather than an
 apply. See [CLI proxy login](cli-proxy-login.md).
 
-## 11. Prove the isolation holds
+## 11. The forge
+
+Skip this step if you are not building a `workflow: podman` node.
+
+It comes last because it depends on almost everything before it, and on nothing after. `tofu/bunny`
+at step 10 published `git.$DOMAIN` and `ci.$DOMAIN`; `tofu/oidc` at the same step minted Forgejo's
+Pocket ID client, which needed Pocket ID running from step 9; `tofu/b2` at step 8 created the bucket.
+Nothing in the cluster depends on this node in return, which is the whole point of it.
+
+Six Proton Pass fields were left as placeholders at step 1. Four can be filled now, and the last two
+only after Forgejo is running, which is why this step doubles back on itself.
+
+| Field                                   | Where it comes from                                   |
+| --------------------------------------- | ----------------------------------------------------- |
+| `brokkr-restic/key id`                  | `just tf output b2 -raw brokkr_b2_key_id`             |
+| `brokkr-restic/application key`         | `just tf output b2 -raw brokkr_b2_application_key`    |
+| `brokkr-forgejo/oidc client id`         | `just tf output oidc -raw forgejo_oidc_client_id`     |
+| `brokkr-forgejo/oidc client secret`     | `just tf output oidc -raw forgejo_oidc_client_secret` |
+| `brokkr-woodpecker/forge client id`     | Forgejo's own OAuth application list, below           |
+| `brokkr-woodpecker/forge client secret` | The same                                              |
+
+If you already filed the two `brokkr-restic` fields at step 8, only the two `oidc` ones are
+outstanding here:
+
+```bash
+just tf output oidc -raw forgejo_oidc_client_id      # -> brokkr-forgejo/oidc client id
+just tf output oidc -raw forgejo_oidc_client_secret  # -> brokkr-forgejo/oidc client secret
+```
+
+Then converge the plane that was skipped at step 7:
+
+```bash
+just ans setup brokkr --tags podman
+```
+
+That installs Podman, opens 443 and 22, writes the env files, initialises the restic repository,
+clones this repository, starts every container from the units in `nodes/brokkr.podman/units/`, and
+creates the local admin plus the Pocket ID login source.
+
+The two `forge` fields on `brokkr-woodpecker` are still placeholders at this point, and they are the one
+credential here no plane in this repository can mint: Woodpecker authenticates against Forgejo, and
+Forgejo issues it. Forgejo has to be running first, which it now is. Woodpecker comes up unable to
+complete a login until you create them:
+
+1. Log in to `https://git.$DOMAIN` as the local admin.
+2. **Settings → Applications → Create OAuth2 application**, redirect URI
+   `https://ci.$DOMAIN/authorize`.
+3. File the id and secret into the Proton Pass `brokkr-woodpecker` item.
+4. Re-run `just ans setup brokkr --tags podman`.
+
+Verify, and the fourth item is the one that matters:
+
+```bash
+ssh brokkr podman ps                                 # five containers, all Up
+curl -sI https://git.$DOMAIN | head -1               # 200, Let's Encrypt certificate
+ssh brokkr systemctl start futhark-forge-backup.service
+ssh brokkr journalctl -u futhark-forge-backup -n 20  # a restic snapshot id
+```
+
+Then, in a browser: `git.$DOMAIN` offers "Sign in with pocketid" **and no sign-up form**, the local
+admin password logs in, `ci.$DOMAIN` completes the Forgejo OAuth round trip, and a trivial
+`.woodpecker.yaml` in a test repository runs a step to completion.
+
+Last, prove the property the node exists for. Scale Pocket ID to zero and confirm the local admin
+still logs in:
+
+```bash
+flux suspend kustomization auth && kubectl -n auth scale deploy/pocketid --replicas=0
+# log in at git.$DOMAIN as the local admin
+kubectl -n auth scale deploy/pocketid --replicas=1 && flux resume kustomization auth
+```
+
+If that fails, the node is decoration. Everything else about it is in
+[The standalone Podman plane](../gitops/podman.md).
+
+Set the `GIT_MIRROR_BROKKR` repository variable and the `GIT_MIRROR_BROKKR_KEY` secret on GitHub to
+have `.github/workflows/mirror.yml` push a mirror here nightly. Until they are set that job skips.
+
+## 12. Prove the isolation holds
 
 The tier boundary is enforced by RBAC and an admission policy rather than by a secret store's own
 namespaces, so it is worth confirming rather than assuming. Both checks are in
@@ -501,7 +641,7 @@ admission**, not merely fail to sync.
 
 Delete the probe objects afterwards.
 
-## 12. Aftercare
+## 13. Aftercare
 
 Set `accessTokenTrustedIps` on the `cluster-reader` identity to the cluster's egress address. It
 is the only server-side constraint available on a single shared credential, and

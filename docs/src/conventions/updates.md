@@ -26,6 +26,7 @@ the repository.
 | `pre-commit`               | Hook `rev:`s in `.pre-commit-config.yaml`                         |
 | `mise`                     | The pinned tool binaries in `mise.toml`                           |
 | `custom.regex` (annotated) | The k3s, flux-operator and Flux distribution pins                 |
+| `custom.regex` (Quadlet)   | `Image=` pins in `nodes/*.podman/units/*.container`               |
 
 The built-in managers are scoped to the directories they belong to, because a manager with no
 file patterns walks the whole tree. SOPS files are excluded outright: their `version:` field
@@ -48,6 +49,13 @@ The comment must stay immediately above its pin. Insert a line between them, or 
 without its comment, and it silently stops being tracked. There is no error, just an update that
 never arrives. `.github/workflows/validate.yml` validates the config itself on every pull request, but
 nothing can validate an annotation that is simply absent.
+
+The Quadlet manager needs no annotation, because a `.container` file's `Image=` key is already an
+unambiguous shape: `Image=<repo>:<tag>@sha256:<digest>`, the same `tag@digest` pin every manifest in
+this repository uses. It exists at all because no built-in manager reads a systemd unit file, so
+without it those four images would never move and "nothing floats" would quietly become "nothing
+moves". Those pins reach a node outside the cluster; how they get applied is
+[The standalone Podman plane](../gitops/podman.md).
 
 Group rules exist for the pins that are one decision written twice: the `gitleaks` version in both
 `mise.toml` and `.pre-commit-config.yaml`, the VictoriaMetrics stack, mdbook and its d2

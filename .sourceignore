@@ -3,3 +3,9 @@
 # reached the cluster and glance-config failed to build on a file kustomize could see locally.
 # Re-include it. Nothing else in the tree ships a binary Flux has to read.
 !config/branding/**/*.png
+
+# brokkr is not in the cluster. Its Podman units are reconciled by a timer on the node itself
+# (ansible/roles/quadlet_gitops), and nothing in the Flux tree references them. Excluded so the
+# artifact Flux packs holds only what Flux reconciles — kustomize already ignores the directory,
+# since nodes/kustomization.yaml lists its resources explicitly.
+nodes/brokkr.podman/

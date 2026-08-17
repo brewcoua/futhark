@@ -1,0 +1,38 @@
+# Woodpecker's agent: the process that actually runs pipeline steps, each one as its own container.
+#
+# This is the only thing on the node holding the Podman API socket, and holding it is equivalent to
+# root here: a step can mount any host path. That is inherent to containerised CI rather than a
+# shortcut taken here, and it is why woodpecker-server.container sets WOODPECKER_OPEN=false. The
+# honest boundary is that anyone who can author a pipeline owns this node. See
+# docs/src/gitops/podman.md.
+[Unit]
+Description=Futhark: Woodpecker CI agent
+Requires=brokkr-network.service
+After=brokkr-network.service woodpecker-server.service
+
+[Container]
+Image=docker.io/woodpeckerci/woodpecker-agent:v3.17.0@sha256:03c7b1f7b2156d00fdf4c30da77ac2bfe88d09ed818ea4627f82835ad81a98c9
+ContainerName=woodpecker-agent
+Network=brokkr.network
+
+# Podman's Docker-compatible API, which roles/podman_host enables as podman.socket. The agent speaks
+# the Docker API and does not know it is not talking to Docker.
+#
+# :z, not :Z — the socket is shared with the podman service itself, and a private label would stop
+# that service from using its own socket.
+Volume=/run/podman/podman.sock:/run/podman/podman.sock:z
+Environment=DOCKER_HOST=unix:///run/podman/podman.sock
+
+Environment=WOODPECKER_SERVER=woodpecker-server:9000
+Environment=WOODPECKER_BACKEND=docker
+# Two at a time. This node's job is to be the reliable fallback, not a fast build farm, and a
+# runaway pipeline count is the easiest way to make it neither.
+Environment=WOODPECKER_MAX_WORKFLOWS=2
+
+EnvironmentFile=/etc/futhark/woodpecker-agent.env
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

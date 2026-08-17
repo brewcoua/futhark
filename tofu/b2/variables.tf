@@ -12,6 +12,20 @@ variable "backups_bucket" {
   }
 }
 
+# brokkr's own restic bucket, from the `brokkr` key of config/sops/ops.sops.yaml. A separate variable
+# and a separate bucket, not a prefix inside backups_bucket: a restic repository has no per-path
+# access control, so sharing one would give brokkr a key that reads every cluster backup. Read out of
+# the operator store rather than the cluster one because no Flux workload substitutes it — the cluster
+# has no business knowing this bucket exists.
+variable "brokkr_bucket" {
+  description = "Name of the B2 bucket brokkr's restic repository lives in."
+  type        = string
+  validation {
+    condition     = length(var.brokkr_bucket) > 0
+    error_message = "brokkr_bucket must not be empty."
+  }
+}
+
 # The passphrase OpenTofu derives this module's state encryption key from, out of this module's own
 # `tofu.b2` section. Resolved at `tofu init`, not just plan/apply: an encryption block has to settle
 # before the backend is read, so every recipe in .just/tofu.just that touches the backend needs it.

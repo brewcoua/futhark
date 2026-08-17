@@ -27,3 +27,24 @@ resource "b2_bucket" "backups" {
     days_from_hiding_to_deleting = 30
   }
 }
+
+# brokkr's restic repository. A second bucket rather than a prefix in the one above, because a restic
+# repository has no per-path access control: a key that can write brokkr's snapshots into the
+# cluster's repository can also read every snapshot already in it. That is the blast radius
+# docs/src/conventions/secrets.md isolates behind a separate Infisical identity for the cluster, and
+# a bucket boundary is the same isolation done with the tool that actually enforces it.
+#
+# Same replacement warning as above: bucket_name forces replacement, and replacing this bucket means
+# losing every snapshot of the forge.
+resource "b2_bucket" "brokkr" {
+  bucket_name = var.brokkr_bucket
+  bucket_type = "allPrivate"
+
+  # Identical to the cluster repository's, and for identical reasons. Retention here belongs to
+  # futhark-forge-prune.service on the node, not to B2.
+  lifecycle_rules {
+    file_name_prefix                                       = ""
+    days_from_starting_to_canceling_unfinished_large_files = 1
+    days_from_hiding_to_deleting                           = 30
+  }
+}

@@ -24,6 +24,18 @@ resource "netbird_group" "k8s" {
   }
 }
 
+# The second workflow, and the case the two axes above were written for: brokkr runs containers under
+# rootful Podman with no Kubernetes API, so it joins `node` and `podman` and reaches nothing the k8s
+# rules open. It needs no policy of its own — its inbound traffic is public and arrives on 443, and
+# the `admin ssh to nodes` rule below already covers administering it.
+resource "netbird_group" "podman" {
+  name = "podman"
+
+  lifecycle {
+    ignore_changes = [peers]
+  }
+}
+
 # The operator's own devices — laptop, phone. Empty here: those peers enrol from the dashboard,
 # and this module only needs the group to exist for the rules that name it.
 resource "netbird_group" "admin" {

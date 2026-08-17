@@ -12,6 +12,18 @@ variable "edge_public_ip" {
   }
 }
 
+# brokkr's public address, resolved out of the same `nodes` map for the same reason. A separate
+# variable rather than a reuse of edge_public_ip: they are two hosts, and the whole point of brokkr is
+# that it is reachable when the edge node is not.
+variable "brokkr_public_ip" {
+  description = "brokkr's public IP. The A record target for git.<domain> and ci.<domain>."
+  type        = string
+  validation {
+    condition     = can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$", var.brokkr_public_ip))
+    error_message = "brokkr_public_ip must look like an IPv4 address."
+  }
+}
+
 # Declared in refs.env and read from config/sops/cluster.sops.yaml, the one place the domain is written
 # down — Flux substitutes the same key into manifests. The zone this module manages is the
 # domain's own public zone; internal names are NetBird's (tofu/netbird/dns.tf).

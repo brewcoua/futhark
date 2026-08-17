@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Backs up this node's forge state to its own restic repository. Managed by ansible/roles/forge —
+# edits are overwritten.
+#
+# The repositories are backed up as files, not as a `forgejo dump` archive. A dump writes a fresh
+# archive every run, which restic cannot deduplicate against the previous one, so a few gigabytes of
+# git data would be re-uploaded nightly. The live directory deduplicates almost perfectly instead.
+#
+# The databases cannot be copied that way: a live SQLite file on disk may hold a partial
+# transaction. `.backup` takes a consistent copy through SQLite itself, without stopping the
+# container, and that copy is what gets uploaded.
+set -euo pipefail
+
+DATA_DIR={{ podman_host_data_dir }}
+BACKUP_DIR={{ podman_host_data_dir }}/{{ forge_backup_dir }}
+METRICS_FILE={{ forge_textfile_dir }}/futhark_forge_backup.prom
+
+publish() {
+  local ok=$1 tmp
+  tmp=$(mktemp "${METRICS_FILE}.XXXXXX")
+  cat >"$tmp" <<EOF
+# HELP futhark_forge_backup_last_run_success Whether the last forge backup succeeded.
+# TYPE futhark_forge_backup_last_run_success gauge
+futhark_forge_backup_last_run_success $ok
+# HELP futhark_forge_backup_last_run_timestamp_seconds Unix time of the last forge backup attempt.
+# TYPE futhark_forge_backup_last_run_timestamp_seconds gauge
+futhark_forge_backup_last_run_timestamp_seconds $(date +%s)
+EOF
+  chmod 0644 "$tmp"
+  mv "$tmp" "$METRICS_FILE"
+}
+trap 'publish 0' ERR
+
+mkdir -p "$BACKUP_DIR"
+chmod 0700 "$BACKUP_DIR"
+
+{% for app, db in forge_databases.items() %}
+# {{ app }}. -readonly, so a bug here can never be the thing that writes to the live database.
+# .backup itself is what makes the copy consistent, including across the WAL.
+if [ -f "$DATA_DIR/{{ db }}" ]; then
+  rm -f "$BACKUP_DIR/{{ app }}.db"
+  sqlite3 -readonly "$DATA_DIR/{{ db }}" ".backup '$BACKUP_DIR/{{ app }}.db'"
+fi
+{% endfor %}
+
+# --tag so `restic snapshots --tag forge` is a complete list, and so the prune unit's forget can
+# scope its policy to this node's snapshots and nothing else.
+restic backup --tag forge \
+{% for dir in forge_data_dirs %}
+  "$DATA_DIR/{{ dir }}" \
+{% endfor %}
+  "$BACKUP_DIR"
+
+publish 1
+trap - ERR

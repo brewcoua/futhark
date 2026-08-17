@@ -1,0 +1,19 @@
+---
+# Handlers flush at the end of the play, which is after roles/quadlet_gitops has put the unit files
+# in place. On a first converge the units therefore exist by the time this runs; on a re-converge
+# that only rotated a secret, this is the only thing that restarts anything.
+#
+# `state: restarted` on a unit quadlet has not generated yet would fail the play, so a missing unit
+# is tolerated: it means the reconciler has not run, and it will start the container itself.
+- name: Restart the forge containers
+  ansible.builtin.systemd:
+    name: "{{ item }}.service"
+    state: restarted
+  loop:
+    - forgejo
+    - woodpecker-server
+    - woodpecker-agent
+  register: forge_restart
+  failed_when:
+    - forge_restart is failed
+    - "'not found' not in (forge_restart.msg | default(''))"

@@ -1,0 +1,9 @@
+[Unit]
+Description=Futhark: back up the forge's state to its own restic repository
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile={{ podman_host_config_dir }}/restic.env
+ExecStart=/usr/local/bin/futhark-forge-backup.sh

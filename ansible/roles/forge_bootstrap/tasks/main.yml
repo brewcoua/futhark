@@ -1,0 +1,69 @@
+---
+# The two things Forgejo cannot express as configuration, done here so they are re-runnable rather
+# than a one-time click in a UI. Runs after roles/quadlet_gitops, because both need the container.
+#
+# Gated by node.workflow == 'podman' in playbooks/setup.yml.
+
+# forgejo.container publishes 3000 on the loopback only, which is what makes this probe possible
+# without reaching in through Traefik and TLS.
+- name: Wait for Forgejo to answer
+  ansible.builtin.wait_for:
+    port: 3000
+    host: 127.0.0.1
+    timeout: "{{ forge_bootstrap_timeout }}"
+
+# The break-glass account, and the whole reason this node exists: it has to work with the cluster —
+# and therefore Pocket ID — completely down. A local password, not an OIDC identity.
+#
+# `--must-change-password=false`, because nothing would be there to prompt on an API login, and the
+# password is already the one in Proton Pass.
+- name: Check whether the local admin exists
+  ansible.builtin.command:
+    cmd: podman exec forgejo forgejo admin user list --admin
+  register: forge_bootstrap_admin_list
+  changed_when: false
+
+- name: Create the local admin
+  ansible.builtin.command:
+    cmd: >-
+      podman exec forgejo forgejo admin user create
+      --admin
+      --username {{ secrets.brokkr.FORGEJO_ADMIN_USER }}
+      --password {{ secrets.brokkr.FORGEJO_ADMIN_PASSWORD | quote }}
+      --email admin@{{ dns.domain }}
+      --must-change-password=false
+  when: secrets.brokkr.FORGEJO_ADMIN_USER not in forge_bootstrap_admin_list.stdout
+  changed_when: true
+  no_log: true
+
+# Forgejo has no app.ini section for an OAuth login source, so this command is the only handle
+# there is. add-oauth on first converge, update-oauth on every one after, which is what makes a
+# rotated client secret reach Forgejo by re-running the role.
+- name: List the existing authentication sources
+  ansible.builtin.command:
+    cmd: podman exec forgejo forgejo admin auth list
+  register: forge_bootstrap_auth_list
+  changed_when: false
+
+- name: Register Pocket ID as an OAuth login source
+  ansible.builtin.command:
+    cmd: >-
+      podman exec forgejo forgejo admin auth
+      {{ 'update-oauth --id ' ~ forge_bootstrap_auth_id if forge_bootstrap_auth_id else 'add-oauth' }}
+      --name {{ forge_bootstrap_oauth_name }}
+      --provider openidConnect
+      --key {{ secrets.brokkr.FORGEJO_OIDC_CLIENT_ID }}
+      --secret {{ secrets.brokkr.FORGEJO_OIDC_CLIENT_SECRET | quote }}
+      --auto-discover-url {{ forge_bootstrap_oidc_issuer }}/.well-known/openid-configuration
+      --scopes "openid profile email groups"
+  vars:
+    # `auth list` is a tab-separated table whose first column is the id. Matched on the name column
+    # so the id never has to be written down anywhere.
+    forge_bootstrap_auth_id: >-
+      {{ (forge_bootstrap_auth_list.stdout_lines
+          | select('search', '\t' ~ forge_bootstrap_oauth_name ~ '\t')
+          | map('regex_replace', '^(\\S+)\\s.*$', '\\1')
+          | list
+          | first) | default('', true) }}
+  changed_when: true
+  no_log: true
