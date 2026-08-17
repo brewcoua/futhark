@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: kvasir
-          image: ghcr.io/brewcoua/kvasir:0.3.0@sha256:f179d13481ede62ac3e3f1db8056ba017477ae9d911233da1d133735d77958db
+          image: ghcr.io/brewcoua/kvasir:0.4.0@sha256:4af425a84ce8a5aada47a08fd0cb881674a94c3ed41b722642d749563b7ae6a2
           ports:
             - name: http
               containerPort: 8080
