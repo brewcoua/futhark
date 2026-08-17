@@ -9,6 +9,7 @@ resources:
   - infisicalsecret.yaml
   - deployment.yaml
   - service.yaml
+  - ingress.yaml
 
 # Generated, so the content hash lands in the name and an edit rolls the Deployment. Every value
 # here is read once at startup, so a change only takes effect on a fresh pod.

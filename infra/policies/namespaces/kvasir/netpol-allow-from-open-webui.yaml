@@ -1,9 +1,10 @@
 ---
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/master-standalone-strict/networkpolicy-networking-v1.json
 #
-# The Open WebUI pipe function calls this service over the cluster network. There is no ingress host
-# to reach it by, so this rule is the only way in, and it is what keeps a service with no login of
-# its own from being reachable by every pod in the cluster.
+# The Open WebUI pipe function calls this service over the cluster network rather than through the
+# ingress host, which serves the runs page and would put an SSO redirect in front of a client that
+# cannot complete one. This rule is what keeps a service with no login of its own from being
+# reachable by every pod in the cluster.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

@@ -1,8 +1,9 @@
 ---
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
-# No netpol-allow-from-ingress-internal and no middleware-ratelimit, as in cli-proxy-api: this app
-# has no Ingress, so there is no router to rate limit and nothing should arrive from the ingress
-# controller.
+# Two ways in, unlike every other node app: the ingress controller, for the runs page, and
+# open-webui, for the work. The second is what the pipe function uses, and it does not go through
+# a router, so dropping that file would leave a reachable page in front of a service nothing can
+# ask for research.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: kvasir
@@ -10,4 +11,6 @@ resources:
   - ../_templates/netpol-default-deny
   - ../_templates/netpol-allow-same-namespace
   - ../_templates/netpol-allow-from-monitoring
+  - ../_templates/netpol-allow-from-ingress-internal
+  - ../_templates/middleware-ratelimit
   - netpol-allow-from-open-webui.yaml

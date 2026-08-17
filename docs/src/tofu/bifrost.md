@@ -28,15 +28,16 @@ agree until the first rotation.
 Each app gets its own key rather than sharing one, so any of them can be revoked without
 disturbing the others. The name on the consumer side is the app's, not this repository's: Vane
 reaches Bifrost through its generic OpenAI provider and so reads `OPENAI_API_KEY`. Kvasir reads the
-same name for a stricter reason. `litellm` and `knowledge_storm`'s `Encoder` read it out of the
-environment directly, and its `Encoder` takes no base URL argument at all, so an alias is how
-embedding traffic ends up at `api.openai.com` instead of at Bifrost.
+same name because that is the conventional spelling for an OpenAI-compatible endpoint, which is
+what Bifrost serves; it passes the value explicitly to every model and to its encoder rather than
+leaving anything to read it from the environment.
 
-`vk-vane` and `vk-kvasir` name the `ollama` provider only in
-`nodes/kenaz.k8s/bifrost/app/config.json`, while `vk-open-webui` and `vk-cli` reach both providers.
-Neither app has a use for `cli-proxy`, and a key that cannot reach it cannot spend the subscription
-quota behind it on a loop that does not stop. Kvasir is the sharper case of the two: a STORM run is
-unattended and issues calls for minutes.
+In `nodes/kenaz.k8s/bifrost/app/config.json`, `vk-vane` names the `ollama` provider only and
+`vk-kvasir` names `ollama` and `munin`, while `vk-open-webui` and `vk-cli` reach both chat
+providers. Neither app has a use for `cli-proxy`, and a key that cannot reach it cannot spend the
+subscription quota behind it on a loop that does not stop. Kvasir is the sharper case of the two: a
+STORM run is unattended and issues calls for minutes. `munin` is on its key because every source a
+run collects is embedded, and that is the only provider here serving embeddings.
 
 ## What it does not manage
 

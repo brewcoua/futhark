@@ -8,6 +8,7 @@ resources:
   - cli-proxy-api/ks.yaml
   - kvasir/ks.yaml
   - linkwarden/ks.yaml
+  - munin/ks.yaml
   - open-webui/ks.yaml
   - searxng/ks.yaml
   - vane/ks.yaml

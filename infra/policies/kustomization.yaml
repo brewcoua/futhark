@@ -10,6 +10,7 @@ resources:
   - namespaces/bifrost
   - namespaces/cli-proxy-api
   - namespaces/kvasir
+  - namespaces/munin
   - namespaces/linkwarden
   - namespaces/open-webui
   - namespaces/searxng

@@ -1,0 +1,17 @@
+---
+# The model weights, and the keypair ollama writes beside them. Nothing here is worth a backup:
+# the init container refetches the model from ollama.com, and the keypair is only an identity for
+# pushing models, which this instance never does. Sized for the one model plus room for a second
+# without an edit.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: munin-models
+  namespace: munin
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 4Gi

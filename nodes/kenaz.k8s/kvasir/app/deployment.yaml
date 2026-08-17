@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: kvasir
-          image: ghcr.io/brewcoua/kvasir:0.1.0@sha256:eec579d9c066878dd4ae6762a9f7c9c2d8345283a1d7b07e3ebfb88d2ffc8c48
+          image: ghcr.io/brewcoua/kvasir:0.3.0@sha256:f179d13481ede62ac3e3f1db8056ba017477ae9d911233da1d133735d77958db
           ports:
             - name: http
               containerPort: 8080
@@ -41,15 +41,16 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           volumeMounts:
-            # Required, not a convenience: knowledge_storm.encoder opens a litellm disk cache under
-            # $HOME while being imported, and the image points HOME here. Without it the process
-            # fails before it can serve anything.
+            # Required, not a convenience: dspy creates its disk cache while being imported,
+            # whether or not caching is on, and the image points DSPY_CACHEDIR here. A run's
+            # scratch directory lands here too. Without it the process fails before it can serve
+            # anything.
             - name: tmp
               mountPath: /tmp
             # KVASIR_DATA_DIR, where Co-STORM writes one JSON file per session. Nothing writes here
-            # while only STORM is wired, so there is nothing to keep and no PVC. Giving Co-STORM a
-            # gateway that serves embeddings means a PVC and an entry in
-            # infra/backup/config/schedules.yaml, not just a config change.
+            # while only STORM is wired, so there is nothing to keep and no PVC. Wiring Co-STORM
+            # means a PVC and an entry in infra/backup/config/schedules.yaml, not just a config
+            # change; the embeddings it needs now exist, so that is the whole of what is left.
             - name: data
               mountPath: /data
           # /healthz checks nothing on purpose, so a gateway outage cannot restart the pod. /readyz
@@ -74,13 +75,13 @@ spec:
           resources:
             requests:
               cpu: 200m
-              memory: 1Gi
-            # A starting point rather than a measurement: torch and sentence-transformers are loaded
-            # in-process for the paraphrase-MiniLM-L6-v2 weights the image bakes in, and a run works
-            # across ten threads. Revisit once a real run has been watched.
+              memory: 512Mi
+            # A starting point rather than a measurement. Smaller than it was: nothing runs a model
+            # in-process any more, embeddings included, so what is left is dspy and the outbound
+            # work of KVASIR_MAX_THREADS threads. Revisit once a real run has been watched.
             limits:
-              cpu: 2000m
-              memory: 3Gi
+              cpu: 1000m
+              memory: 1Gi
       volumes:
         - name: tmp
           emptyDir: {}

@@ -1,0 +1,17 @@
+---
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fluxcd/flux2/main/manifests/bases/crds/kustomize.toolkit.fluxcd.io_kustomizations.yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: munin
+spec:
+  path: ./nodes/kenaz.k8s/munin/app
+  dependsOn:
+    - name: infra-policies
+    # The model weights live on a PVC, so the storage class has to exist first.
+    - name: storage
+  # Neither `traefik-internal` nor `auth`: this app has no Ingress, in the same way cli-proxy-api
+  # has none. Its only client is bifrost, over the cluster network, which infra/policies opens.
+  # Nor `infisical-operator-config`, because it holds no credential at all: the one thing that
+  # reaches it is a virtual key bifrost checks on its own side. Nor `substitutions`, because
+  # nothing here is spelled from cluster-values.

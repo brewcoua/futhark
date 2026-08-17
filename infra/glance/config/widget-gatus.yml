@@ -44,6 +44,8 @@
     Linkwarden-url: https://links.${SUB_INTERNAL}.${DOMAIN}
     Vane: https://ask.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
     Vane-url: https://ask.${SUB_INTERNAL}.${DOMAIN}
+    Kvasir: si:wikipedia
+    Kvasir-url: https://research.${SUB_INTERNAL}.${DOMAIN}
   template: |
     {{/* Required config options */}}
     {{ $baseURL := .Options.StringOr "base-url" "" }}

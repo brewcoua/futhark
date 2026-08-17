@@ -1,0 +1,126 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: munin
+  namespace: munin
+spec:
+  replicas: 1
+  # The model store is a single-writer volume, and a second pod would hold a second copy of the
+  # weights in memory for no gain: nothing here queues, and one embedding request is milliseconds.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: munin
+  template:
+    metadata:
+      labels:
+        app: munin
+    spec:
+      # The image ships UID 0 by default, so the identity is imposed here rather than inherited,
+      # as in cli-proxy-api. Everything written at runtime is under the PVC, which fsGroup covers.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      initContainers:
+        # `ollama serve` does not fetch a model it is asked for, it answers 404, so the weights
+        # have to be on the volume before the server starts. Pulling here rather than by hand is
+        # what makes a rebuilt cluster reach a working state without an operator step. The pull is
+        # a no-op once the volume holds the model, so this costs one `ollama list` on every
+        # restart.
+        - name: pull
+          image: docker.io/ollama/ollama:0.32.14@sha256:9d30908e41144b1f1da89b9d8e33c07e4aeb43ff41a8660241b1686e2cc330ad
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              ollama serve &
+              server=$!
+              # Bounded, so a server that dies here fails the pod instead of hanging it: an init
+              # container answers no probe, and nothing else would notice.
+              for _ in $(seq 60); do
+                ollama list >/dev/null 2>&1 && break
+                sleep 1
+              done
+              ollama pull embeddinggemma:300m
+              kill "$server"
+          env:
+            - name: OLLAMA_MODELS
+              value: /models
+            # The server writes an ed25519 keypair under $HOME/.ollama on first start, which the
+            # read-only root filesystem refuses anywhere else.
+            - name: HOME
+              value: /models
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: munin
+          image: docker.io/ollama/ollama:0.32.14@sha256:9d30908e41144b1f1da89b9d8e33c07e4aeb43ff41a8660241b1686e2cc330ad
+          ports:
+            - name: http
+              containerPort: 11434
+          env:
+            - name: OLLAMA_MODELS
+              value: /models
+            - name: HOME
+              value: /models
+            - name: OLLAMA_HOST
+              value: 0.0.0.0:11434
+            # Never unload. A STORM run embeds in bursts minutes apart, and the default five
+            # minutes puts a reload in the middle of a run for weights that cost 600 MB to hold.
+            - name: OLLAMA_KEEP_ALIVE
+              value: "-1"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: models
+              mountPath: /models
+            - name: tmp
+              mountPath: /tmp
+          # /api/tags reads the model store and nothing else, so it answers while a model is
+          # loading rather than reporting the pod unhealthy through it.
+          readinessProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/tags
+              port: http
+            periodSeconds: 30
+          # The request is not a floor to grow from: the model stays loaded, so the pod sits at
+          # roughly 700 MB from the first embedding onwards. The CPU limit is the loose one, since
+          # a batch is short and bursty.
+          resources:
+            requests:
+              cpu: 200m
+              memory: 768Mi
+            limits:
+              cpu: 1000m
+              memory: 1536Mi
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: munin-models
+        - name: tmp
+          emptyDir: {}

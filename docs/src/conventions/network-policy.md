@@ -120,10 +120,9 @@ Open WebUI is the second caller, and reaches into three namespaces.
 session cookie. `infra/policies/namespaces/bifrost/netpol-allow-from-open-webui.yaml` admits it to
 Bifrost on 8080, which is its only model backend.
 `infra/policies/namespaces/kvasir/netpol-allow-from-open-webui.yaml` admits it to Kvasir on 8080,
-which its STORM pipe function calls. That third file carries the weight `cli-proxy-api`'s does:
-Kvasir has no `Ingress` and composes no `netpol-allow-from-ingress-internal`, so with the default
-deny in place it is the whole of its reachability, and the service ships no authentication of its
-own.
+which its pipe function calls. Kvasir does compose `netpol-allow-from-ingress-internal`, but only
+for its runs page, and that path is behind `auth-sso`; a pod carries no session cookie, so this
+file is how the work gets in.
 
 Vane is the third, and reaches the same two namespaces Open WebUI does, for the same two reasons:
 `searxng` on 8080 for results, `bifrost` on 8080 for the model. That is two more files, named
@@ -132,12 +131,13 @@ after the caller in each of those two overlays.
 Kvasir is the fourth, and reaches those same two namespaces for those same two reasons. Two more
 files again, in the same two overlays.
 
-Bifrost is the fifth caller.
+Bifrost is the fifth caller, and reaches its two in-cluster backends.
 `infra/policies/namespaces/cli-proxy-api/netpol-allow-from-bifrost.yaml` admits it to
-cli-proxy-api on 8317. That file matters more than the others: cli-proxy-api has no `Ingress` and
-composes no `netpol-allow-from-ingress-internal`, so with the default deny in place this one hole
-is the whole of its reachability. That is what lets its `config.yaml` ship an empty `api-keys`
-list instead of carrying a credential of its own.
+cli-proxy-api on 8317, and `infra/policies/namespaces/munin/netpol-allow-from-bifrost.yaml` to
+munin on 11434. Those two matter more than the others: neither app has an `Ingress` and neither
+composes `netpol-allow-from-ingress-internal`, so with the default deny in place each of these
+holes is the whole of that app's reachability. That is what lets cli-proxy-api's `config.yaml`
+ship an empty `api-keys` list and munin run with no credential at all.
 
 Each is a file in its own overlay rather than a template in `_templates/`: each names one
 namespace, and a further caller should get its own file rather than a selector wide enough to

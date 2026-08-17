@@ -104,6 +104,11 @@
                 - title: Vane
                   url: https://ask.${SUB_INTERNAL}.${DOMAIN}
                   icon: https://ask.${SUB_INTERNAL}.${DOMAIN}/favicon.ico
+                # Kvasir serves no favicon of its own, so neither form above applies. Wikipedia's
+                # mark stands in for what STORM writes.
+                - title: Kvasir
+                  url: https://research.${SUB_INTERNAL}.${DOMAIN}
+                  icon: si:wikipedia
             - title: Personal
               links:
                 - title: Proton Mail

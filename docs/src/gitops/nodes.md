@@ -24,25 +24,26 @@ and Pocket ID, all under `infra/` and all pinned with a `nodeSelector`.
 ## `kenaz.k8s`
 
 `kenaz` runs the k3s server, so it is both controller and worker, plus Flux and most of `infra/`.
-The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. It runs eight apps,
+The exceptions are the pieces pinned to `ogma`: both Traefiks and Pocket ID. It runs nine apps,
 each in `nodes/kenaz.k8s/<app>/{ks.yaml,app/}` and each reading `/nodes/kenaz/<app>`:
 
-| App             | Host                           | Reads from Infisical                                                                                                                              |
-| --------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `actual`        | `actual.$SUB_INTERNAL.$DOMAIN` | `ACTUAL_OPENID_CLIENT_ID`, `ACTUAL_OPENID_CLIENT_SECRET`                                                                                          |
-| `open-webui`    | `chat.$SUB_INTERNAL.$DOMAIN`   | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`, `POSTGRES_PASSWORD`                                              |
-| `linkwarden`    | `links.$SUB_INTERNAL.$DOMAIN`  | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                                                    |
-| `searxng`       | `search.$SUB_INTERNAL.$DOMAIN` | `SEARXNG_SECRET`                                                                                                                                  |
-| `vane`          | `ask.$SUB_INTERNAL.$DOMAIN`    | `OPENAI_API_KEY`                                                                                                                                  |
-| `kvasir`        | none                           | `OPENAI_API_KEY`                                                                                                                                  |
-| `bifrost`       | `llm.$SUB_INTERNAL.$DOMAIN`    | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`, `VK_OPEN_WEBUI`, `VK_CLI`, `VK_VANE`, `VK_KVASIR` |
-| `cli-proxy-api` | none                           | nothing                                                                                                                                           |
+| App             | Host                             | Reads from Infisical                                                                                                                              |
+| --------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `actual`        | `actual.$SUB_INTERNAL.$DOMAIN`   | `ACTUAL_OPENID_CLIENT_ID`, `ACTUAL_OPENID_CLIENT_SECRET`                                                                                          |
+| `open-webui`    | `chat.$SUB_INTERNAL.$DOMAIN`     | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `WEBUI_SECRET_KEY`, `OPENAI_API_KEYS`, `POSTGRES_PASSWORD`                                              |
+| `linkwarden`    | `links.$SUB_INTERNAL.$DOMAIN`    | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `POSTGRES_PASSWORD`                                                                    |
+| `searxng`       | `search.$SUB_INTERNAL.$DOMAIN`   | `SEARXNG_SECRET`                                                                                                                                  |
+| `vane`          | `ask.$SUB_INTERNAL.$DOMAIN`      | `OPENAI_API_KEY`                                                                                                                                  |
+| `kvasir`        | `research.$SUB_INTERNAL.$DOMAIN` | `OPENAI_API_KEY`                                                                                                                                  |
+| `bifrost`       | `llm.$SUB_INTERNAL.$DOMAIN`      | `BIFROST_ENCRYPTION_KEY`, `BIFROST_ADMIN_USERNAME`, `BIFROST_ADMIN_PASSWORD`, `OLLAMA_API_KEY`, `VK_OPEN_WEBUI`, `VK_CLI`, `VK_VANE`, `VK_KVASIR` |
+| `cli-proxy-api` | none                             | nothing                                                                                                                                           |
+| `munin`         | none                             | nothing                                                                                                                                           |
 
 `actual`, `open-webui` and `linkwarden` are OIDC clients of Pocket ID, so `tofu/oidc` writes their
-client ID and secret. `searxng` and `vane` speak no OIDC and are gated by
-the `auth-sso` middleware instead. `kvasir` is neither: it ships no `Ingress` at all, so nothing
-reaches it but the one namespace its network policy admits. Every remaining key is either seeded by
-hand or minted by `tofu/bifrost`: `WEBUI_SECRET_KEY` signs Open WebUI's JWTs and `NEXTAUTH_SECRET`
+client ID and secret. `searxng`, `vane` and `kvasir` speak no OIDC and are gated by the
+`auth-sso` middleware instead, though `kvasir` exposes only a runs page that way; the work reaches
+it by Service, from the one namespace its network policy admits. Every remaining key is either
+seeded by hand or minted by `tofu/bifrost`: `WEBUI_SECRET_KEY` signs Open WebUI's JWTs and `NEXTAUTH_SECRET`
 signs Linkwarden's, both by hand, while `OPENAI_API_KEYS` and the two `OPENAI_API_KEY` entries are
 the virtual keys `bifrost` issues its three in-cluster clients. See [bifrost](../tofu/bifrost.md).
 
@@ -69,9 +70,10 @@ and `glance` loads the favicon as an image, which CORS does not gate. The cost i
 longer answers a browser pointed at a `kubectl port-forward`.
 
 `cli-proxy-api` is the second provider behind it, turning subscription CLI logins into an API. It
-is the one app here with no `Ingress`, no host, and no Infisical path: its whole configuration is
-non-secret and ships in git, and the credentials it does hold are OAuth tokens on a PVC, seeded by
-the browser flow in [CLI proxy login](../operations/cli-proxy-login.md). `bifrost` registers it as
+is one of the two apps here with no `Ingress`, no host, and no Infisical path: its whole
+configuration is non-secret and ships in git, and the credentials it does hold are OAuth tokens on
+a PVC, seeded by the browser flow in [CLI proxy login](../operations/cli-proxy-login.md).
+`bifrost` registers it as
 an Anthropic-shaped custom provider, so a Claude request keeps its wire format the whole way
 rather than round-tripping through the OpenAI schema.
 
@@ -86,6 +88,14 @@ the catalog at startup and rewrite anything its Anthropic model list does not re
 Gemini ids arrive scrambled and unusable. The list is the one thing here that goes stale: linking
 another account in `cli-proxy-api` adds models that stay invisible until they are added to
 `config.json` too.
+
+`munin` is the third provider, and the other app with no `Ingress`, no host and no Infisical path.
+It is an Ollama serving one embedding model, `embeddinggemma:300m`, on CPU, registered as an
+OpenAI-shaped custom provider with the same literal `unauthenticated` key and the same
+`allow_private_network`. It exists because `kvasir` embeds every source it collects, both providers
+above serve chat and nothing else, and Ollama Cloud publishes no embedding model. Its PVC holds
+the weights and carries no `k8up.io/backup` annotation: the init container refetches them, so
+there is nothing there worth a nightly snapshot. `vk-kvasir` is the only virtual key that names it.
 
 ### The search surface
 
@@ -115,29 +125,40 @@ against a topic for minutes to tens of minutes and returns a cited article. It i
 built in [brewcoua/kvasir](https://github.com/brewcoua/kvasir), because upstream ships a library and
 a demo but no server and no image.
 
-It differs from every other app here in having no `Ingress`. It carries no authentication of its own
-and its only client is an Open WebUI pipe function calling it by Service, so
-`infra/policies/namespaces/kvasir/netpol-allow-from-open-webui.yaml` is the whole of its
-reachability, in the same way `cli-proxy-api`'s single hole is. The cost is that it has no Gatus
-check, because every check there is probed over a public name, and no Glance link.
+Its `Ingress` serves one page and nothing that costs anything: what is running, which stage it is
+in, and what each run has spent. The work does not arrive that way. The Open WebUI pipe function
+calls it by Service, because that host sits behind `auth-sso` and a pod carries no session cookie,
+so `infra/policies/namespaces/kvasir/netpol-allow-from-open-webui.yaml` is still what admits the
+research itself.
 
-Its models are pinned rather than picked, one fast and one strong, and its virtual key names the
-`ollama` provider only. That scoping matters more here than for `vane`: a run is unattended and
-spends minutes issuing calls, so a key that cannot reach `cli-proxy` cannot drain the subscription
-quota behind it when one goes wrong.
+`/healthz` and `/readyz` are the exception to that login, carved out by a second `Ingress` on the
+same host in `app/ingress.yaml`. Traefik applies its middleware annotation to every router an
+`Ingress` creates, so exempting two paths means a second object rather than a second path. That is
+what gives it a Gatus check asserting a body, where every other app behind `auth-sso` can only
+assert the redirect.
+
+Its models are pinned rather than picked, one fast and one strong, and its virtual key names
+`ollama` and `munin` and no more. That scoping matters more here than for `vane`: a run is
+unattended and spends minutes issuing calls, so a key that cannot reach `cli-proxy` cannot drain
+the subscription quota behind it when one goes wrong.
+
+Every source it collects is embedded, to rank passages against each section, which is why it needs
+`munin` and why a broken embeddings provider fails a run in article generation rather than at
+startup.
 
 It keeps nothing. Both writable paths are `emptyDir`, so it has no PVC and no backup Schedule. The
-one thing it would keep is a Co-STORM session, and Co-STORM is not wired: it needs an OpenAI-shaped
-`/v1/embeddings` route, and neither provider behind `bifrost` serves one. Only the STORM half is
-installed in Open WebUI. Giving it the other half means an embeddings provider on `bifrost`, then a
-PVC and an entry in `infra/backup/config/schedules.yaml`, rather than a config change alone.
+one thing it would keep is a Co-STORM session, and Co-STORM is deliberately not wired. Nothing
+blocks it any more, now that `munin` serves the embeddings it needs; what it costs is a PVC and an
+entry in `infra/backup/config/schedules.yaml`, and a round table nobody is holding is not worth a
+nightly snapshot. The pipe function exposes both models regardless, so a Co-STORM session started
+here survives only until the pod restarts.
 
-The Open WebUI half is a Pipe function, installed by hand and living in Open WebUI's database rather
-than in git. See [Cold bootstrap](../operations/setup.md#12-aftercare).
+The Open WebUI half is one Pipe function, installed by hand and living in Open WebUI's database
+rather than in git. See [Cold bootstrap](../operations/setup.md#12-aftercare).
 
 `open-webui` reaches `searxng` for web search, `bifrost` for models and `kvasir` for research,
-`vane` and `kvasir` each reach `searxng` and `bifrost`, and `bifrost` reaches `cli-proxy-api`. None
-of them go through an ingress host, so eight files open those holes. See
+`vane` and `kvasir` each reach `searxng` and `bifrost`, and `bifrost` reaches `cli-proxy-api` and
+`munin`. None of them go through an ingress host, so nine files open those holes. See
 [Pod-to-pod across namespaces](../conventions/network-policy.md#pod-to-pod-across-namespaces).
 
 New apps land the same way. The step-by-step is

@@ -66,6 +66,23 @@
         "base_url": "http://cli-proxy-api.cli-proxy-api.svc.cluster.local:8317",
         "allow_private_network": true
       }
+    },
+    "munin": {
+      "keys": [
+        {
+          "name": "munin",
+          "value": "unauthenticated",
+          "models": ["embeddinggemma:300m"],
+          "weight": 1.0
+        }
+      ],
+      "custom_provider_config": {
+        "base_provider_type": "openai"
+      },
+      "network_config": {
+        "base_url": "http://munin.munin.svc.cluster.local:11434/v1",
+        "allow_private_network": true
+      }
     }
   },
 
@@ -139,6 +156,12 @@
         "provider_configs": [
           {
             "provider": "ollama",
+            "allowed_models": ["*"],
+            "key_ids": ["*"],
+            "weight": 1
+          },
+          {
+            "provider": "munin",
             "allowed_models": ["*"],
             "key_ids": ["*"],
             "weight": 1

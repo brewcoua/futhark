@@ -1,0 +1,66 @@
+---
+# Internal-only: routed by traefik-internal (mesh interface). TLS served from its default
+# *.$SUB_INTERNAL.$DOMAIN wildcard cert, so no per-app Certificate/Secret needed here.
+#
+# This serves the runs page and the API under it, not the work: the Open WebUI pipe function still
+# calls the Service. Kvasir has no login of its own, so auth-sso is the only thing gating a page
+# that lists every topic researched here and what each run spent.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kvasir
+  namespace: kvasir
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: kvasir-ratelimit@kubernetescrd,auth-sso@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: research.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kvasir
+                port:
+                  number: 80
+---
+# The same host without auth-sso, for the two health handlers alone. A second Ingress rather than a
+# second path above, because the middleware annotation applies to every router an Ingress creates;
+# Traefik weights routers by rule length, so these exact paths win over the Prefix rule.
+#
+# This is what lets infra/gatus assert a body instead of the 302 it asserts for every other app
+# behind auth-sso. Neither body carries anything to protect: /healthz answers {"status":"ok"} and
+# checks nothing, /readyz two booleans naming which dependency is unreachable.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kvasir-health
+  namespace: kvasir
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: kvasir-ratelimit@kubernetescrd
+spec:
+  ingressClassName: internal
+  rules:
+    - host: research.${SUB_INTERNAL}.${DOMAIN}
+      http:
+        paths:
+          - path: /healthz
+            pathType: Exact
+            backend:
+              service:
+                name: kvasir
+                port:
+                  number: 80
+          - path: /readyz
+            pathType: Exact
+            backend:
+              service:
+                name: kvasir
+                port:
+                  number: 80

@@ -520,13 +520,22 @@ A rebuilt cluster therefore has a running `kvasir` that no client can reach unti
 What does cover it is the `open-webui` backup Schedule, since the function is a row in that
 database.
 
-Take `openwebui/storm.py` from [brewcoua/kvasir](https://github.com/brewcoua/kvasir), paste it into
-Admin Panel then Functions, and set its `KVASIR_URL` valve to
-`http://kvasir.kvasir.svc.cluster.local:8080`. The shipped default is `http://kvasir:8080`, which
-does not resolve from another namespace. A `STORM` model then appears in the model picker.
+In Admin Panel then Functions, open the menu beside **+**, choose **Import From Link**, and paste
+`https://github.com/brewcoua/kvasir/releases/latest/download/pipe.py`. Importing runs that file on
+the server, so read it first, or verify it came from that repository's build:
 
-`openwebui/costorm.py` is deliberately not installed. It needs an OpenAI-shaped `/v1/embeddings`
-route and neither provider behind Bifrost serves one. See
+```bash
+gh release download --pattern pipe.py --repo brewcoua/kvasir
+gh attestation verify pipe.py --repo brewcoua/kvasir
+```
+
+Set the function id to `kvasir`, which is what prefixes its models, then set its `KVASIR_URL` valve
+to `http://kvasir.kvasir.svc.cluster.local:8080`. The shipped default is `http://kvasir:8080`,
+which does not resolve from another namespace. Enable the function: `kvasir.storm` and
+`kvasir.co-storm` then appear in the model picker.
+
+Use the `storm` half. Co-STORM works, but this cluster gives Kvasir an `emptyDir` for its sessions,
+so a round table lasts only until the pod restarts. See
 [Node apps](../gitops/nodes.md#the-search-surface).
 
 Finally, put the two NetBird PAT expiry dates in a calendar. Nothing here tracks them. See

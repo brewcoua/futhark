@@ -192,6 +192,21 @@ endpoints:
       - "[RESPONSE_TIME] < 1000"
       - "[CERTIFICATE_EXPIRATION] > 240h"
 
+  # Behind auth-sso like Vane, but its Ingress leaves /healthz and /readyz outside the middleware,
+  # so this asserts a body rather than a redirect. /healthz deliberately, not /readyz: the latter
+  # reaches out to bifrost and searxng, both of which have rows of their own here, so one outage
+  # would paint three red instead of one.
+  - name: Kvasir
+    group: Apps
+    url: https://research.${SUB_INTERNAL}.${DOMAIN}/healthz
+    interval: 60s
+    conditions:
+      - "[CONNECTED] == true"
+      - "[STATUS] == 200"
+      - "[BODY].status == ok"
+      - "[RESPONSE_TIME] < 1000"
+      - "[CERTIFICATE_EXPIRATION] > 240h"
+
   - name: Actual
     group: Apps
     url: https://actual.${SUB_INTERNAL}.${DOMAIN}

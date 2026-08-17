@@ -1,0 +1,12 @@
+---
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: munin
+resources:
+  - pvc-models.yaml
+  - deployment.yaml
+  - service.yaml
+
+# No `../../../../config/infisical` component, as in cli-proxy-api: this app reads no Infisical
+# secret, so there is no InfisicalStaticSecret for the patch to target.

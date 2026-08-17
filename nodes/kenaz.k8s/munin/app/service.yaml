@@ -1,0 +1,15 @@
+---
+# No Ingress alongside this Service, as in cli-proxy-api: the only client is bifrost, in the
+# cluster. See ../ks.yaml.
+apiVersion: v1
+kind: Service
+metadata:
+  name: munin
+  namespace: munin
+spec:
+  selector:
+    app: munin
+  ports:
+    - name: http
+      port: 11434
+      targetPort: http

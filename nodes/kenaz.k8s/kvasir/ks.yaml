@@ -9,7 +9,17 @@ spec:
   dependsOn:
     - name: infra-policies
     - name: infisical-operator-config
-  # Neither `traefik-internal` nor `auth`: this app has no Ingress. Its only client is open-webui,
-  # over the cluster network, which infra/policies opens. Nor `storage`, because both its writable
-  # paths are emptyDir. Nor `substitutions`, because nothing here is spelled from cluster-values:
-  # both backends are cluster-internal Services.
+    - name: traefik-internal
+    # app/ingress.yaml names auth-sso@kubernetescrd, which is infra/auth's Middleware. This app has
+    # no login of its own, so that Middleware is the only thing in front of the runs page.
+    - name: auth
+    - name: substitutions
+  # No `storage`: both writable paths are emptyDir, because only STORM is wired and STORM keeps
+  # nothing.
+  #
+  # The ingress host is spelled from cluster-values. Neither backend URL needs it: bifrost, searxng
+  # and the pipe function calling in all use cluster-internal Services.
+  postBuild:
+    substituteFrom:
+      - kind: Secret
+        name: cluster-values
