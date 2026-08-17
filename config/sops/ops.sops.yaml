@@ -40,7 +40,7 @@ nodes:
         mesh_ip: ENC[AES256_GCM,data:vZXsnxzrkGAMz1Ac,iv://OOUnLYMfmVlKdVq3XWxDPOw4L8NwNuliC1N2SYGlI=,tag:2I2VwUz7CHiELgLejC59kg==,type:str]
     brokkr:
         ip: ENC[AES256_GCM,data:o2vfw946pgYoORkg6A==,iv:cQfZGfr583cuiSi97LHtFECgMb2N0Cqt5Is8mexyizg=,tag:HCl8dJz4+yDDa5FiGw7LOQ==,type:str]
-        mesh_ip: ""
+        mesh_ip: ENC[AES256_GCM,data:nH1/2d51WlQU3odM,iv:GaNCEo0akLzxSlFb7WQpfOiwhNw79BwWDHTcFD22I9Q=,tag:A2koAjSYdlAiucD/bA/uhg==,type:str]
 brokkr:
     B2_BUCKET: ENC[AES256_GCM,data:Tws4rewueCadG9cm+GI=,iv:vR7+kQPEXDdJh1QTRR3neVv5PAR9S3RYLgb+WjR60NI=,tag:qANsqOaeLHk7GPyVKhwK2g==,type:str]
 tofu:
@@ -66,8 +66,8 @@ tofu:
         INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET: ENC[AES256_GCM,data:NpjQsEJctUD3NoZG72fiI60GhbjQ58iUSajKTQMEtDVOzPIOUjEcCE5ulzJBouQc/lrA,iv:WxZvc7cqP6KpCeszuPTCwDvkLRkemeEGEtjkVJZl/V4=,tag:Givbd/etHj5v95gKU6OO4w==,type:str]
         TF_VAR_infisical_project_id: ENC[AES256_GCM,data:eKzd08+0PRe98cH+TsyjVeryy3M2fWavCSY8ENnqDc0Dt9Sb,iv:5AgVS/YgNNXezPDvpN51MqKLiPe35YWsQQyVtPWEPzE=,tag:2al08Tp+dlRHka6aPJ+NNQ==,type:str]
 sops:
-    lastmodified: "2026-08-17T16:46:11Z"
-    mac: ENC[AES256_GCM,data:uGaXmPWAR/oflfRB+WAJM9M7yoFWX7wS0dbNC9j1k8WVYF/AffMwoXhgfR9J9ingcTZj1lOL1IEugpmcrQOYSQKqz1Boz0rKr3AOLJdYtD9mhSl6dRLVJZQnMaCjQi74atazEFmNW/hsjxO4moMa/jx7cbC5s1kRVsahGslEHDE=,iv:K6/Ugl/VdUR/JG2rO+Cbvx5sNkMI2T4thw4h9bGwJYc=,tag:sNND4hT80mDRiRPcsWWwFA==,type:str]
+    lastmodified: "2026-08-17T17:39:01Z"
+    mac: ENC[AES256_GCM,data:IE+Z1okNRJ3CnYqBU4CLkvkyUmLfKIbVW/8ZJ61IZNng7sPDEWiQyloMhZUbGRCQbfRcbaskbGU2SswfSzCk/1jFgElCSQPnhpnRrM9eAgdre9dZ6+UHYj4fudZajV6CXDGSkcjAyuT5qh7aaIZAnPYH0PkwjSagJEpP4INqGS8=,iv:kOca3E1ohh6uAbV+p4nJ+77VdLnfn9ruHoaLMYBr/0U=,tag:bMdInK/IeQW/Jmg/30edHQ==,type:str]
     pgp:
         - created_at: "2026-08-09T17:10:26Z"
           enc: |-
