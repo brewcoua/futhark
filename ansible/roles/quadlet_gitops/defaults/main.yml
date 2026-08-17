@@ -8,7 +8,7 @@
 # public remote on purpose: this repository is public, so the node needs no deploy key, holds no
 # credential for it, and has nothing to rotate. Flux uses SSH because it also needs to be reachable
 # from a private mirror; this does not.
-quadlet_gitops_repo: https://github.com/brewcoua/futhark.git
+quadlet_gitops_repo: https://codeberg.org/brewcoua/futhark.git
 quadlet_gitops_branch: master
 
 # Where the clone lives. Not /var/lib/futhark, which roles/netbird's watchdog already owns for its
