@@ -80,7 +80,7 @@
         "base_provider_type": "openai"
       },
       "network_config": {
-        "base_url": "http://munin.munin.svc.cluster.local:11434/v1",
+        "base_url": "http://munin.munin.svc.cluster.local:11434",
         "allow_private_network": true
       }
     }
