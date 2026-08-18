@@ -24,7 +24,7 @@ jobs:
       # locally. Without all three every ```d2 fence renders as a code block instead of a
       # diagram, and mdbook exits 0 either way — so the failure would ship silently. Checked
       # below.
-      - uses: jdx/mise-action@v4.2.4
+      - uses: jdx/mise-action@v4.2.5
       - run: mdbook build docs
       # Every d2 fence must have become an <svg>. A missing or broken preprocessor is not an
       # mdbook build error, so assert on the output rather than trusting the exit code.
