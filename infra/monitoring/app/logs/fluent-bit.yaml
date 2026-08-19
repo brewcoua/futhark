@@ -29,7 +29,7 @@ spec:
   chart:
     spec:
       chart: fluent-bit
-      version: "0.58.0" # chart 0.58.0 -> Fluent Bit 5.1.0
+      version: "0.58.1" # chart 0.58.0 -> Fluent Bit 5.1.0
       sourceRef:
         kind: HelmRepository
         name: fluent
