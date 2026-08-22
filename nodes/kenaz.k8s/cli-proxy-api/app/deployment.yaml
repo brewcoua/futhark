@@ -29,7 +29,7 @@ spec:
         - name: cli-proxy-api
           # Docker Hub only: upstream's release workflow pushes nowhere else, so there is no GHCR
           # copy to prefer and pulls here count against the anonymous rate limit.
-          image: docker.io/eceasy/cli-proxy-api:v7.2.132@sha256:2332098d014bd48ad638475caec283fe54f35ad7c0bdadfd18a4cd267bec18d8
+          image: docker.io/eceasy/cli-proxy-api:v7.2.139@sha256:7145258f0bec00e12d6fa19488baaa15768c0e234538ce80528d0da9bc6aef2b
           ports:
             - name: http
               containerPort: 8317
