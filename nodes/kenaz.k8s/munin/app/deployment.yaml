@@ -32,7 +32,7 @@ spec:
         # a no-op once the volume holds the model, so this costs one `ollama list` on every
         # restart.
         - name: pull
-          image: docker.io/ollama/ollama:0.32.14@sha256:9d30908e41144b1f1da89b9d8e33c07e4aeb43ff41a8660241b1686e2cc330ad
+          image: docker.io/ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
           command:
             - /bin/sh
             - -c
@@ -69,7 +69,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: munin
-          image: docker.io/ollama/ollama:0.32.14@sha256:9d30908e41144b1f1da89b9d8e33c07e4aeb43ff41a8660241b1686e2cc330ad
+          image: docker.io/ollama/ollama:0.34.2@sha256:da6e0dc5651df159e45686fd663c4dbe1624a52c44d7280eeac1551d8f865532
           ports:
             - name: http
               containerPort: 11434
