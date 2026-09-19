@@ -24,7 +24,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: bifrost
-          image: docker.io/maximhq/bifrost:v1.6.11@sha256:ef8e686b3588884066ec3d0e57f3fc15136b11047ad94678adefe5a9573539af
+          image: docker.io/maximhq/bifrost:v2.2.1@sha256:a8942692af7b4b89196cd8fc33653b7353488dfd58b24078fe793b8574a8084b
           ports:
             - name: http
               containerPort: 8080
