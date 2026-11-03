@@ -28,7 +28,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: pocketid
-          image: ghcr.io/pocket-id/pocket-id:v2.13.0@sha256:c9c1d7b70006968d673a1073df048a3fdec73ccb54e182320b56bb911340f6f1
+          image: ghcr.io/pocket-id/pocket-id:v2.19.2@sha256:3ee23895d6a3adb5dd5de801a4fd31fc31b960e6dfbea9b5200e33cf477695eb
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
